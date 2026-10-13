@@ -1,0 +1,62 @@
+{
+  "users": [
+    {
+      "id": "u1",
+      "fullName": "Juan Dela Cruz",
+      "gender": "Male",
+      "mobile": "+639152456879",
+      "email": "juan@example.com",
+      "username": "juan",
+      "password": "password123"
+    },
+    {
+      "fullName": "pipo",
+      "gender": "Female",
+      "mobile": "0969546565",
+      "email": "kikidouloveme@gmail.com",
+      "username": "biboy",
+      "password": "1234"
+    }
+  ],
+  "reports": [
+    {
+      "id": "abe0c355-6ec1-4194-9ba4-0964012315b5",
+      "location": "M.H. Del Pilar Street, San Mateo, Rizal",
+      "severity": "Knee-Deep",
+      "statusText": "Heavy vehicles only",
+      "notes": "kaya pa",
+      "timestamp": 1791295764456,
+      "severityLevel": "HEAVY_VEHICLES_ONLY",
+      "photoUri": "content://media/picker_get_content/0/com.android.providers.media.photopicker/media/1000027421",
+      "lat": 14.6958,
+      "lon": 121.1207
+    },
+    {
+      "id": "r_1790302635034",
+      "location": "San Mateo Main Road",
+      "severity": "Waist-Deep",
+      "statusText": "Not Passable",
+      "notes": "Live report submission test",
+      "timestamp": 1790302635034,
+      "severityLevel": "NOT_PASSABLE"
+    },
+    {
+      "id": "r_1790261342000",
+      "location": "Gen. Luna Ave, San Mateo",
+      "severity": "Waist-Deep",
+      "statusText": "Not Passable",
+      "notes": "Water level waist-deep near riverbank",
+      "timestamp": 1790261342000,
+      "severityLevel": "NOT_PASSABLE"
+    },
+    {
+      "id": "r_1790261150852",
+      "location": "San Mateo Test",
+      "severity": "Waist-Deep",
+      "statusText": "Not Passable",
+      "notes": "Test report from backend test",
+      "timestamp": 1790261150853,
+      "severityLevel": "NOT_PASSABLE"
+    }
+  ]
+}

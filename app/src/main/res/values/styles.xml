@@ -1,0 +1,18 @@
+<resources>
+
+    <style name="Widget.Floodguard.AppWidget.Container" parent="android:Widget">
+        <item name="android:id">@android:id/background</item>
+        <item name="android:background">?android:attr/colorBackground</item>
+    </style>
+
+    <style name="Widget.Floodguard.AppWidget.InnerView" parent="android:Widget">
+        <item name="android:background">?android:attr/colorBackground</item>
+        <item name="android:textColor">?android:attr/textColorPrimary</item>
+    </style>
+
+    <style name="Theme.FloodGuard.Splash" parent="Theme.FloodGuard">
+        <item name="android:windowBackground">@color/teal_200</item>
+    </style>
+
+
+</resources>
