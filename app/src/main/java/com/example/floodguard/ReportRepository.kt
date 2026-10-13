@@ -85,7 +85,11 @@ object ReportRepository {
         return loaded
     }
 
-    fun addReport(context: Context, report: FloodReport) {
+    fun addReport(
+        context: Context,
+        report: FloodReport,
+        onSubmitted: (ReportSubmissionStatus) -> Unit = {},
+    ) {
         val db = FloodGuardDatabase(context)
         db.insertReport(report)
         if (cachedReports == null) {
@@ -94,7 +98,7 @@ object ReportRepository {
             cachedReports?.add(0, report)
         }
 
-        FloodGuardApiService.submitReportToBackend(report)
+        FloodGuardApiService.submitReportToBackend(report, onSubmitted)
     }
 
     fun removeReport(context: Context, id: String) {

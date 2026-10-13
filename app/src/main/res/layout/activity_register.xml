@@ -1,13 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.example.floodguard.InputScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/midnight_blue"
-    android:fillViewport="true">
+    android:background="@color/app_bg"
+    android:fillViewport="true"
+    android:scrollbars="vertical"
+    android:clipToPadding="false">
 
     <LinearLayout
         android:orientation="vertical"
-        android:gravity="center"
+        android:gravity="center_horizontal"
         android:padding="24dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
@@ -26,7 +28,7 @@
             android:text="CREATE ACCOUNT"
             android:textSize="22sp"
             android:textStyle="bold"
-            android:textColor="@android:color/white"
+            android:textColor="@color/text_primary"
             android:layout_marginTop="12dp" />
 
         <!-- Full Name -->
@@ -56,7 +58,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Gender"
-            android:textColor="@android:color/white"
+            android:textColor="@color/text_primary"
             android:textSize="13sp"
             android:textStyle="bold"
             android:layout_marginTop="12dp"
@@ -160,7 +162,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Already have an account?"
-                android:textColor="@android:color/white" />
+                android:textColor="@color/text_secondary" />
 
             <TextView
                 android:id="@+id/loginLink"
@@ -172,4 +174,4 @@
         </LinearLayout>
 
     </LinearLayout>
-</ScrollView>
+</com.example.floodguard.InputScrollView>

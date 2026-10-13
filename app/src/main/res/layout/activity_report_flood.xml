@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/app_bg">
@@ -14,46 +15,19 @@
         android:paddingEnd="16dp"
         android:layout_alignParentTop="true">
 
-        <!-- Logo & Brand Title -->
-        <LinearLayout
-            android:id="@+id/logoLayout"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+        <!-- Back Button -->
+        <ImageView
+            android:id="@+id/backButton"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_alignParentStart="true"
             android:layout_centerVertical="true"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
+            android:src="@drawable/ic_back"
+            app:tint="#FFA500"
+            android:padding="6dp"
             android:clickable="true"
-            android:focusable="true">
-
-            <ImageView
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:src="@drawable/fg_logo"
-                android:contentDescription="FloodGuard Logo" />
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Flood "
-                    android:textColor="@android:color/white"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Guard"
-                    android:textColor="#FFA500"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </LinearLayout>
+            android:focusable="true"
+            android:contentDescription="Back" />
 
         <!-- Screen Title -->
         <TextView
@@ -77,11 +51,14 @@
     </RelativeLayout>
 
     <!-- Main Content -->
-    <ScrollView
+    <com.example.floodguard.InputScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/headerBar"
-        android:fillViewport="true">
+        android:layout_alignParentBottom="true"
+        android:fillViewport="true"
+        android:scrollbars="vertical"
+        android:clipToPadding="false">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -276,30 +253,48 @@
                 android:layout_marginBottom="24dp"
                 android:inputType="textMultiLine" />
 
-            <!-- SMS Broadcast Option -->
-            <CheckBox
-                android:id="@+id/chkSendSmsOnSubmit"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Broadcast Emergency SMS Alert to all application users"
+                android:text="Submitting this report automatically sends a push alert to FloodGuard users."
                 android:textColor="@color/text_primary"
                 android:textSize="13sp"
-                android:textStyle="bold"
-                android:checked="true"
                 android:layout_marginBottom="16dp" />
 
-            <!-- Submit Button -->
-            <Button
-                android:id="@+id/submitReportButton"
+            <!-- Buttons Row (Back & Submit) -->
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:background="@drawable/btn_yellow"
-                android:text="SUBMIT REPORT"
-                android:textColor="#000000"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="8dp">
+
+                <Button
+                    android:id="@+id/backButtonBottom"
+                    android:layout_width="0dp"
+                    android:layout_height="52dp"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="1"
+                    android:background="@color/royal_blue"
+                    android:text="BACK"
+                    android:textColor="@color/bottom_nav_bg"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <!-- Submit Button -->
+                <Button
+                    android:id="@+id/submitReportButton"
+                    android:layout_width="0dp"
+                    android:layout_height="52dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/btn_yellow"
+                    android:text="SUBMIT REPORT"
+                    android:textColor="#000000"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
 
         </LinearLayout>
-    </ScrollView>
+    </com.example.floodguard.InputScrollView>
 
 </RelativeLayout>

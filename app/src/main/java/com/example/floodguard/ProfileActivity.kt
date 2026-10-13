@@ -29,7 +29,6 @@ class ProfileActivity : ComponentActivity() {
     private lateinit var profileReportsContainer: LinearLayout
 
     private lateinit var btnChangeContact: RelativeLayout
-    private lateinit var btnTestSmsProfile: RelativeLayout
     private lateinit var btnChangePassword: RelativeLayout
     private lateinit var btnApplyChanges: Button
     private lateinit var btnLogout: LinearLayout
@@ -55,8 +54,14 @@ class ProfileActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        FloatingAlertManager.onActivityResumed(this)
         loadUserData()
         populateProfileReports()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        FloatingAlertManager.onActivityPaused(this)
     }
 
     private fun initViews() {
@@ -69,7 +74,6 @@ class ProfileActivity : ComponentActivity() {
         profileReportsContainer = findViewById(R.id.profileReportsContainer)
 
         btnChangeContact = findViewById(R.id.btnChangeContact)
-        btnTestSmsProfile = findViewById(R.id.btnTestSmsProfile)
         btnChangePassword = findViewById(R.id.btnChangePassword)
         btnApplyChanges = findViewById(R.id.btnApplyChanges)
         btnLogout = findViewById(R.id.btnLogout)
@@ -272,15 +276,6 @@ class ProfileActivity : ComponentActivity() {
 
         btnChangeContact.setOnClickListener {
             showChangeContactDialog()
-        }
-
-        btnTestSmsProfile.setOnClickListener {
-            SmsHelper.broadcastSmsToAllUsers(
-                context = this,
-                location = "San Mateo Vicinity Test",
-                severity = "System Broadcast Test",
-                notes = "San Mateo area SMS broadcast test"
-            )
         }
 
         btnChangePassword.setOnClickListener {

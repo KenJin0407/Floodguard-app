@@ -6,7 +6,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -31,7 +30,6 @@ class ReportFloodActivity : ComponentActivity() {
     private lateinit var locationInput: EditText
     private lateinit var btnRefreshLocation: TextView
     private lateinit var notesInput: EditText
-    private lateinit var chkSendSmsOnSubmit: CheckBox
     private lateinit var submitReportButton: Button
 
     private lateinit var btnAnkleDeep: Button
@@ -68,6 +66,14 @@ class ReportFloodActivity : ComponentActivity() {
             autoDetectMapLocation()
         }
 
+        findViewById<ImageView>(R.id.backButton)?.setOnClickListener {
+            finish()
+        }
+
+        findViewById<Button>(R.id.backButtonBottom)?.setOnClickListener {
+            finish()
+        }
+
         findViewById<LinearLayout>(R.id.logoLayout)?.setOnClickListener {
             val intent = Intent(this, DashboardActivity::class.java)
             startActivity(intent)
@@ -79,6 +85,16 @@ class ReportFloodActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        FloatingAlertManager.onActivityResumed(this)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        FloatingAlertManager.onActivityPaused(this)
+    }
+
     private fun initViews() {
         photoPickerBox = findViewById(R.id.photoPickerBox)
         photoPreview = findViewById(R.id.photoPreview)
@@ -86,7 +102,6 @@ class ReportFloodActivity : ComponentActivity() {
         locationInput = findViewById(R.id.locationInput)
         btnRefreshLocation = findViewById(R.id.btnRefreshLocation)
         notesInput = findViewById(R.id.notesInput)
-        chkSendSmsOnSubmit = findViewById(R.id.chkSendSmsOnSubmit)
         submitReportButton = findViewById(R.id.submitReportButton)
 
         btnAnkleDeep = findViewById(R.id.btnAnkleDeep)
@@ -189,18 +204,20 @@ class ReportFloodActivity : ComponentActivity() {
             lon = 121.1207,
         )
 
-        ReportRepository.addReport(this, newReport)
-
-        if (chkSendSmsOnSubmit.isChecked) {
-            SmsHelper.broadcastSmsToAllUsers(
-                context = this,
-                location = loc,
-                severity = selectedSeverity,
-                notes = notes
-            )
+        submitReportButton.isEnabled = false
+        ReportRepository.addReport(this, newReport) { result ->
+            runOnUiThread {
+                val message = when {
+                    !result.submittedToServer ->
+                        "Report saved on this device, but the server could not be reached."
+                    result.pushAccepted ->
+                        "Report submitted and push alert queued for users."
+                    else ->
+                        "Report submitted, but push notifications are not configured."
+                }
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            }
         }
-
-        Toast.makeText(this, "Flood report submitted & SMS broadcasted to all users!", Toast.LENGTH_SHORT).show()
 
         val intent = Intent(this, AlertsActivity::class.java)
         startActivity(intent)

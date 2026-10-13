@@ -11,11 +11,7 @@ import kotlin.concurrent.thread
 
 object FloodGuardApiService {
 
-    private val HOST_URLS = listOf(
-        "http://10.0.2.2:3000/api",
-        "http://127.0.0.1:3000/api",
-        "http://localhost:3000/api",
-    )
+    private val HOST_URLS = listOf(BuildConfig.API_BASE_URL)
 
     fun syncReportsFromBackend(onSuccess: (List<FloodReport>) -> Unit) {
         thread {
@@ -139,7 +135,10 @@ object FloodGuardApiService {
         }
     }
 
-    fun submitReportToBackend(report: FloodReport) {
+    fun submitReportToBackend(
+        report: FloodReport,
+        onResult: (ReportSubmissionStatus) -> Unit = {}
+    ) {
         thread {
             for (baseUrl in HOST_URLS) {
                 try {
@@ -172,8 +171,13 @@ object FloodGuardApiService {
                     val code = conn.responseCode
                     Log.d("FloodGuardApi", "Submit report to $baseUrl code: $code")
                     if (code in 200..299) {
-                        conn.inputStream?.readBytes()
+                        val response = conn.inputStream?.bufferedReader()?.use { it.readText() }
+                            ?: "{}"
+                        val notificationAccepted = JSONObject(response)
+                            .optJSONObject("notification")
+                            ?.optBoolean("accepted", false) == true
                         conn.disconnect()
+                        onResult(ReportSubmissionStatus(submittedToServer = true, pushAccepted = notificationAccepted))
                         return@thread
                     }
                     conn.disconnect()
@@ -181,6 +185,7 @@ object FloodGuardApiService {
                     Log.w("FloodGuardApi", "Submit report failed on $baseUrl: ${e.message}")
                 }
             }
+            onResult(ReportSubmissionStatus(submittedToServer = false, pushAccepted = false))
         }
     }
 
@@ -382,4 +387,19 @@ object FloodGuardApiService {
             onResult(null)
         }
     }
+
 }
+
+data class ReportSubmissionStatus(
+    val submittedToServer: Boolean,
+    val pushAccepted: Boolean,
+)
+
+data class FloodBroadcast(
+    val id: String,
+    val location: String,
+    val severity: String,
+    val notes: String,
+    val reporterName: String,
+    val timestamp: Long,
+)

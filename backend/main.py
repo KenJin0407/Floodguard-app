@@ -1,11 +1,19 @@
+#!/usr/bin/env python3
+import os
+import time
+import json
+import uuid
+import logging
+import uvicorn
+from typing import Optional
+import firebase_admin
+from firebase_admin import credentials, messaging
+from firebase_admin.exceptions import FirebaseError
+from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional, List
-import json
-import os
-import uuid
 
+logger = logging.getLogger(__name__)
 app = FastAPI(title="FloodGuard FastAPI Backend", version="1.0.0")
 
 app.add_middleware(
@@ -20,12 +28,15 @@ DATA_FILE = os.path.join(os.path.dirname(__file__), "data_store.json")
 
 def load_data():
     if not os.path.exists(DATA_FILE):
-        return {"users": [], "reports": []}
+        return {"users": [], "reports": [], "broadcasts": []}
     with open(DATA_FILE, "r") as f:
         try:
-            return json.load(f)
+            d = json.load(f)
+            if "broadcasts" not in d:
+                d["broadcasts"] = []
+            return d
         except json.JSONDecodeError:
-            return {"users": [], "reports": []}
+            return {"users": [], "reports": [], "broadcasts": []}
 
 def save_data(data):
     with open(DATA_FILE, "w") as f:
@@ -66,6 +77,50 @@ class FloodReportUpdate(BaseModel):
     location: Optional[str] = None
     severity: Optional[str] = None
     notes: Optional[str] = None
+
+def send_report_notification(report: dict) -> dict:
+    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    project_id = os.getenv("FIREBASE_PROJECT_ID")
+    if not credentials_path or not os.path.isfile(credentials_path) or not project_id:
+        logger.error(
+            "Flood report was saved, but push notifications are not configured. "
+            "Set GOOGLE_APPLICATION_CREDENTIALS and FIREBASE_PROJECT_ID."
+        )
+        return {"configured": False, "accepted": False}
+
+    try:
+        try:
+            firebase_app = firebase_admin.get_app()
+        except ValueError:
+            firebase_app = firebase_admin.initialize_app(
+                credentials.Certificate(credentials_path),
+                {"projectId": project_id},
+            )
+
+        location = str(report.get("location") or "Flood report")
+        severity = str(report.get("severity") or "New flood report")
+        timestamp = int(report.get("timestamp") or time.time() * 1000)
+        message = messaging.Message(
+            notification=messaging.Notification(
+                title="FloodGuard flood alert",
+                body=f"{location}: {severity}",
+            ),
+            data={
+                "reportId": str(report.get("id", "")),
+                "location": location,
+                "severity": severity,
+                "notes": str(report.get("notes") or ""),
+                "reporterName": "Community Reporter",
+                "timestamp": str(timestamp),
+            },
+            android=messaging.AndroidConfig(priority="high"),
+            topic="floodguard",
+        )
+        messaging.send(message, app=firebase_app)
+        return {"configured": True, "accepted": True}
+    except (FirebaseError, ValueError, OSError):
+        logger.exception("Flood report was saved, but Firebase push delivery failed")
+        return {"configured": True, "accepted": False}
 
 @app.post("/api/auth/register")
 def register_user(user: UserRegister):
@@ -118,8 +173,10 @@ def create_report(report: FloodReportCreate):
     if not report_dict.get("id"):
         report_dict["id"] = str(uuid.uuid4())
     data["reports"].insert(0, report_dict)
+
     save_data(data)
-    return {"success": True, "report": report_dict}
+    notification = send_report_notification(report_dict)
+    return {"success": True, "report": report_dict, "notification": notification}
 
 @app.put("/api/reports/{report_id}")
 def update_report(report_id: str, update_data: FloodReportUpdate):
@@ -150,3 +207,6 @@ def delete_report(report_id: str):
 def get_users():
     data = load_data()
     return {"users": data["users"]}
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=3000, reload=True)

@@ -29,7 +29,13 @@ class AlertsActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        FloatingAlertManager.onActivityResumed(this)
         populateAlerts()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        FloatingAlertManager.onActivityPaused(this)
     }
 
     private fun initViews() {

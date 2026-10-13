@@ -39,6 +39,22 @@ class MapActivity : ComponentActivity() {
         setupFullMap()
         setupPresetChips()
         setupBottomNavigation()
+
+        val searchQuery = intent.getStringExtra("search_query")
+        if (!searchQuery.isNullOrBlank()) {
+            mapSearchInput.setText(searchQuery)
+            searchAndCenterLocation(searchQuery)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        FloatingAlertManager.onActivityResumed(this)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        FloatingAlertManager.onActivityPaused(this)
     }
 
     private fun initViews() {

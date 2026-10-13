@@ -51,6 +51,7 @@ class DashboardActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_dashboard)
 
+        FloodGuardPushNotifications.initialize(this)
         initViews()
         setupRoadMap()
         setupBottomNavigation()
@@ -60,7 +61,13 @@ class DashboardActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        FloatingAlertManager.onActivityResumed(this)
         populateCommunityReports(searchLocationInput.text.toString().trim())
+    }
+
+    override fun onPause() {
+        super.onPause()
+        FloatingAlertManager.onActivityPaused(this)
     }
 
     private fun initViews() {
@@ -329,7 +336,7 @@ class DashboardActivity : ComponentActivity() {
                         padding: 0;
                     }
                     .leaflet-container {
-                        background: #0f172a;
+                        background: #ffffff;
                     }
                 </style>
             </head>
