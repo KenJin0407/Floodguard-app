@@ -7,11 +7,49 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import kotlin.concurrent.thread
 
 object FloodGuardApiService {
 
-    private val HOST_URLS = listOf(BuildConfig.API_BASE_URL)
+    private val HOST_URLS = listOf(
+        "http://10.0.2.2:8000/api",
+        "http://127.0.0.1:8000/api",
+        "http://localhost:8000/api",
+        "http://10.0.2.2:3000/api",
+        "http://127.0.0.1:3000/api",
+        "http://localhost:3000/api",
+    )
+
+    fun fetchFloodGeoJsonFromBackend(onSuccess: (String) -> Unit) {
+        thread {
+            for (baseUrl in HOST_URLS) {
+                try {
+                    val url = URL("$baseUrl/mapping/flood-geojson")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.requestMethod = "GET"
+                    conn.connectTimeout = 4000
+                    conn.readTimeout = 4000
+
+                    if (conn.responseCode == 200) {
+                        val reader = BufferedReader(InputStreamReader(conn.inputStream))
+                        val response = StringBuilder()
+                        var line: String?
+                        while (reader.readLine().also { line = it } != null) {
+                            response.append(line)
+                        }
+                        reader.close()
+                        conn.disconnect()
+                        onSuccess(response.toString())
+                        return@thread
+                    }
+                    conn.disconnect()
+                } catch (e: Exception) {
+                    Log.w("FloodGuardApi", "GeoJSON fetch failed on $baseUrl: ${e.message}")
+                }
+            }
+        }
+    }
 
     fun syncReportsFromBackend(onSuccess: (List<FloodReport>) -> Unit) {
         thread {
@@ -49,8 +87,7 @@ object FloodGuardApiService {
                                 val photoUri = if (item.has("photoUri") && !item.isNull("photoUri")) item.optString("photoUri") else null
                                 val lat = item.optDouble("lat", 14.6958)
                                 val lon = item.optDouble("lon", 121.1207)
-                                val authorUsername = item.optString("authorUsername", "")
-                                val reporterName = item.optString("reporterName", "")
+                                val reporterUsername = item.optString("reporterUsername", "")
 
                                 val level = try {
                                     SeverityLevel.valueOf(severityLevelStr)
@@ -70,8 +107,7 @@ object FloodGuardApiService {
                                         photoUri = photoUri,
                                         lat = lat,
                                         lon = lon,
-                                        authorUsername = authorUsername,
-                                        reporterName = reporterName,
+                                        reporterUsername = reporterUsername,
                                     )
                                 )
                             }
@@ -120,6 +156,7 @@ object FloodGuardApiService {
                                         fullName = item.optString("fullName"),
                                         gender = item.optString("gender", "Male"),
                                         mobile = item.optString("mobile"),
+                                        email = item.optString("email"),
                                         username = item.optString("username"),
                                         password = item.optString("password", "password123")
                                     )
@@ -153,6 +190,7 @@ object FloodGuardApiService {
                     conn.readTimeout = 4000
                     conn.doOutput = true
 
+                    val authorUser = report.authorUsername.ifBlank { report.reporterUsername.ifBlank { "anonymous" } }
                     val payload = JSONObject().apply {
                         put("id", report.id)
                         put("location", report.location)
@@ -164,7 +202,8 @@ object FloodGuardApiService {
                         put("photoUri", report.photoUri)
                         put("lat", report.lat)
                         put("lon", report.lon)
-                        put("authorUsername", report.authorUsername)
+                        put("username", authorUser)
+                        put("authorUsername", authorUser)
                         put("reporterName", report.reporterName)
                     }
 
@@ -176,13 +215,25 @@ object FloodGuardApiService {
                     val code = conn.responseCode
                     Log.d("FloodGuardApi", "Submit report to $baseUrl code: $code")
                     if (code in 200..299) {
-                        val response = conn.inputStream?.bufferedReader()?.use { it.readText() }
-                            ?: "{}"
-                        val notificationAccepted = JSONObject(response)
+                        val response = conn.inputStream?.bufferedReader()?.use { it.readText() } ?: "{}"
+                        val respJson = JSONObject(response)
+                        val notificationAccepted = respJson
                             .optJSONObject("notification")
                             ?.optBoolean("accepted", false) == true
+                        val smsBcastObj = respJson.optJSONObject("smsBroadcast")
+                        val parsedBroadcast = if (smsBcastObj != null) {
+                            SmsAlertBroadcastManager.jsonToBroadcast(smsBcastObj)
+                        } else null
+
                         conn.disconnect()
-                        onResult(ReportSubmissionStatus(submittedToServer = true, pushAccepted = notificationAccepted))
+                        onResult(
+                            ReportSubmissionStatus(
+                                submittedToServer = true,
+                                pushAccepted = notificationAccepted || parsedBroadcast != null,
+                                smsBroadcastTriggered = parsedBroadcast != null,
+                                smsBroadcast = parsedBroadcast,
+                            )
+                        )
                         return@thread
                     }
                     conn.disconnect()
@@ -194,7 +245,20 @@ object FloodGuardApiService {
         }
     }
 
-    fun updateReportInBackend(id: String, location: String, severity: String, notes: String, authorUsername: String = "") {
+    fun submitReportToBackend(report: FloodReport, username: String) {
+        if (report.authorUsername.isBlank()) {
+            report.authorUsername = username
+        }
+        submitReportToBackend(report) {}
+    }
+
+    fun updateReportInBackend(
+        id: String,
+        location: String,
+        severity: String,
+        notes: String,
+        username: String = ""
+    ) {
         thread {
             for (baseUrl in HOST_URLS) {
                 try {
@@ -210,7 +274,7 @@ object FloodGuardApiService {
                         put("location", location)
                         put("severity", severity)
                         put("notes", notes)
-                        put("authorUsername", authorUsername)
+                        if (username.isNotBlank()) put("username", username)
                     }
 
                     val writer = OutputStreamWriter(conn.outputStream)
@@ -232,12 +296,12 @@ object FloodGuardApiService {
         }
     }
 
-    fun deleteReportInBackend(id: String, authorUsername: String = "") {
+    fun deleteReportInBackend(id: String, username: String = "") {
         thread {
             for (baseUrl in HOST_URLS) {
                 try {
-                    val encodedAuthor = java.net.URLEncoder.encode(authorUsername, "UTF-8")
-                    val url = URL("$baseUrl/reports/$id?authorUsername=$encodedAuthor")
+                    val query = if (username.isNotBlank()) "?username=${URLEncoder.encode(username, "UTF-8")}" else ""
+                    val url = URL("$baseUrl/reports/$id$query")
                     val conn = url.openConnection() as HttpURLConnection
                     conn.requestMethod = "DELETE"
                     conn.connectTimeout = 4000
@@ -273,6 +337,7 @@ object FloodGuardApiService {
                         put("fullName", user.fullName)
                         put("gender", user.gender)
                         put("mobile", user.mobile)
+                        put("email", user.email)
                         put("username", user.username)
                         put("password", user.password)
                     }
@@ -297,7 +362,7 @@ object FloodGuardApiService {
         }
     }
 
-    fun updateUserProfileInBackend(username: String, fullName: String, gender: String, mobile: String) {
+    fun updateUserProfileInBackend(username: String, fullName: String, gender: String, mobile: String, email: String = "") {
         thread {
             for (baseUrl in HOST_URLS) {
                 try {
@@ -314,6 +379,7 @@ object FloodGuardApiService {
                         put("fullName", fullName)
                         put("gender", gender)
                         put("mobile", mobile)
+                        put("email", email)
                     }
 
                     val writer = OutputStreamWriter(conn.outputStream)
@@ -333,6 +399,60 @@ object FloodGuardApiService {
                     Log.w("FloodGuardApi", "Update profile failed on $baseUrl: ${e.message}")
                 }
             }
+        }
+    }
+
+    fun updatePasswordInBackend(
+        username: String,
+        currentPassword: String,
+        newPassword: String,
+        onResult: ((Boolean, String) -> Unit)? = null
+    ) {
+        thread {
+            for (baseUrl in HOST_URLS) {
+                try {
+                    val url = URL("$baseUrl/auth/password")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.requestMethod = "PUT"
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.connectTimeout = 4000
+                    conn.readTimeout = 4000
+                    conn.doOutput = true
+
+                    val payload = JSONObject().apply {
+                        put("username", username)
+                        put("currentPassword", currentPassword)
+                        put("newPassword", newPassword)
+                    }
+
+                    val writer = OutputStreamWriter(conn.outputStream)
+                    writer.write(payload.toString())
+                    writer.flush()
+                    writer.close()
+
+                    val code = conn.responseCode
+                    Log.d("FloodGuardApi", "Update password on $baseUrl code: $code")
+                    if (code in 200..299) {
+                        conn.inputStream?.readBytes()
+                        conn.disconnect()
+                        onResult?.invoke(true, "Password updated successfully!")
+                        return@thread
+                    } else {
+                        val err = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                        val detail = try {
+                            JSONObject(err).optString("detail", "Failed to update password on server")
+                        } catch (_: Exception) {
+                            "Failed to update password on server"
+                        }
+                        conn.disconnect()
+                        onResult?.invoke(false, detail)
+                        return@thread
+                    }
+                } catch (e: Exception) {
+                    Log.w("FloodGuardApi", "Update password failed on $baseUrl: ${e.message}")
+                }
+            }
+            onResult?.invoke(false, "Server unreachable")
         }
     }
 
@@ -375,6 +495,7 @@ object FloodGuardApiService {
                                 fullName = userObj.optString("fullName"),
                                 gender = userObj.optString("gender", "Male"),
                                 mobile = userObj.optString("mobile"),
+                                email = userObj.optString("email"),
                                 username = userObj.optString("username", username),
                                 password = password,
                             )
@@ -392,11 +513,52 @@ object FloodGuardApiService {
         }
     }
 
+    fun syncBroadcastsFromBackend(onSuccess: (List<FloodBroadcast>) -> Unit) {
+        thread {
+            for (baseUrl in HOST_URLS) {
+                try {
+                    val url = URL("$baseUrl/broadcasts")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.requestMethod = "GET"
+                    conn.connectTimeout = 4000
+                    conn.readTimeout = 4000
+
+                    if (conn.responseCode == 200) {
+                        val reader = BufferedReader(InputStreamReader(conn.inputStream))
+                        val response = StringBuilder()
+                        var line: String?
+                        while (reader.readLine().also { line = it } != null) {
+                            response.append(line)
+                        }
+                        reader.close()
+
+                        val json = JSONObject(response.toString())
+                        val array = json.optJSONArray("broadcasts")
+                        val list = mutableListOf<FloodBroadcast>()
+                        if (array != null) {
+                            for (i in 0 until array.length()) {
+                                val item = array.optJSONObject(i) ?: continue
+                                list.add(SmsAlertBroadcastManager.jsonToBroadcast(item))
+                            }
+                        }
+                        conn.disconnect()
+                        onSuccess(list)
+                        return@thread
+                    }
+                    conn.disconnect()
+                } catch (e: Exception) {
+                    Log.w("FloodGuardApi", "Sync broadcasts failed on $baseUrl: ${e.message}")
+                }
+            }
+        }
+    }
 }
 
 data class ReportSubmissionStatus(
     val submittedToServer: Boolean,
     val pushAccepted: Boolean,
+    val smsBroadcastTriggered: Boolean = false,
+    val smsBroadcast: FloodBroadcast? = null,
 )
 
 data class FloodBroadcast(
@@ -407,4 +569,13 @@ data class FloodBroadcast(
     val reporterName: String,
     val timestamp: Long,
     val authorUsername: String = "",
+    val statusText: String = "Not Passable",
+    val similarReportCount: Int = 2,
+    val lat: Double = 14.6958,
+    val lon: Double = 121.1207,
+    val radiusKm: Double = 5.0,
+    val smsMessage: String = "",
+    val smsProvider: String = "Textbelt Free SMS API",
+    val smsRecipientsCount: Int = 1,
+    val recipientPhones: List<String> = emptyList(),
 )

@@ -19,7 +19,6 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
-import com.example.floodguard.R
 
 class ProfileActivity : ComponentActivity() {
 
@@ -480,13 +479,6 @@ class ProfileActivity : ComponentActivity() {
                 newText != confirmText -> {
                     Toast.makeText(this, "New passwords do not match", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
-                }
-                newText != confirmText -> {
-                    Toast.makeText(this, "New passwords do not match", Toast.LENGTH_SHORT).show()
-                }
-                else -> {
-                    Toast.makeText(this, "Password changed successfully!", Toast.LENGTH_SHORT).show()
-                    dialog.dismiss()
                 }
             }
 

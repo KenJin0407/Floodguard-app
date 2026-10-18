@@ -16,7 +16,16 @@ data class FloodReport(
     var lon: Double = 121.1207,
     var authorUsername: String = "",
     var reporterName: String = "",
+    var reporterUsername: String = "",
 ) {
+    init {
+        if (authorUsername.isBlank() && reporterUsername.isNotBlank()) {
+            authorUsername = reporterUsername
+        } else if (reporterUsername.isBlank() && authorUsername.isNotBlank()) {
+            reporterUsername = authorUsername
+        }
+    }
+
     fun getFormattedTimeAgo(): String {
         val diffMs = System.currentTimeMillis() - timestamp
         val diffMins = diffMs / (1000 * 60)
@@ -205,6 +214,12 @@ object ReportRepository {
             report.reporterName = UserSession.getUserName(context)
         }
 
+        val (resolvedLat, resolvedLon) = SmsAlertBroadcastManager.resolveCoordinatesForLocation(report.location)
+        if (report.lat == 14.6958 && report.lon == 121.1207) {
+            report.lat = resolvedLat
+            report.lon = resolvedLon
+        }
+
         val db = FloodGuardDatabase(context)
         db.insertReport(report)
         if (cachedReports == null) {
@@ -214,7 +229,40 @@ object ReportRepository {
             cachedReports?.add(0, report)
         }
 
-        FloodGuardApiService.submitReportToBackend(report, onSubmitted)
+        val allCurrentReports = cachedReports?.toList() ?: db.getAllReports()
+        val similarActive = SmsAlertBroadcastManager.findSimilarActiveReports(report, allCurrentReports)
+        var localBroadcast: FloodBroadcast? = null
+        if (similarActive.size >= 2) {
+            SmsAlertBroadcastManager.evaluateAndBroadcastIfCorroborated(
+                context.applicationContext,
+                report,
+                allCurrentReports
+            ) { triggeredBroadcast ->
+                localBroadcast = triggeredBroadcast
+            }
+        }
+
+        FloodGuardApiService.submitReportToBackend(report) { backendStatus ->
+            val effectiveBroadcast = backendStatus.smsBroadcast ?: localBroadcast
+            if (backendStatus.smsBroadcast != null) {
+                SmsAlertBroadcastManager.saveBroadcastLocally(context.applicationContext, backendStatus.smsBroadcast)
+                if (similarActive.size < 2) {
+                    FloatingAlertManager.deliverBroadcastIfNearby(
+                        context.applicationContext,
+                        backendStatus.smsBroadcast,
+                        forcePopUp = true
+                    )
+                }
+            }
+            onSubmitted(
+                ReportSubmissionStatus(
+                    submittedToServer = backendStatus.submittedToServer,
+                    pushAccepted = backendStatus.pushAccepted || similarActive.size >= 2,
+                    smsBroadcastTriggered = backendStatus.smsBroadcastTriggered || similarActive.size >= 2,
+                    smsBroadcast = effectiveBroadcast,
+                )
+            )
+        }
     }
 
     fun removeReport(context: Context, id: String): Boolean {

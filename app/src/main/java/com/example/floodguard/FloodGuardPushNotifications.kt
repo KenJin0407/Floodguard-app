@@ -57,20 +57,26 @@ class FloodGuardMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         val data = message.data
-        val authorUsername = data["authorUsername"].orEmpty()
-        val currentUsername = UserSession.getUsername(this)
-        if (authorUsername.isNotBlank() && authorUsername.equals(currentUsername, ignoreCase = true)) {
+        val similarCount = data["similarReportCount"]?.toIntOrNull() ?: 1
+        if (similarCount < 2) {
             return
         }
+        val location = data["location"] ?: "Flood report"
+        val (lat, lon) = SmsAlertBroadcastManager.resolveCoordinatesForLocation(location)
         val broadcast = FloodBroadcast(
             id = data["reportId"] ?: message.messageId ?: System.currentTimeMillis().toString(),
-            location = data["location"] ?: "Flood report",
+            location = location,
             severity = data["severity"] ?: "New flood report",
             notes = data["notes"].orEmpty(),
             reporterName = data["reporterName"].orEmpty(),
             timestamp = data["timestamp"]?.toLongOrNull() ?: System.currentTimeMillis(),
-            authorUsername = authorUsername,
+            authorUsername = data["authorUsername"].orEmpty(),
+            similarReportCount = similarCount,
+            lat = lat,
+            lon = lon,
+            smsMessage = data["smsMessage"].orEmpty(),
         )
         FloatingAlertManager.showPushAlert(this, broadcast)
     }
 }
+

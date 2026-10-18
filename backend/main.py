@@ -54,6 +54,7 @@ class UserRegister(BaseModel):
     fullName: str
     gender: Optional[str] = None
     mobile: Optional[str] = None
+    email: str
     username: str
     password: str
 

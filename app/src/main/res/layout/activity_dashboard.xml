@@ -100,7 +100,7 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
-                android:background="@drawable/search_bg"
+                android:background="@color/text_secondary"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
                 android:paddingStart="12dp"
@@ -109,8 +109,8 @@
                 <ImageView
                     android:layout_width="20dp"
                     android:layout_height="20dp"
-                    android:src="@drawable/ic_search"
-                    android:contentDescription="Search" />
+                    android:contentDescription="Search"
+                    android:src="@drawable/ic_search" />
 
                 <EditText
                     android:id="@+id/searchLocationInput"
@@ -119,19 +119,19 @@
                     android:layout_weight="1"
                     android:background="@null"
                     android:hint="Search location...."
-                    android:textSize="14sp"
-                    android:textColor="@color/text_primary"
+                    android:inputType="text"
+                    android:maxLines="1"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
-                    android:maxLines="1"
-                    android:inputType="text" />
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp" />
 
                 <ImageView
                     android:id="@+id/clearSearchIcon"
                     android:layout_width="20dp"
                     android:layout_height="20dp"
-                    android:src="@drawable/ic_clear"
-                    android:contentDescription="Clear" />
+                    android:contentDescription="Clear"
+                    android:src="@drawable/ic_clear" />
             </LinearLayout>
 
             <!-- ROAD MAP Header -->

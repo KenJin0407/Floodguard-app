@@ -11,7 +11,7 @@ class FloodGuardDatabase(context: Context) :
 
     companion object {
         private const val DATABASE_NAME = "floodguard.db"
-        private const val DATABASE_VERSION = 6
+        private const val DATABASE_VERSION = 7
 
         const val TABLE_USERS = "users"
         const val COLUMN_USER_ID = "id"
@@ -34,6 +34,7 @@ class FloodGuardDatabase(context: Context) :
         const val COLUMN_LON = "lon"
         const val COLUMN_AUTHOR_USERNAME = "author_username"
         const val COLUMN_REPORTER_NAME = "reporter_name"
+        const val COLUMN_REPORTER_USERNAME = "reporter_username"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -76,6 +77,11 @@ class FloodGuardDatabase(context: Context) :
             onCreate(db)
             return
         }
+        ensureReportColumns(db)
+        removeEmailColumnFromUsersTable(db)
+    }
+
+    override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         ensureReportColumns(db)
         removeEmailColumnFromUsersTable(db)
     }
@@ -180,7 +186,8 @@ class FloodGuardDatabase(context: Context) :
             put(COLUMN_PHOTO_URI, report.photoUri)
             put(COLUMN_LAT, report.lat)
             put(COLUMN_LON, report.lon)
-            put(COLUMN_AUTHOR_USERNAME, report.authorUsername)
+            val author = report.authorUsername.ifBlank { report.reporterUsername }
+            put(COLUMN_AUTHOR_USERNAME, author)
             put(COLUMN_REPORTER_NAME, report.reporterName)
         }
         val result = db.insertWithOnConflict(TABLE_REPORTS, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
@@ -229,6 +236,7 @@ class FloodGuardDatabase(context: Context) :
                         lon = if (lon == 0.0) 121.1207 else lon,
                         authorUsername = authorUsername,
                         reporterName = reporterName,
+                        reporterUsername = authorUsername,
                     )
                 )
             } while (cursor.moveToNext())
@@ -354,6 +362,42 @@ class FloodGuardDatabase(context: Context) :
         }
     }
 
+    fun updatePassword(username: String, newPasswordHash: String): Boolean {
+        val db = writableDatabase
+        val cv = ContentValues().apply {
+            put(COLUMN_PASSWORD, newPasswordHash)
+        }
+        val rows = db.update(
+            TABLE_USERS,
+            cv,
+            "$COLUMN_USERNAME = ? COLLATE NOCASE",
+            arrayOf(username.trim())
+        )
+        return rows > 0
+    }
+
+    fun getAllUsers(): List<UserEntity> {
+        val list = mutableListOf<UserEntity>()
+        val db = readableDatabase
+        val cursor = db.rawQuery("SELECT * FROM $TABLE_USERS", null)
+        if (cursor.moveToFirst()) {
+            do {
+                list.add(
+                    UserEntity(
+                        id = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USER_ID)),
+                        fullName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FULL_NAME)),
+                        gender = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_GENDER)),
+                        mobile = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MOBILE)),
+                        username = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USERNAME)),
+                        password = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD)),
+                    )
+                )
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return list
+    }
+
     fun getAllUserMobiles(): List<String> {
         val list = mutableListOf<String>()
         val db = readableDatabase
@@ -378,4 +422,5 @@ data class UserEntity(
     val mobile: String,
     val username: String,
     val password: String,
+    val email: String = "",
 )

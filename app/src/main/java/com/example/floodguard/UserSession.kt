@@ -11,11 +11,11 @@ import java.util.Locale
 object UserSession {
     private const val PREF_NAME = "floodguard_session"
     private const val KEY_IS_LOGGED_IN = "is_logged_in"
-    private const val KEY_USERNAME = "username"
     private const val KEY_USER_NAME = "user_name"
     private const val KEY_USERNAME = "username"
     private const val KEY_USER_GENDER = "user_gender"
     private const val KEY_USER_CONTACT = "user_contact"
+    private const val KEY_USER_EMAIL = "user_email"
 
     const val MAX_DAILY_REPORTS = 4
 
@@ -35,7 +35,6 @@ object UserSession {
     fun setLoggedIn(
         context: Context,
         loggedIn: Boolean,
-        username: String = "juan",
         userName: String = "Juan Dela Cruz",
         username: String = "juan",
         userGender: String = "Male",

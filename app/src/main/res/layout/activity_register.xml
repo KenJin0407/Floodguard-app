@@ -41,7 +41,6 @@
             android:padding="12dp" />
 
         <!-- Mobile Number -->
-
         <EditText
             android:id="@+id/mobileField"
             android:layout_width="match_parent"
@@ -88,7 +87,7 @@
                 android:layout_height="match_parent"
                 android:layout_marginStart="6dp"
                 android:layout_weight="1"
-                android:background="@color/text_secondary"
+                android:background="@drawable/btn_severity_default"
                 android:text="Female"
                 android:textAllCaps="false"
                 android:textColor="@android:color/black"
