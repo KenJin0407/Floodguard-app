@@ -319,6 +319,11 @@ class DashboardActivity : ComponentActivity() {
         mapWebView.webViewClient = object : WebViewClient() {
             @Deprecated("Deprecated in Java")
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                if (url != null && url.startsWith("mapaction://")) {
+                    val intent = Intent(this@DashboardActivity, MapActivity::class.java)
+                    startActivity(intent)
+                    return true
+                }
                 return false
             }
         }
@@ -378,14 +383,7 @@ class DashboardActivity : ComponentActivity() {
                     activeMarker.bindPopup("<b>San Mateo, Rizal</b><br>Google Maps Traffic Navigation").openPopup();
 
                     map.on('click', function(e) {
-                        var clickedLat = e.latlng.lat;
-                        var clickedLng = e.latlng.lng;
-                        if (activeMarker) {
-                            map.removeLayer(activeMarker);
-                        }
-                        activeMarker = L.marker([clickedLat, clickedLng]).addTo(map)
-                            .bindPopup("<b>Selected Location</b><br>Lat: " + clickedLat.toFixed(4) + ", Lng: " + clickedLng.toFixed(4))
-                            .openPopup();
+                        window.location.href = "mapaction://open";
                     });
 
                     function locateArea(newLat, newLon, title) {
