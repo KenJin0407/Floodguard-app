@@ -49,6 +49,7 @@ object FloodGuardApiService {
                                 val photoUri = if (item.has("photoUri") && !item.isNull("photoUri")) item.optString("photoUri") else null
                                 val lat = item.optDouble("lat", 14.6958)
                                 val lon = item.optDouble("lon", 121.1207)
+                                val reporterName = item.optString("reporterName", "Juan Dela Cruz")
 
                                 val level = try {
                                     SeverityLevel.valueOf(severityLevelStr)
@@ -68,6 +69,7 @@ object FloodGuardApiService {
                                         photoUri = photoUri,
                                         lat = lat,
                                         lon = lon,
+                                        reporterName = reporterName,
                                     )
                                 )
                             }
@@ -161,6 +163,7 @@ object FloodGuardApiService {
                         put("photoUri", report.photoUri)
                         put("lat", report.lat)
                         put("lon", report.lon)
+                        put("reporterName", report.reporterName)
                     }
 
                     val writer = OutputStreamWriter(conn.outputStream)

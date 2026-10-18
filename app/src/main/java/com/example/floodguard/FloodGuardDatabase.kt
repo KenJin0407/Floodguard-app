@@ -11,7 +11,7 @@ class FloodGuardDatabase(context: Context) :
 
     companion object {
         private const val DATABASE_NAME = "floodguard.db"
-        private const val DATABASE_VERSION = 3
+        private const val DATABASE_VERSION = 4
 
         const val TABLE_USERS = "users"
         const val COLUMN_USER_ID = "id"
@@ -33,6 +33,7 @@ class FloodGuardDatabase(context: Context) :
         const val COLUMN_PHOTO_URI = "photo_uri"
         const val COLUMN_LAT = "lat"
         const val COLUMN_LON = "lon"
+        const val COLUMN_REPORTER_NAME = "reporter_name"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -59,7 +60,8 @@ class FloodGuardDatabase(context: Context) :
                 $COLUMN_SEVERITY_LEVEL TEXT,
                 $COLUMN_PHOTO_URI TEXT,
                 $COLUMN_LAT REAL,
-                $COLUMN_LON REAL
+                $COLUMN_LON REAL,
+                $COLUMN_REPORTER_NAME TEXT
             )
         """.trimIndent()
 
@@ -86,6 +88,7 @@ class FloodGuardDatabase(context: Context) :
             put(COLUMN_PHOTO_URI, report.photoUri)
             put(COLUMN_LAT, report.lat)
             put(COLUMN_LON, report.lon)
+            put(COLUMN_REPORTER_NAME, report.reporterName)
         }
         val result = db.insert(TABLE_REPORTS, null, cv)
         return result != -1L
@@ -108,6 +111,7 @@ class FloodGuardDatabase(context: Context) :
                 val photoUri = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PHOTO_URI))
                 val lat = cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LAT))
                 val lon = cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LON))
+                val reporterName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_REPORTER_NAME)) ?: "Juan Dela Cruz"
 
                 val severityLevel = try {
                     SeverityLevel.valueOf(severityLevelStr)
@@ -127,6 +131,7 @@ class FloodGuardDatabase(context: Context) :
                         photoUri = photoUri,
                         lat = if (lat == 0.0) 14.6958 else lat,
                         lon = if (lon == 0.0) 121.1207 else lon,
+                        reporterName = reporterName,
                     )
                 )
             } while (cursor.moveToNext())

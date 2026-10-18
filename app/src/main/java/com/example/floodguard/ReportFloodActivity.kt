@@ -203,6 +203,7 @@ class ReportFloodActivity : ComponentActivity() {
             photoUri = selectedImageUri?.toString(),
             lat = 14.6958,
             lon = 121.1207,
+            reporterName = UserSession.getUserName(this),
         )
 
         submitReportButton.isEnabled = false

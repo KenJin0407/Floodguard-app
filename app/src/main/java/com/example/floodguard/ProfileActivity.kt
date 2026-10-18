@@ -90,9 +90,10 @@ class ProfileActivity : ComponentActivity() {
     private fun populateProfileReports() {
         profileReportsContainer.removeAllViews()
 
+        val currentUserName = UserSession.getUserName(this)
         val reportsList = ReportRepository.loadReports(this) {
             runOnUiThread { populateProfileReports() }
-        }
+        }.filter { it.reporterName == currentUserName || it.reporterName.isBlank() }
 
         if (reportsList.isEmpty()) {
             val emptyText = TextView(this).apply {

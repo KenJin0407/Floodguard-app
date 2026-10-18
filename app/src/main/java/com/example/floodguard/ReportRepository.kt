@@ -14,6 +14,7 @@ data class FloodReport(
     var photoUri: String? = null,
     var lat: Double = 14.6958,
     var lon: Double = 121.1207,
+    var reporterName: String = "Juan Dela Cruz",
 ) {
     fun getFormattedTimeAgo(): String {
         val diffMs = System.currentTimeMillis() - timestamp
