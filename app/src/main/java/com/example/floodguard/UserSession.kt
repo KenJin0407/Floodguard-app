@@ -11,11 +11,10 @@ import java.util.Locale
 object UserSession {
     private const val PREF_NAME = "floodguard_session"
     private const val KEY_IS_LOGGED_IN = "is_logged_in"
-    private const val KEY_USER_NAME = "user_name"
     private const val KEY_USERNAME = "username"
+    private const val KEY_USER_NAME = "user_name"
     private const val KEY_USER_GENDER = "user_gender"
     private const val KEY_USER_CONTACT = "user_contact"
-    private const val KEY_USER_EMAIL = "user_email"
 
     const val MAX_DAILY_REPORTS = 4
 
@@ -35,8 +34,8 @@ object UserSession {
     fun setLoggedIn(
         context: Context,
         loggedIn: Boolean,
-        userName: String = "Juan Dela Cruz",
         username: String = "juan",
+        userName: String = "Juan Dela Cruz",
         userGender: String = "Male",
         userContact: String = "+63 915 245 6879",
         userEmail: String = "",
@@ -169,14 +168,16 @@ object UserSession {
                 putString("report_date_$userKey", today)
                 putInt("report_count_$userKey", 0)
             }
-            return 0
         }
-        return prefs.getInt("report_count_$userKey", 0)
     }
 
-    fun getRemainingReportsToday(context: Context): Int {
-        val used = getDailyReportCount(context)
-        return (MAX_DAILY_REPORTS - used).coerceAtLeast(0)
+    fun setUserAvatar(context: Context, avatarData: String) {
+        val currentUserKey = getUsername(context).trim().lowercase()
+        if (currentUserKey.isNotEmpty()) {
+            getPrefs(context).edit {
+                putString("saved_avatar_$currentUserKey", avatarData)
+            }
+        }
     }
 
     fun incrementDailyReportCount(context: Context): Int {

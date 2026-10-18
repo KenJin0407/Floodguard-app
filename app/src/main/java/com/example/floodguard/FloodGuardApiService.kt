@@ -12,44 +12,7 @@ import kotlin.concurrent.thread
 
 object FloodGuardApiService {
 
-    private val HOST_URLS = listOf(
-        "http://10.0.2.2:8000/api",
-        "http://127.0.0.1:8000/api",
-        "http://localhost:8000/api",
-        "http://10.0.2.2:3000/api",
-        "http://127.0.0.1:3000/api",
-        "http://localhost:3000/api",
-    )
-
-    fun fetchFloodGeoJsonFromBackend(onSuccess: (String) -> Unit) {
-        thread {
-            for (baseUrl in HOST_URLS) {
-                try {
-                    val url = URL("$baseUrl/mapping/flood-geojson")
-                    val conn = url.openConnection() as HttpURLConnection
-                    conn.requestMethod = "GET"
-                    conn.connectTimeout = 4000
-                    conn.readTimeout = 4000
-
-                    if (conn.responseCode == 200) {
-                        val reader = BufferedReader(InputStreamReader(conn.inputStream))
-                        val response = StringBuilder()
-                        var line: String?
-                        while (reader.readLine().also { line = it } != null) {
-                            response.append(line)
-                        }
-                        reader.close()
-                        conn.disconnect()
-                        onSuccess(response.toString())
-                        return@thread
-                    }
-                    conn.disconnect()
-                } catch (e: Exception) {
-                    Log.w("FloodGuardApi", "GeoJSON fetch failed on $baseUrl: ${e.message}")
-                }
-            }
-        }
-    }
+    private val HOST_URLS = listOf(BuildConfig.API_BASE_URL)
 
     fun syncReportsFromBackend(onSuccess: (List<FloodReport>) -> Unit) {
         thread {
@@ -87,7 +50,8 @@ object FloodGuardApiService {
                                 val photoUri = if (item.has("photoUri") && !item.isNull("photoUri")) item.optString("photoUri") else null
                                 val lat = item.optDouble("lat", 14.6958)
                                 val lon = item.optDouble("lon", 121.1207)
-                                val reporterUsername = item.optString("reporterUsername", "")
+                                val authorUsername = item.optString("authorUsername", "")
+                                val reporterName = item.optString("reporterName", "")
 
                                 val level = try {
                                     SeverityLevel.valueOf(severityLevelStr)
@@ -107,7 +71,8 @@ object FloodGuardApiService {
                                         photoUri = photoUri,
                                         lat = lat,
                                         lon = lon,
-                                        reporterUsername = reporterUsername,
+                                        authorUsername = authorUsername,
+                                        reporterName = reporterName,
                                     )
                                 )
                             }
@@ -156,7 +121,6 @@ object FloodGuardApiService {
                                         fullName = item.optString("fullName"),
                                         gender = item.optString("gender", "Male"),
                                         mobile = item.optString("mobile"),
-                                        email = item.optString("email"),
                                         username = item.optString("username"),
                                         password = item.optString("password", "password123")
                                     )
@@ -337,7 +301,6 @@ object FloodGuardApiService {
                         put("fullName", user.fullName)
                         put("gender", user.gender)
                         put("mobile", user.mobile)
-                        put("email", user.email)
                         put("username", user.username)
                         put("password", user.password)
                     }
@@ -379,7 +342,6 @@ object FloodGuardApiService {
                         put("fullName", fullName)
                         put("gender", gender)
                         put("mobile", mobile)
-                        put("email", email)
                     }
 
                     val writer = OutputStreamWriter(conn.outputStream)
@@ -495,7 +457,6 @@ object FloodGuardApiService {
                                 fullName = userObj.optString("fullName"),
                                 gender = userObj.optString("gender", "Male"),
                                 mobile = userObj.optString("mobile"),
-                                email = userObj.optString("email"),
                                 username = userObj.optString("username", username),
                                 password = password,
                             )

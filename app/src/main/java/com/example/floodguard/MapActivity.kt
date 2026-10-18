@@ -16,7 +16,6 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import org.json.JSONArray
-import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
@@ -112,11 +111,6 @@ class MapActivity : ComponentActivity() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                 return false
             }
-
-            override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
-                updateMapRadius()
-            }
         }
 
         val htmlContent = """
@@ -156,102 +150,42 @@ class MapActivity : ComponentActivity() {
                     var activeMarker = L.marker([14.6958, 121.1207]).addTo(map)
                         .bindPopup("<b>San Mateo Town Center</b><br>Google Maps Traffic Navigation");
 
-                    var radiusLayer = L.layerGroup().addTo(map);
+                    // Pre defined road polylines for San Mateo roads
+                    var sanMateoRoads = {
+                        "ampid": [[14.6850, 121.1100], [14.6885, 121.1120], [14.6920, 121.1180]],
+                        "dulong": [[14.7080, 121.1220], [14.7120, 121.1280], [14.7180, 121.1310]],
+                        "banaba": [[14.6700, 121.1020], [14.6750, 121.1080], [14.6780, 121.1120]],
+                        "gen. luna": [[14.6750, 121.1080], [14.6885, 121.1120], [14.6958, 121.1207], [14.7120, 121.1280]],
+                        "maly": [[14.7180, 121.1310], [14.7200, 121.1350], [14.7250, 121.1400]],
+                        "sta ana": [[14.6900, 121.1150], [14.6920, 121.1180], [14.6950, 121.1220]],
+                        "santa ana": [[14.6900, 121.1150], [14.6920, 121.1180], [14.6950, 121.1220]]
+                    };
 
-                    function getSeverityStyle(waterDepth) {
-                        var d = (waterDepth || "").toLowerCase();
-                        if (d.indexOf("impassable") >= 0) {
-                            return { rank: 4, color: "#8B0000" }; // Dark Red
-                        } else if (d.indexOf("waist") >= 0) {
-                            return { rank: 3, color: "#D32F2F" }; // Red
-                        } else if (d.indexOf("knee") >= 0) {
-                            return { rank: 2, color: "#FFA000" }; // Yellow/Orange
-                        } else {
-                            return { rank: 1, color: "#388E3C" }; // Green (Ankle-Deep)
+                    function highlightRoad(coords, title, severity, notes) {
+                        var color = '#e74c3c'; // Thick Red for flood alert
+                        if (severity && (severity.indexOf('Ankle') >= 0 || severity.indexOf('Passable') >= 0)) {
+                            color = '#f39c12'; // Orange
                         }
+                        
+                        var polyline = L.polyline(coords, {
+                            color: color,
+                            weight: 8,
+                            opacity: 0.9,
+                            lineCap: 'round'
+                        }).addTo(map);
+
+                        polyline.bindPopup(
+                            "<b>🚨 FLOOD ALERT: " + title + "</b><br>" +
+                            "<b>Severity:</b> " + severity + "<br>" +
+                            "<small>Notes: " + (notes || "Flood reported on road segment") + "</small>"
+                        );
                     }
 
-                    window.renderFloodRadius = function(reports) {
-                        radiusLayer.clearLayers();
-                        if (!reports || reports.length === 0) return;
-
-                        var grouped = {};
-                        for (var i = 0; i < reports.length; i++) {
-                            var r = reports[i];
-                            if (!r.lat || !r.lon) continue;
-                            var key = r.lat.toFixed(4) + "," + r.lon.toFixed(4);
-                            var style = getSeverityStyle(r.waterDepth);
-
-                            if (!grouped[key]) {
-                                grouped[key] = {
-                                    lat: r.lat,
-                                    lon: r.lon,
-                                    location: r.location,
-                                    waterDepth: r.waterDepth,
-                                    notes: r.notes,
-                                    count: 1,
-                                    rank: style.rank,
-                                    color: style.color
-                                };
-                            } else {
-                                grouped[key].count += 1;
-                                if (style.rank >= grouped[key].rank) {
-                                    grouped[key].rank = style.rank;
-                                    grouped[key].color = style.color;
-                                    grouped[key].waterDepth = r.waterDepth;
-                                    grouped[key].notes = r.notes;
-                                }
-                            }
-                        }
-
-                        for (var k in grouped) {
-                            var g = grouped[k];
-                            // Kumakapal ang kulay at border habang dumadami ang report sa lugar
-                            var fillOpacity = Math.min(0.22 + (g.count - 1) * 0.16, 0.78);
-                            var strokeWeight = Math.min(1.5 + (g.count - 1) * 1.2, 6.0);
-
-                            var circle = L.circle([g.lat, g.lon], {
-                                radius: 220,
-                                color: g.color,
-                                fillColor: g.color,
-                                fillOpacity: fillOpacity,
-                                weight: strokeWeight
-                            }).addTo(radiusLayer);
-
-                            circle.bindPopup(
-                                "<b>🚨 " + g.location + "</b><br>" +
-                                "<b>Severity:</b> " + g.waterDepth + "<br>" +
-                                "<b>Reports:</b> " + g.count + " report(s)<br>" +
-                                "<small>" + (g.notes || "") + "</small>"
-                            );
-                        }
-                    };
-
-                    window.renderFlompyGeoJson = function(geojsonData) {
-                        if (!geojsonData || !geojsonData.features || geojsonData.features.length === 0) return;
-                        radiusLayer.clearLayers();
-                        L.geoJSON(geojsonData, {
-                            pointToLayer: function(feature, latlng) {
-                                var p = feature.properties || {};
-                                return L.circle(latlng, {
-                                    radius: p.radius || 220,
-                                    color: p.color || "#8B0000",
-                                    fillColor: p.color || "#8B0000",
-                                    fillOpacity: p.fillOpacity || 0.22,
-                                    weight: p.strokeWeight || 1.5
-                                });
-                            },
-                            onEachFeature: function(feature, layer) {
-                                var p = feature.properties || {};
-                                layer.bindPopup(
-                                    "<b>🚨 " + (p.name || "Flood Zone") + "</b><br>" +
-                                    "<b>Severity:</b> " + (p.severity || "") + "<br>" +
-                                    "<b>Reports:</b> " + (p.reportCount || 1) + " report(s)<br>" +
-                                    "<small>" + (p.notes || p.source || "") + "</small>"
-                                );
-                            }
-                        }).addTo(radiusLayer);
-                    };
+                    // Directly render active flood road polylines on San Mateo map
+                    highlightRoad(sanMateoRoads["ampid"], "Ampid 1 & 2 Main Road", "Waist-Deep (Not Passable)", "Water level waist-deep near riverbank");
+                    highlightRoad(sanMateoRoads["dulong"], "Dulong Bayan Road", "Chest-Deep (Critical)", "Road closed due to high water");
+                    highlightRoad(sanMateoRoads["banaba"], "Banaba Riverbank Road", "Waist-Deep (Not Passable)", "River overflowed onto street");
+                    highlightRoad(sanMateoRoads["gen. luna"], "Gen. Luna Ave (San Mateo Main Road)", "Knee-Deep (Heavy Vehicles Only)", "Slow-moving traffic due to gutter flood");
 
                     function setLocation(lat, lon, title) {
                         map.setView([lat, lon], 15);
@@ -268,38 +202,6 @@ class MapActivity : ComponentActivity() {
         """.trimIndent()
 
         fullMapView.loadDataWithBaseURL("http://localhost", htmlContent, "text/html", "UTF-8", null)
-    }
-
-    private fun updateMapRadius() {
-        if (!::fullMapView.isInitialized) return
-        val reports = ReportRepository.loadReports(this) {
-            runOnUiThread { updateMapRadius() }
-        }
-        val jsonArray = JSONArray()
-        for (r in reports) {
-            val obj = JSONObject().apply {
-                put("location", r.location)
-                put("waterDepth", r.severity)
-                put("statusText", r.statusText)
-                put("notes", r.notes)
-                put("lat", r.lat)
-                put("lon", r.lon)
-            }
-            jsonArray.put(obj)
-        }
-        fullMapView.evaluateJavascript(
-            "javascript:if(window.renderFloodRadius) window.renderFloodRadius($jsonArray);",
-            null
-        )
-
-        FloodGuardApiService.fetchFloodGeoJsonFromBackend { geoJsonStr ->
-            runOnUiThread {
-                fullMapView.evaluateJavascript(
-                    "javascript:if(window.renderFlompyGeoJson) window.renderFlompyGeoJson($geoJsonStr);",
-                    null
-                )
-            }
-        }
     }
 
     private fun recenterMap(lat: Double, lon: Double, title: String) {

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/app_bg">
@@ -183,6 +184,7 @@
 
             <!-- Location Section -->
             <LinearLayout
+                android:id="@+id/locationSectionContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/search_bg"
@@ -378,40 +380,46 @@
                 android:overScrollMode="always"
                 android:inputType="textMultiLine|textCapSentences" />
 
-            <!-- SMS Broadcast Option -->
-            <CheckBox
-                android:id="@+id/chkSendSmsOnSubmit"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Broadcast Emergency SMS Alert to all application users"
+                android:text="Submitting this report automatically sends a push alert to FloodGuard users."
                 android:textColor="@color/text_primary"
                 android:textSize="13sp"
-                android:textStyle="bold"
-                android:checked="true"
-                android:layout_marginBottom="10dp" />
+                android:layout_marginBottom="16dp" />
 
-            <!-- Daily Report Limit Indicator -->
-            <TextView
-                android:id="@+id/tvRemainingReports"
+            <!-- Buttons Row (Back & Submit) -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Daily Report Limit: 4 / 4 remaining today (Resets daily)"
-                android:textColor="#0066CC"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:gravity="center"
-                android:layout_marginBottom="12dp" />
+                android:orientation="horizontal"
+                android:layout_marginTop="8dp">
 
-            <!-- Submit Button -->
-            <Button
-                android:id="@+id/submitReportButton"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:background="@drawable/btn_yellow"
-                android:text="SUBMIT REPORT"
-                android:textColor="#000000"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                <Button
+                    android:id="@+id/backButtonBottom"
+                    android:layout_width="0dp"
+                    android:layout_height="52dp"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/btn_back_blue"
+                    android:text="BACK"
+                    android:textColor="@android:color/white"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <!-- Submit Button -->
+                <Button
+                    android:id="@+id/submitReportButton"
+                    android:layout_width="0dp"
+                    android:layout_height="52dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/btn_yellow"
+                    android:text="SUBMIT REPORT"
+                    android:textColor="#000000"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
 
             <!-- Back / Cancel Button -->
             <Button
@@ -427,6 +435,6 @@
                 android:textStyle="bold" />
 
         </LinearLayout>
-    </ScrollView>
+    </com.example.floodguard.InputScrollView>
 
 </RelativeLayout>
