@@ -10,6 +10,7 @@ import android.widget.RelativeLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import com.example.floodguard.R
 
 class AlertsActivity : ComponentActivity() {
 
@@ -73,8 +74,22 @@ class AlertsActivity : ComponentActivity() {
     private fun populateAlerts() {
         alertsContainer.removeAllViews()
 
-        val reportsList = ReportRepository.loadReports(this) {
+        val currentUsername = UserSession.getUsername(this)
+        val currentFullName = UserSession.getUserName(this)
+
+        val reportsList = ReportRepository.loadCommunityReports(this) {
             runOnUiThread { populateAlerts() }
+        }
+
+        if (reportsList.isEmpty()) {
+            val emptyText = TextView(this).apply {
+                text = "No community flood alerts from other users at this moment."
+                setTextColor(resources.getColor(android.R.color.darker_gray, theme))
+                textSize = 13f
+                setPadding(12, 12, 12, 12)
+            }
+            alertsContainer.addView(emptyText)
+            return
         }
 
         for (report in reportsList) {
@@ -130,8 +145,9 @@ class AlertsActivity : ComponentActivity() {
                 paint.isFakeBoldText = true
             }
 
+            val reporterLabel = report.getDisplayReporter(currentUsername, currentFullName)
             val subtitleText = TextView(this).apply {
-                text = report.notes
+                text = "${report.notes}\nReported by: $reporterLabel"
                 setTextColor(resources.getColor(android.R.color.darker_gray, theme))
                 textSize = 12f
                 val topMarginPx = (4 * resources.displayMetrics.density).toInt()
@@ -140,6 +156,21 @@ class AlertsActivity : ComponentActivity() {
 
             textLayout.addView(titleText)
             textLayout.addView(subtitleText)
+
+            if (!report.photoUri.isNullOrBlank()) {
+                val photoBtn = TextView(this).apply {
+                    text = "View Flood Photo"
+                    setTextColor(resources.getColor(android.R.color.holo_blue_dark, theme))
+                    textSize = 12f
+                    paint.isFakeBoldText = true
+                    val topMarginPx = (6 * resources.displayMetrics.density).toInt()
+                    setPadding(0, topMarginPx, 0, 0)
+                    setOnClickListener {
+                        ReportPhotoHelper.showFloodPhotoDialog(this@AlertsActivity, report.photoUri!!, report.location)
+                    }
+                }
+                textLayout.addView(photoBtn)
+            }
 
             cardView.addView(textLayout)
             cardView.addView(timeText)

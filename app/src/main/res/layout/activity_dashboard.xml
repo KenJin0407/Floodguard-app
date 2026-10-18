@@ -216,6 +216,7 @@
                     <ImageView
                         android:layout_width="20dp"
                         android:layout_height="20dp"
+                        android:layout_gravity="center_vertical"
                         android:src="@drawable/ic_rain"
                         android:contentDescription="Rain Gauge" />
 
@@ -223,6 +224,8 @@
                         android:id="@+id/rainMeterText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:gravity="center"
                         android:text="Rainfall: 2.5 mm/h (Moderate Rain)"
                         android:textColor="#81D4FA"
                         android:textSize="13sp"
@@ -237,6 +240,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/hourly_bg"
+                android:fillViewport="true"
                 android:paddingTop="12dp"
                 android:paddingBottom="12dp"
                 android:paddingStart="16dp"
@@ -246,27 +250,29 @@
 
                 <LinearLayout
                     android:id="@+id/hourlyForecastContainer"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:gravity="center">
 
                     <!-- Hourly Item 1 -->
                     <LinearLayout
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:layout_weight="1"
                         android:orientation="vertical"
-                        android:gravity="center"
-                        android:layout_marginEnd="20dp">
+                        android:gravity="center">
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:gravity="center"
                             android:text="Now"
                             android:textColor="#94A3B8"
                             android:textSize="11sp" />
                         <ImageView
                             android:layout_width="20dp"
                             android:layout_height="20dp"
+                            android:layout_gravity="center"
                             android:src="@drawable/ic_rain"
                             android:layout_marginTop="4dp"
                             android:layout_marginBottom="4dp"
@@ -275,6 +281,7 @@
                             android:id="@+id/hourlyTemp1"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:gravity="center"
                             android:text="29°"
                             android:textColor="@android:color/white"
                             android:textSize="12sp"
@@ -283,20 +290,22 @@
 
                     <!-- Hourly Item 2 -->
                     <LinearLayout
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:layout_weight="1"
                         android:orientation="vertical"
-                        android:gravity="center"
-                        android:layout_marginEnd="20dp">
+                        android:gravity="center">
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:gravity="center"
                             android:text="19:00"
                             android:textColor="#94A3B8"
                             android:textSize="11sp" />
                         <ImageView
                             android:layout_width="20dp"
                             android:layout_height="20dp"
+                            android:layout_gravity="center"
                             android:src="@drawable/ic_rain"
                             android:layout_marginTop="4dp"
                             android:layout_marginBottom="4dp"
@@ -305,6 +314,7 @@
                             android:id="@+id/hourlyTemp2"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:gravity="center"
                             android:text="29°"
                             android:textColor="@android:color/white"
                             android:textSize="12sp"
@@ -313,20 +323,22 @@
 
                     <!-- Hourly Item 3 -->
                     <LinearLayout
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:layout_weight="1"
                         android:orientation="vertical"
-                        android:gravity="center"
-                        android:layout_marginEnd="20dp">
+                        android:gravity="center">
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:gravity="center"
                             android:text="20:00"
                             android:textColor="#94A3B8"
                             android:textSize="11sp" />
                         <ImageView
                             android:layout_width="20dp"
                             android:layout_height="20dp"
+                            android:layout_gravity="center"
                             android:src="@drawable/ic_rain"
                             android:layout_marginTop="4dp"
                             android:layout_marginBottom="4dp"
@@ -335,6 +347,7 @@
                             android:id="@+id/hourlyTemp3"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:gravity="center"
                             android:text="28°"
                             android:textColor="@android:color/white"
                             android:textSize="12sp"
@@ -343,20 +356,22 @@
 
                     <!-- Hourly Item 4 -->
                     <LinearLayout
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:layout_weight="1"
                         android:orientation="vertical"
-                        android:gravity="center"
-                        android:layout_marginEnd="20dp">
+                        android:gravity="center">
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:gravity="center"
                             android:text="21:00"
                             android:textColor="#94A3B8"
                             android:textSize="11sp" />
                         <ImageView
                             android:layout_width="20dp"
                             android:layout_height="20dp"
+                            android:layout_gravity="center"
                             android:src="@drawable/ic_rain"
                             android:layout_marginTop="4dp"
                             android:layout_marginBottom="4dp"
@@ -365,6 +380,7 @@
                             android:id="@+id/hourlyTemp4"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:gravity="center"
                             android:text="27°"
                             android:textColor="@android:color/white"
                             android:textSize="12sp"
@@ -373,20 +389,22 @@
 
                     <!-- Hourly Item 5 -->
                     <LinearLayout
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:layout_weight="1"
                         android:orientation="vertical"
-                        android:gravity="center"
-                        android:layout_marginEnd="20dp">
+                        android:gravity="center">
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:gravity="center"
                             android:text="22:00"
                             android:textColor="#94A3B8"
                             android:textSize="11sp" />
                         <ImageView
                             android:layout_width="20dp"
                             android:layout_height="20dp"
+                            android:layout_gravity="center"
                             android:src="@drawable/ic_rain"
                             android:layout_marginTop="4dp"
                             android:layout_marginBottom="4dp"
@@ -395,6 +413,7 @@
                             android:id="@+id/hourlyTemp5"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:gravity="center"
                             android:text="27°"
                             android:textColor="@android:color/white"
                             android:textSize="12sp"
@@ -403,19 +422,22 @@
 
                     <!-- Hourly Item 6 -->
                     <LinearLayout
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:layout_weight="1"
                         android:orientation="vertical"
                         android:gravity="center">
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:gravity="center"
                             android:text="23:00"
                             android:textColor="#94A3B8"
                             android:textSize="11sp" />
                         <ImageView
                             android:layout_width="20dp"
                             android:layout_height="20dp"
+                            android:layout_gravity="center"
                             android:src="@drawable/ic_rain"
                             android:layout_marginTop="4dp"
                             android:layout_marginBottom="4dp"
@@ -424,6 +446,7 @@
                             android:id="@+id/hourlyTemp6"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:gravity="center"
                             android:text="27°"
                             android:textColor="@android:color/white"
                             android:textSize="12sp"

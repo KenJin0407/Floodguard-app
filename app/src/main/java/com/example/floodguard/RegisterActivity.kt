@@ -8,6 +8,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import com.example.floodguard.R
 
 class RegisterActivity : ComponentActivity() {
 
@@ -104,6 +105,7 @@ class RegisterActivity : ComponentActivity() {
                 UserSession.setLoggedIn(
                     context = this,
                     loggedIn = true,
+                    username = username,
                     userName = fullName,
                     username = username,
                     userGender = selectedGender,

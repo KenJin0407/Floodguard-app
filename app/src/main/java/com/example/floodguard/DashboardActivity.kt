@@ -8,9 +8,9 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.view.View
+import android.view.GestureDetector
 import android.view.MotionEvent
-import android.webkit.JavascriptInterface
+import android.view.View
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -21,6 +21,7 @@ import android.widget.RelativeLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import com.example.floodguard.R
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -123,7 +124,10 @@ class DashboardActivity : ComponentActivity() {
         val container = findViewById<LinearLayout>(R.id.communityReportsContainer) ?: return
         container.removeAllViews()
 
-        val allReports = ReportRepository.loadReports(this) {
+        val currentUsername = UserSession.getUsername(this)
+        val currentFullName = UserSession.getUserName(this)
+
+        val allReports = ReportRepository.loadCommunityReports(this) {
             runOnUiThread {
                 populateCommunityReports(searchLocationInput.text.toString().trim())
             }
@@ -141,7 +145,7 @@ class DashboardActivity : ComponentActivity() {
 
         if (reportsList.isEmpty()) {
             val emptyText = TextView(this).apply {
-                text = if (searchQuery.isBlank()) "No community flood reports at this moment." else "No flood reports found for \"$searchQuery\"."
+                text = if (searchQuery.isBlank()) "No community flood reports from other users at this moment." else "No flood reports found for \"$searchQuery\"."
                 setTextColor(resources.getColor(android.R.color.darker_gray, theme))
                 textSize = 13f
                 setPadding(12, 12, 12, 12)
@@ -208,8 +212,9 @@ class DashboardActivity : ComponentActivity() {
                 paint.isFakeBoldText = true
             }
 
+            val reporterLabel = report.getDisplayReporter(currentUsername, currentFullName)
             val subtitleText = TextView(this).apply {
-                text = report.notes
+                text = "${report.notes}\nReported by: $reporterLabel"
                 setTextColor(resources.getColor(android.R.color.darker_gray, theme))
                 textSize = 12f
                 val topMarginPx = (4 * resources.displayMetrics.density).toInt()
@@ -243,22 +248,7 @@ class DashboardActivity : ComponentActivity() {
     }
 
     private fun showReportPhotoDialog(photoUriStr: String, location: String) {
-        val imageView = ImageView(this).apply {
-            setPadding(24, 24, 24, 24)
-            try {
-                setImageURI(Uri.parse(photoUriStr))
-            } catch (_: Exception) {
-                setImageResource(R.drawable.ic_rain)
-            }
-            adjustViewBounds = true
-            maxHeight = (320 * resources.displayMetrics.density).toInt()
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle("Flood Report Photo - $location")
-            .setView(imageView)
-            .setPositiveButton("Close", null)
-            .show()
+        ReportPhotoHelper.showFloodPhotoDialog(this, photoUriStr, location)
     }
 
     private fun searchAndLocateMapArea(query: String) {
@@ -302,30 +292,49 @@ class DashboardActivity : ComponentActivity() {
         }
     }
 
-    @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
+    private var lastMapRedirectTimeMs = 0L
+
+    private fun openFullMapFromDashboard() {
+        val now = System.currentTimeMillis()
+        if (now - lastMapRedirectTimeMs < 600L) return
+        lastMapRedirectTimeMs = now
+
+        val intent = Intent(this, MapActivity::class.java).apply {
+            val currentSearch = searchLocationInput.text.toString().trim()
+            if (currentSearch.isNotEmpty()) {
+                putExtra("search_query", currentSearch)
+            }
+        }
+        startActivity(intent)
+    }
+
+    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
     @Suppress("DEPRECATION")
     private fun setupRoadMap() {
+        val gestureDetector = GestureDetector(
+            this,
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    openFullMapFromDashboard()
+                    return true
+                }
+            }
+        )
+
+        mapWebView.setOnTouchListener { _, event ->
+            gestureDetector.onTouchEvent(event)
+            false
+        }
+
         mapWebView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
             useWideViewPort = true
             loadWithOverviewMode = true
-            setSupportZoom(true)
-            setBuiltInZoomControls(false)
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 FloodGuardApp/1.0"
         }
-
-        mapWebView.addJavascriptInterface(object : Any() {
-            @JavascriptInterface
-            fun onMapTapped() {
-                runOnUiThread {
-                    val intent = Intent(this@DashboardActivity, MapActivity::class.java)
-                    startActivity(intent)
-                }
-            }
-        }, "AndroidMapBridge")
 
         mapWebView.webViewClient = object : WebViewClient() {
             @Deprecated("Deprecated in Java")
@@ -334,24 +343,12 @@ class DashboardActivity : ComponentActivity() {
             }
         }
 
-        mapWebView.setOnTouchListener { v, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
-                    v.parent.requestDisallowInterceptTouchEvent(true)
-                }
-                MotionEvent.ACTION_UP -> {
-                    v.parent.requestDisallowInterceptTouchEvent(false)
-                }
-            }
-            false
-        }
-
         val htmlContent = """
             <!DOCTYPE html>
             <html>
             <head>
                 <meta charset="utf-8" />
-                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
                 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
                 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
                 <style>
@@ -372,12 +369,9 @@ class DashboardActivity : ComponentActivity() {
                     var lat = 14.6958;
                     var lon = 121.1207;
                     var map = L.map('map', { 
-                        zoomControl: true,
+                        zoomControl: false,
                         attributionControl: false,
-                        dragging: true,
-                        touchZoom: true,
-                        scrollWheelZoom: true,
-                        doubleClickZoom: true
+                        doubleClickZoom: false
                     }).setView([lat, lon], 14);
                     
                     L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
@@ -387,12 +381,6 @@ class DashboardActivity : ComponentActivity() {
 
                     var activeMarker = L.marker([lat, lon]).addTo(map);
                     activeMarker.bindPopup("<b>San Mateo, Rizal</b><br>Google Maps Traffic Navigation").openPopup();
-
-                    map.on('click', function(e) {
-                        if (window.AndroidMapBridge) {
-                            window.AndroidMapBridge.onMapTapped();
-                        }
-                    });
 
                     function locateArea(newLat, newLon, title) {
                         map.setView([newLat, newLon], 15);
