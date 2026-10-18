@@ -25,6 +25,7 @@ import android.view.ViewGroup
 import android.widget.AutoCompleteTextView
 import android.widget.BaseAdapter
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.Filter
 import android.widget.Filterable
@@ -68,6 +69,8 @@ class ReportFloodActivity : ComponentActivity() {
     private lateinit var btnLocationDropdown: TextView
     private lateinit var locationCoordsText: TextView
     private lateinit var notesInput: EditText
+    private lateinit var chkSendSmsOnSubmit: CheckBox
+    private lateinit var tvRemainingReports: TextView
     private lateinit var submitReportButton: Button
     private lateinit var tvPhotoBadge: TextView
 
@@ -174,22 +177,6 @@ class ReportFloodActivity : ComponentActivity() {
         }
     }
 
-    private val locationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (granted) {
-            fetchDeviceLocation()
-        } else {
-            resolveAndApplyCoordinates(
-                SmsAlertBroadcastManager.DEFAULT_USER_LAT,
-                SmsAlertBroadcastManager.DEFAULT_USER_LON,
-                isFallback = true
-            )
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_report_flood)
@@ -262,6 +249,8 @@ class ReportFloodActivity : ComponentActivity() {
         btnLocationDropdown = findViewById(R.id.btnLocationDropdown)
         locationCoordsText = findViewById(R.id.locationCoordsText)
         notesInput = findViewById(R.id.notesInput)
+        chkSendSmsOnSubmit = findViewById(R.id.chkSendSmsOnSubmit)
+        tvRemainingReports = findViewById(R.id.tvRemainingReports)
         submitReportButton = findViewById(R.id.submitReportButton)
 
         btnAnkleDeep = findViewById(R.id.btnAnkleDeep)
@@ -757,6 +746,17 @@ class ReportFloodActivity : ComponentActivity() {
         }
         val notes = notesInput.text.toString().trim()
 
+        // 2. Validate report content (Profanity & Nonsense Filter)
+        val validationError = validateReportContent(loc, notes)
+        if (validationError != null) {
+            AlertDialog.Builder(this)
+                .setTitle("Hindi Appropriate ang Report")
+                .setMessage(validationError)
+                .setPositiveButton("Ayusin ang Report", null)
+                .show()
+            return
+        }
+
         val (statusText, level) = when (selectedSeverity) {
             "Impassable", "Waist-Deep" -> Pair("Not Passable", SeverityLevel.NOT_PASSABLE)
             "Knee-Deep" -> Pair("Heavy vehicles only", SeverityLevel.HEAVY_VEHICLES_ONLY)
@@ -978,4 +978,3 @@ class ReportFloodActivity : ComponentActivity() {
         }
     }
 }
-

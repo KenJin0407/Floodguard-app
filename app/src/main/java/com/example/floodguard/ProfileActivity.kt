@@ -480,13 +480,6 @@ class ProfileActivity : ComponentActivity() {
                     Toast.makeText(this, "New passwords do not match", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-                newText != confirmText -> {
-                    Toast.makeText(this, "New passwords do not match", Toast.LENGTH_SHORT).show()
-                }
-                else -> {
-                    Toast.makeText(this, "Password changed successfully!", Toast.LENGTH_SHORT).show()
-                    dialog.dismiss()
-                }
             }
 
             val username = UserSession.getUsername(this)
