@@ -7,6 +7,7 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import com.example.floodguard.R
 
 class RegisterActivity : ComponentActivity() {
 
@@ -18,7 +19,6 @@ class RegisterActivity : ComponentActivity() {
         val mobileField = findViewById<EditText>(R.id.mobileField)
         val btnRegMale = findViewById<Button>(R.id.btnRegMale)
         val btnRegFemale = findViewById<Button>(R.id.btnRegFemale)
-        val emailField = findViewById<EditText>(R.id.emailField)
         val regUsernameField = findViewById<EditText>(R.id.regUsernameField)
         val regPasswordField = findViewById<EditText>(R.id.regPasswordField)
         val confirmPasswordField = findViewById<EditText>(R.id.confirmPasswordField)
@@ -46,12 +46,11 @@ class RegisterActivity : ComponentActivity() {
         registerButton?.setOnClickListener {
             val fullName = fullNameField?.text?.toString().orEmpty().trim()
             val mobile = mobileField?.text?.toString().orEmpty().trim()
-            val email = emailField?.text?.toString().orEmpty().trim()
             val username = regUsernameField?.text?.toString().orEmpty().trim()
             val password = regPasswordField?.text?.toString().orEmpty()
             val confirmPassword = confirmPasswordField?.text?.toString().orEmpty()
 
-            if (fullName.isEmpty() || mobile.isEmpty() || email.isEmpty() || username.isEmpty() || password.isEmpty()) {
+            if (fullName.isEmpty() || mobile.isEmpty() || username.isEmpty() || password.isEmpty()) {
                 Toast.makeText(this, "Please fill in all required fields", Toast.LENGTH_SHORT).show()
             } else if (password != confirmPassword) {
                 Toast.makeText(this, "Passwords do not match", Toast.LENGTH_SHORT).show()
@@ -61,7 +60,6 @@ class RegisterActivity : ComponentActivity() {
                     fullName = fullName,
                     gender = selectedGender,
                     mobile = mobile,
-                    email = email,
                     username = username,
                     password = password
                 )
@@ -71,10 +69,10 @@ class RegisterActivity : ComponentActivity() {
                 UserSession.setLoggedIn(
                     context = this,
                     loggedIn = true,
+                    username = username,
                     userName = fullName,
                     userGender = selectedGender,
-                    userContact = mobile,
-                    userEmail = email
+                    userContact = mobile
                 )
                 Toast.makeText(this, "Account created successfully!", Toast.LENGTH_SHORT).show()
                 val intent = Intent(this, DashboardActivity::class.java)

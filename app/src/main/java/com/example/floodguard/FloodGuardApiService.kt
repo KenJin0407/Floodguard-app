@@ -49,7 +49,8 @@ object FloodGuardApiService {
                                 val photoUri = if (item.has("photoUri") && !item.isNull("photoUri")) item.optString("photoUri") else null
                                 val lat = item.optDouble("lat", 14.6958)
                                 val lon = item.optDouble("lon", 121.1207)
-                                val reporterName = item.optString("reporterName", "Juan Dela Cruz")
+                                val authorUsername = item.optString("authorUsername", "")
+                                val reporterName = item.optString("reporterName", "")
 
                                 val level = try {
                                     SeverityLevel.valueOf(severityLevelStr)
@@ -69,6 +70,7 @@ object FloodGuardApiService {
                                         photoUri = photoUri,
                                         lat = lat,
                                         lon = lon,
+                                        authorUsername = authorUsername,
                                         reporterName = reporterName,
                                     )
                                 )
@@ -118,7 +120,6 @@ object FloodGuardApiService {
                                         fullName = item.optString("fullName"),
                                         gender = item.optString("gender", "Male"),
                                         mobile = item.optString("mobile"),
-                                        email = item.optString("email"),
                                         username = item.optString("username"),
                                         password = item.optString("password", "password123")
                                     )
@@ -163,6 +164,7 @@ object FloodGuardApiService {
                         put("photoUri", report.photoUri)
                         put("lat", report.lat)
                         put("lon", report.lon)
+                        put("authorUsername", report.authorUsername)
                         put("reporterName", report.reporterName)
                     }
 
@@ -192,7 +194,7 @@ object FloodGuardApiService {
         }
     }
 
-    fun updateReportInBackend(id: String, location: String, severity: String, notes: String) {
+    fun updateReportInBackend(id: String, location: String, severity: String, notes: String, authorUsername: String = "") {
         thread {
             for (baseUrl in HOST_URLS) {
                 try {
@@ -208,6 +210,7 @@ object FloodGuardApiService {
                         put("location", location)
                         put("severity", severity)
                         put("notes", notes)
+                        put("authorUsername", authorUsername)
                     }
 
                     val writer = OutputStreamWriter(conn.outputStream)
@@ -229,11 +232,12 @@ object FloodGuardApiService {
         }
     }
 
-    fun deleteReportInBackend(id: String) {
+    fun deleteReportInBackend(id: String, authorUsername: String = "") {
         thread {
             for (baseUrl in HOST_URLS) {
                 try {
-                    val url = URL("$baseUrl/reports/$id")
+                    val encodedAuthor = java.net.URLEncoder.encode(authorUsername, "UTF-8")
+                    val url = URL("$baseUrl/reports/$id?authorUsername=$encodedAuthor")
                     val conn = url.openConnection() as HttpURLConnection
                     conn.requestMethod = "DELETE"
                     conn.connectTimeout = 4000
@@ -269,7 +273,6 @@ object FloodGuardApiService {
                         put("fullName", user.fullName)
                         put("gender", user.gender)
                         put("mobile", user.mobile)
-                        put("email", user.email)
                         put("username", user.username)
                         put("password", user.password)
                     }
@@ -294,7 +297,7 @@ object FloodGuardApiService {
         }
     }
 
-    fun updateUserProfileInBackend(username: String, fullName: String, gender: String, mobile: String, email: String) {
+    fun updateUserProfileInBackend(username: String, fullName: String, gender: String, mobile: String) {
         thread {
             for (baseUrl in HOST_URLS) {
                 try {
@@ -311,7 +314,6 @@ object FloodGuardApiService {
                         put("fullName", fullName)
                         put("gender", gender)
                         put("mobile", mobile)
-                        put("email", email)
                     }
 
                     val writer = OutputStreamWriter(conn.outputStream)
@@ -373,7 +375,6 @@ object FloodGuardApiService {
                                 fullName = userObj.optString("fullName"),
                                 gender = userObj.optString("gender", "Male"),
                                 mobile = userObj.optString("mobile"),
-                                email = userObj.optString("email"),
                                 username = userObj.optString("username", username),
                                 password = password,
                             )
@@ -405,4 +406,5 @@ data class FloodBroadcast(
     val notes: String,
     val reporterName: String,
     val timestamp: Long,
+    val authorUsername: String = "",
 )

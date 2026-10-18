@@ -14,6 +14,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import com.example.floodguard.R
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -203,6 +204,7 @@ class ReportFloodActivity : ComponentActivity() {
             photoUri = selectedImageUri?.toString(),
             lat = 14.6958,
             lon = 121.1207,
+            authorUsername = UserSession.getUsername(this),
             reporterName = UserSession.getUserName(this),
         )
 
@@ -221,7 +223,7 @@ class ReportFloodActivity : ComponentActivity() {
             }
         }
 
-        val intent = Intent(this, AlertsActivity::class.java)
+        val intent = Intent(this, ProfileActivity::class.java)
         startActivity(intent)
         finish()
     }

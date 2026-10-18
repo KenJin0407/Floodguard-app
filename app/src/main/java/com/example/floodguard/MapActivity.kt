@@ -15,6 +15,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import com.example.floodguard.R
 import org.json.JSONArray
 import java.io.BufferedReader
 import java.io.InputStreamReader

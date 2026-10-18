@@ -46,7 +46,6 @@ class UserRegister(BaseModel):
     fullName: str
     gender: Optional[str] = "Male"
     mobile: Optional[str] = None
-    email: str
     username: str
     password: str
 
@@ -59,7 +58,6 @@ class ProfileUpdate(BaseModel):
     fullName: Optional[str] = None
     gender: Optional[str] = None
     mobile: Optional[str] = None
-    email: Optional[str] = None
 
 class FloodReportCreate(BaseModel):
     id: Optional[str] = None
@@ -72,11 +70,14 @@ class FloodReportCreate(BaseModel):
     photoUri: Optional[str] = None
     lat: Optional[float] = 14.6958
     lon: Optional[float] = 121.1207
+    authorUsername: Optional[str] = ""
+    reporterName: Optional[str] = ""
 
 class FloodReportUpdate(BaseModel):
     location: Optional[str] = None
     severity: Optional[str] = None
     notes: Optional[str] = None
+    authorUsername: Optional[str] = None
 
 def send_report_notification(report: dict) -> dict:
     credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
@@ -100,6 +101,8 @@ def send_report_notification(report: dict) -> dict:
         location = str(report.get("location") or "Flood report")
         severity = str(report.get("severity") or "New flood report")
         timestamp = int(report.get("timestamp") or time.time() * 1000)
+        author_username = str(report.get("authorUsername") or "")
+        reporter_name = str(report.get("reporterName") or author_username or "Community Reporter")
         message = messaging.Message(
             notification=messaging.Notification(
                 title="FloodGuard flood alert",
@@ -110,7 +113,8 @@ def send_report_notification(report: dict) -> dict:
                 "location": location,
                 "severity": severity,
                 "notes": str(report.get("notes") or ""),
-                "reporterName": "Community Reporter",
+                "reporterName": reporter_name,
+                "authorUsername": author_username,
                 "timestamp": str(timestamp),
             },
             android=messaging.AndroidConfig(priority="high"),
@@ -126,8 +130,8 @@ def send_report_notification(report: dict) -> dict:
 def register_user(user: UserRegister):
     data = load_data()
     for u in data["users"]:
-        if u["username"] == user.username or u["email"] == user.email:
-            raise HTTPException(status_code=400, detail="Username or email already exists")
+        if u["username"] == user.username:
+            raise HTTPException(status_code=400, detail="Username already exists")
     
     user_dict = user.model_dump() if hasattr(user, "model_dump") else user.dict()
     if not user_dict.get("id"):
@@ -155,8 +159,6 @@ def update_profile(profile: ProfileUpdate):
                 user["gender"] = profile.gender
             if profile.mobile is not None:
                 user["mobile"] = profile.mobile
-            if profile.email is not None:
-                user["email"] = profile.email
             save_data(data)
             return {"success": True, "user": user}
     raise HTTPException(status_code=404, detail="User not found")
@@ -183,10 +185,23 @@ def update_report(report_id: str, update_data: FloodReportUpdate):
     data = load_data()
     for report in data["reports"]:
         if report.get("id") == report_id:
+            existing_author = (report.get("authorUsername") or "").strip().lower()
+            request_author = (update_data.authorUsername or "").strip().lower()
+            if existing_author and request_author != existing_author:
+                raise HTTPException(status_code=403, detail="Only the author who submitted this report can edit it")
             if update_data.location is not None:
                 report["location"] = update_data.location
             if update_data.severity is not None:
                 report["severity"] = update_data.severity
+                if update_data.severity in ("Impassable", "Waist-Deep"):
+                    report["statusText"] = "Not Passable"
+                    report["severityLevel"] = "NOT_PASSABLE"
+                elif update_data.severity == "Knee-Deep":
+                    report["statusText"] = "Heavy vehicles only"
+                    report["severityLevel"] = "HEAVY_VEHICLES_ONLY"
+                else:
+                    report["statusText"] = "Cleared"
+                    report["severityLevel"] = "CLEARED"
             if update_data.notes is not None:
                 report["notes"] = update_data.notes
             save_data(data)
@@ -194,14 +209,18 @@ def update_report(report_id: str, update_data: FloodReportUpdate):
     raise HTTPException(status_code=404, detail="Report not found")
 
 @app.delete("/api/reports/{report_id}")
-def delete_report(report_id: str):
+def delete_report(report_id: str, authorUsername: Optional[str] = None):
     data = load_data()
-    initial_len = len(data["reports"])
-    data["reports"] = [r for r in data["reports"] if r.get("id") != report_id]
-    if len(data["reports"]) == initial_len:
-        raise HTTPException(status_code=404, detail="Report not found")
-    save_data(data)
-    return {"success": True, "message": "Report deleted successfully"}
+    for report in data["reports"]:
+        if report.get("id") == report_id:
+            existing_author = (report.get("authorUsername") or "").strip().lower()
+            request_author = (authorUsername or "").strip().lower()
+            if existing_author and request_author != existing_author:
+                raise HTTPException(status_code=403, detail="Only the author who submitted this report can delete it")
+            data["reports"] = [r for r in data["reports"] if r.get("id") != report_id]
+            save_data(data)
+            return {"success": True, "message": "Report deleted successfully"}
+    raise HTTPException(status_code=404, detail="Report not found")
 
 @app.get("/api/users")
 def get_users():
