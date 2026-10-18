@@ -10,6 +10,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import android.view.MotionEvent
+import android.webkit.JavascriptInterface
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -301,7 +302,7 @@ class DashboardActivity : ComponentActivity() {
         }
     }
 
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
     @Suppress("DEPRECATION")
     private fun setupRoadMap() {
         mapWebView.settings.apply {
@@ -316,14 +317,19 @@ class DashboardActivity : ComponentActivity() {
             userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 FloodGuardApp/1.0"
         }
 
+        mapWebView.addJavascriptInterface(object : Any() {
+            @JavascriptInterface
+            fun onMapTapped() {
+                runOnUiThread {
+                    val intent = Intent(this@DashboardActivity, MapActivity::class.java)
+                    startActivity(intent)
+                }
+            }
+        }, "AndroidMapBridge")
+
         mapWebView.webViewClient = object : WebViewClient() {
             @Deprecated("Deprecated in Java")
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                if (url != null && url.startsWith("mapaction://")) {
-                    val intent = Intent(this@DashboardActivity, MapActivity::class.java)
-                    startActivity(intent)
-                    return true
-                }
                 return false
             }
         }
@@ -383,7 +389,9 @@ class DashboardActivity : ComponentActivity() {
                     activeMarker.bindPopup("<b>San Mateo, Rizal</b><br>Google Maps Traffic Navigation").openPopup();
 
                     map.on('click', function(e) {
-                        window.location.href = "mapaction://open";
+                        if (window.AndroidMapBridge) {
+                            window.AndroidMapBridge.onMapTapped();
+                        }
                     });
 
                     function locateArea(newLat, newLon, title) {
