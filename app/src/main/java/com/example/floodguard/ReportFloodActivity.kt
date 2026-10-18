@@ -177,6 +177,22 @@ class ReportFloodActivity : ComponentActivity() {
         }
     }
 
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            fetchDeviceLocation()
+        } else {
+            resolveAndApplyCoordinates(
+                SmsAlertBroadcastManager.DEFAULT_USER_LAT,
+                SmsAlertBroadcastManager.DEFAULT_USER_LON,
+                isFallback = true
+            )
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_report_flood)
@@ -618,10 +634,10 @@ class ReportFloodActivity : ComponentActivity() {
         for (btn in buttons) {
             if (btn == selectedButton) {
                 btn.setBackgroundResource(R.drawable.btn_severity_selected)
-                btn.setTextColor(resources.getColor(android.R.color.white, theme))
+                btn.setTextColor(resources.getColor(R.color.white, theme))
             } else {
                 btn.setBackgroundResource(R.drawable.btn_severity_default)
-                btn.setTextColor(resources.getColor(android.R.color.black, theme))
+                btn.setTextColor(resources.getColor(R.color.black, theme))
             }
         }
     }

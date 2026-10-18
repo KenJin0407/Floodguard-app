@@ -579,3 +579,4 @@ data class FloodBroadcast(
     val smsRecipientsCount: Int = 1,
     val recipientPhones: List<String> = emptyList(),
 )
+
