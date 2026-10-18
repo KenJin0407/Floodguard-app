@@ -157,6 +157,21 @@ class AlertsActivity : ComponentActivity() {
             textLayout.addView(titleText)
             textLayout.addView(subtitleText)
 
+            if (!report.photoUri.isNullOrBlank()) {
+                val photoBtn = TextView(this).apply {
+                    text = "View Flood Photo"
+                    setTextColor(resources.getColor(android.R.color.holo_blue_dark, theme))
+                    textSize = 12f
+                    paint.isFakeBoldText = true
+                    val topMarginPx = (6 * resources.displayMetrics.density).toInt()
+                    setPadding(0, topMarginPx, 0, 0)
+                    setOnClickListener {
+                        ReportPhotoHelper.showFloodPhotoDialog(this@AlertsActivity, report.photoUri!!, report.location)
+                    }
+                }
+                textLayout.addView(photoBtn)
+            }
+
             cardView.addView(textLayout)
             cardView.addView(timeText)
 

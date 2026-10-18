@@ -141,10 +141,12 @@ object ReportRepository {
                     existing.severity != remoteReport.severity ||
                     existing.notes != remoteReport.notes ||
                     (remoteReport.authorUsername.isNotBlank() && existing.authorUsername != remoteReport.authorUsername) ||
-                    (remoteReport.reporterName.isNotBlank() && existing.reporterName != remoteReport.reporterName)
+                    (remoteReport.reporterName.isNotBlank() && existing.reporterName != remoteReport.reporterName) ||
+                    (!remoteReport.photoUri.isNullOrBlank() && existing.photoUri != remoteReport.photoUri)
                 ) {
                     val mergedAuthor = remoteReport.authorUsername.ifBlank { existing.authorUsername }
                     val mergedReporter = remoteReport.reporterName.ifBlank { existing.reporterName }
+                    val mergedPhoto = if (!remoteReport.photoUri.isNullOrBlank()) remoteReport.photoUri else existing.photoUri
                     db.updateReport(
                         remoteReport.id,
                         remoteReport.location,
@@ -154,6 +156,7 @@ object ReportRepository {
                         remoteReport.severityLevel,
                         mergedAuthor,
                         mergedReporter,
+                        mergedPhoto,
                     )
                     existing.location = remoteReport.location
                     existing.severity = remoteReport.severity
@@ -162,6 +165,7 @@ object ReportRepository {
                     existing.severityLevel = remoteReport.severityLevel
                     existing.authorUsername = mergedAuthor
                     existing.reporterName = mergedReporter
+                    existing.photoUri = mergedPhoto
                     updated = true
                 }
             }

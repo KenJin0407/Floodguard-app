@@ -181,6 +181,21 @@ class ProfileActivity : ComponentActivity() {
             cardView.addView(headerLayout)
             cardView.addView(subtitleText)
 
+            if (!report.photoUri.isNullOrBlank()) {
+                val photoBtn = TextView(this).apply {
+                    text = "View Flood Photo"
+                    setTextColor(resources.getColor(android.R.color.holo_blue_dark, theme))
+                    textSize = 12f
+                    paint.isFakeBoldText = true
+                    val topMarginPx = (6 * resources.displayMetrics.density).toInt()
+                    setPadding(0, topMarginPx, 0, 0)
+                    setOnClickListener {
+                        ReportPhotoHelper.showFloodPhotoDialog(this@ProfileActivity, report.photoUri!!, report.location)
+                    }
+                }
+                cardView.addView(photoBtn)
+            }
+
             if (report.isAuthoredBy(currentUsername, currentFullName)) {
                 val actionRow = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL

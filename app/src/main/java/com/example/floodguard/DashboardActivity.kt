@@ -8,6 +8,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.View
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -246,22 +248,7 @@ class DashboardActivity : ComponentActivity() {
     }
 
     private fun showReportPhotoDialog(photoUriStr: String, location: String) {
-        val imageView = ImageView(this).apply {
-            setPadding(24, 24, 24, 24)
-            try {
-                setImageURI(Uri.parse(photoUriStr))
-            } catch (_: Exception) {
-                setImageResource(R.drawable.ic_rain)
-            }
-            adjustViewBounds = true
-            maxHeight = (320 * resources.displayMetrics.density).toInt()
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle("Flood Report Photo - $location")
-            .setView(imageView)
-            .setPositiveButton("Close", null)
-            .show()
+        ReportPhotoHelper.showFloodPhotoDialog(this, photoUriStr, location)
     }
 
     private fun searchAndLocateMapArea(query: String) {
@@ -305,9 +292,40 @@ class DashboardActivity : ComponentActivity() {
         }
     }
 
-    @SuppressLint("SetJavaScriptEnabled")
+    private var lastMapRedirectTimeMs = 0L
+
+    private fun openFullMapFromDashboard() {
+        val now = System.currentTimeMillis()
+        if (now - lastMapRedirectTimeMs < 600L) return
+        lastMapRedirectTimeMs = now
+
+        val intent = Intent(this, MapActivity::class.java).apply {
+            val currentSearch = searchLocationInput.text.toString().trim()
+            if (currentSearch.isNotEmpty()) {
+                putExtra("search_query", currentSearch)
+            }
+        }
+        startActivity(intent)
+    }
+
+    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
     @Suppress("DEPRECATION")
     private fun setupRoadMap() {
+        val gestureDetector = GestureDetector(
+            this,
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    openFullMapFromDashboard()
+                    return true
+                }
+            }
+        )
+
+        mapWebView.setOnTouchListener { _, event ->
+            gestureDetector.onTouchEvent(event)
+            false
+        }
+
         mapWebView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -352,7 +370,8 @@ class DashboardActivity : ComponentActivity() {
                     var lon = 121.1207;
                     var map = L.map('map', { 
                         zoomControl: false,
-                        attributionControl: false 
+                        attributionControl: false,
+                        doubleClickZoom: false
                     }).setView([lat, lon], 14);
                     
                     L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {

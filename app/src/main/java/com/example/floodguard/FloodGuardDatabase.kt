@@ -246,6 +246,7 @@ class FloodGuardDatabase(context: Context) :
         severityLevel: SeverityLevel,
         authorUsername: String? = null,
         reporterName: String? = null,
+        photoUri: String? = null,
     ): Boolean {
         val db = writableDatabase
         val cv = ContentValues().apply {
@@ -259,6 +260,9 @@ class FloodGuardDatabase(context: Context) :
             }
             if (!reporterName.isNullOrBlank()) {
                 put(COLUMN_REPORTER_NAME, reporterName)
+            }
+            if (!photoUri.isNullOrBlank()) {
+                put(COLUMN_PHOTO_URI, photoUri)
             }
         }
         val result = db.update(TABLE_REPORTS, cv, "$COLUMN_REPORT_ID=?", arrayOf(id))

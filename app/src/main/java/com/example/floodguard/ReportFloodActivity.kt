@@ -40,11 +40,18 @@ class ReportFloodActivity : ComponentActivity() {
 
     private var selectedSeverity = "Waist-Deep"
     private var selectedImageUri: Uri? = null
+    private var persistedPhotoData: String? = null
 
     private val selectImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             selectedImageUri = uri
-            photoPreview.setImageURI(uri)
+            persistedPhotoData = ReportPhotoHelper.persistPickedPhoto(this, uri)
+            val bitmap = ReportPhotoHelper.loadBitmap(this, persistedPhotoData ?: uri.toString())
+            if (bitmap != null) {
+                photoPreview.setImageBitmap(bitmap)
+            } else {
+                photoPreview.setImageURI(uri)
+            }
             photoPreview.visibility = View.VISIBLE
             photoPlaceholder.visibility = View.GONE
         }
@@ -201,7 +208,7 @@ class ReportFloodActivity : ComponentActivity() {
             notes = if (notes.isBlank()) "Water level reported: $selectedSeverity" else notes,
             timestamp = System.currentTimeMillis(),
             severityLevel = level,
-            photoUri = selectedImageUri?.toString(),
+            photoUri = persistedPhotoData ?: selectedImageUri?.toString(),
             lat = 14.6958,
             lon = 121.1207,
             authorUsername = UserSession.getUsername(this),
