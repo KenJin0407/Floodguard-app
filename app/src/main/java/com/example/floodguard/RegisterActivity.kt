@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
-import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -19,40 +18,11 @@ class RegisterActivity : ComponentActivity() {
         val mobileField = findViewById<EditText>(R.id.mobileField)
         val btnRegMale = findViewById<Button>(R.id.btnRegMale)
         val btnRegFemale = findViewById<Button>(R.id.btnRegFemale)
-        val emailField = findViewById<EditText>(R.id.emailField)
         val regUsernameField = findViewById<EditText>(R.id.regUsernameField)
         val regPasswordField = findViewById<EditText>(R.id.regPasswordField)
-        val toggleRegPassword = findViewById<ImageView>(R.id.toggleRegPassword)
         val confirmPasswordField = findViewById<EditText>(R.id.confirmPasswordField)
-        val toggleConfirmPassword = findViewById<ImageView>(R.id.toggleConfirmPassword)
         val registerButton = findViewById<Button>(R.id.registerButton)
         val loginLink = findViewById<TextView>(R.id.loginLink)
-
-        var isRegPwVisible = false
-        toggleRegPassword?.setOnClickListener {
-            isRegPwVisible = !isRegPwVisible
-            if (isRegPwVisible) {
-                regPasswordField.transformationMethod = android.text.method.HideReturnsTransformationMethod.getInstance()
-                toggleRegPassword.setImageResource(R.drawable.ic_visibility)
-            } else {
-                regPasswordField.transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
-                toggleRegPassword.setImageResource(R.drawable.ic_visibility_off)
-            }
-            regPasswordField.setSelection(regPasswordField.text.length)
-        }
-
-        var isConfirmPwVisible = false
-        toggleConfirmPassword?.setOnClickListener {
-            isConfirmPwVisible = !isConfirmPwVisible
-            if (isConfirmPwVisible) {
-                confirmPasswordField.transformationMethod = android.text.method.HideReturnsTransformationMethod.getInstance()
-                toggleConfirmPassword.setImageResource(R.drawable.ic_visibility)
-            } else {
-                confirmPasswordField.transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
-                toggleConfirmPassword.setImageResource(R.drawable.ic_visibility_off)
-            }
-            confirmPasswordField.setSelection(confirmPasswordField.text.length)
-        }
 
         var selectedGender = "Male"
 
@@ -75,25 +45,22 @@ class RegisterActivity : ComponentActivity() {
         registerButton?.setOnClickListener {
             val fullName = fullNameField?.text?.toString().orEmpty().trim()
             val mobile = mobileField?.text?.toString().orEmpty().trim()
-            val email = emailField?.text?.toString().orEmpty().trim()
             val username = regUsernameField?.text?.toString().orEmpty().trim()
             val password = regPasswordField?.text?.toString().orEmpty()
             val confirmPassword = confirmPasswordField?.text?.toString().orEmpty()
 
-            if (fullName.isEmpty() || mobile.isEmpty() || email.isEmpty() || username.isEmpty() || password.isEmpty()) {
+            if (fullName.isEmpty() || mobile.isEmpty() || username.isEmpty() || password.isEmpty()) {
                 Toast.makeText(this, "Please fill in all required fields", Toast.LENGTH_SHORT).show()
             } else if (password != confirmPassword) {
                 Toast.makeText(this, "Passwords do not match", Toast.LENGTH_SHORT).show()
             } else {
                 val db = FloodGuardDatabase(this)
-                val hashedPassword = UserSession.hashPassword(password)
                 val user = UserEntity(
                     fullName = fullName,
                     gender = selectedGender,
                     mobile = mobile,
-                    email = email,
                     username = username,
-                    password = hashedPassword
+                    password = password
                 )
                 db.registerUser(user)
                 FloodGuardApiService.registerUserInBackend(user)
@@ -101,11 +68,10 @@ class RegisterActivity : ComponentActivity() {
                 UserSession.setLoggedIn(
                     context = this,
                     loggedIn = true,
-                    userName = fullName,
                     username = username,
+                    userName = fullName,
                     userGender = selectedGender,
-                    userContact = mobile,
-                    userEmail = email
+                    userContact = mobile
                 )
                 Toast.makeText(this, "Account created successfully!", Toast.LENGTH_SHORT).show()
                 val intent = Intent(this, DashboardActivity::class.java)

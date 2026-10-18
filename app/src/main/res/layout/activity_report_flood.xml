@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/app_bg">
@@ -14,46 +15,21 @@
         android:paddingEnd="16dp"
         android:layout_alignParentTop="true">
 
-        <!-- Logo & Brand Title -->
-        <LinearLayout
-            android:id="@+id/logoLayout"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+        <!-- Back Button -->
+        <ImageView
+            android:id="@+id/backButton"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_alignParentStart="true"
             android:layout_centerVertical="true"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_back"
+            android:tint="#FFA500"
+            app:tint="#FFA500"
+            android:padding="6dp"
             android:clickable="true"
-            android:focusable="true">
-
-            <ImageView
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:src="@drawable/fg_logo"
-                android:contentDescription="FloodGuard Logo" />
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Flood "
-                    android:textColor="@android:color/white"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Guard"
-                    android:textColor="#FFA500"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </LinearLayout>
+            android:focusable="true"
+            android:contentDescription="Back" />
 
         <!-- Screen Title -->
         <TextView
@@ -77,11 +53,14 @@
     </RelativeLayout>
 
     <!-- Main Content -->
-    <ScrollView
+    <com.example.floodguard.InputScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/headerBar"
-        android:fillViewport="true">
+        android:layout_alignParentBottom="true"
+        android:fillViewport="true"
+        android:scrollbars="vertical"
+        android:clipToPadding="false">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -134,6 +113,7 @@
 
             <!-- Location Section -->
             <LinearLayout
+                android:id="@+id/locationSectionContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/search_bg"
@@ -149,16 +129,17 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_alignParentStart="true"
-                        android:text="Location"
+                        android:text="Location (Device GPS or Select from Dropdown)"
                         android:textColor="#78909C"
-                        android:textSize="12sp" />
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
 
                     <TextView
                         android:id="@+id/btnRefreshLocation"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
-                        android:text="Re-detect"
+                        android:text="📍 Auto-Locate"
                         android:textColor="#0066CC"
                         android:textSize="12sp"
                         android:textStyle="bold"
@@ -166,17 +147,66 @@
                         android:focusable="true" />
                 </RelativeLayout>
 
-                <EditText
-                    android:id="@+id/locationInput"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:background="@null"
-                    android:hint="Detecting location on map..."
-                    android:textColor="@color/text_primary"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="6dp">
+
+                    <AutoCompleteTextView
+                        android:id="@+id/locationInput"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:background="@null"
+                        android:completionThreshold="1"
+                        android:dropDownWidth="match_parent"
+                        android:dropDownVerticalOffset="8dp"
+                        android:popupBackground="@drawable/dropdown_menu_bg"
+                        android:hint="Detecting device location or type to search..."
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"
+                        android:inputType="text"
+                        android:imeOptions="actionDone" />
+
+                    <TextView
+                        android:id="@+id/btnClearLocation"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:gravity="center"
+                        android:text="✕"
+                        android:textColor="#94A3B8"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:visibility="gone"
+                        android:clickable="true"
+                        android:focusable="true" />
+
+                    <TextView
+                        android:id="@+id/btnLocationDropdown"
+                        android:layout_width="30dp"
+                        android:layout_height="28dp"
+                        android:gravity="center"
+                        android:text="▼"
+                        android:textColor="#0A192F"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:clickable="true"
+                        android:focusable="true" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/locationCoordsText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:inputType="text" />
+                    android:text="Detecting live device GPS coordinates..."
+                    android:textColor="#64748B"
+                    android:textSize="11sp" />
             </LinearLayout>
 
             <!-- Severity Label -->
@@ -276,42 +306,48 @@
                 android:layout_marginBottom="24dp"
                 android:inputType="textMultiLine" />
 
-            <!-- SMS Broadcast Option -->
-            <CheckBox
-                android:id="@+id/chkSendSmsOnSubmit"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Broadcast Emergency SMS Alert to all application users"
+                android:text="Submitting this report automatically sends a push alert to FloodGuard users."
                 android:textColor="@color/text_primary"
                 android:textSize="13sp"
-                android:textStyle="bold"
-                android:checked="true"
-                android:layout_marginBottom="10dp" />
+                android:layout_marginBottom="16dp" />
 
-            <!-- Daily Report Limit Indicator -->
-            <TextView
-                android:id="@+id/tvRemainingReports"
+            <!-- Buttons Row (Back & Submit) -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Daily Report Limit: 4 / 4 remaining today (Resets daily)"
-                android:textColor="#0066CC"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:gravity="center"
-                android:layout_marginBottom="12dp" />
+                android:orientation="horizontal"
+                android:layout_marginTop="8dp">
 
-            <!-- Submit Button -->
-            <Button
-                android:id="@+id/submitReportButton"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:background="@drawable/btn_yellow"
-                android:text="SUBMIT REPORT"
-                android:textColor="#000000"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                <Button
+                    android:id="@+id/backButtonBottom"
+                    android:layout_width="0dp"
+                    android:layout_height="52dp"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/btn_back_blue"
+                    android:text="BACK"
+                    android:textColor="@android:color/white"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <!-- Submit Button -->
+                <Button
+                    android:id="@+id/submitReportButton"
+                    android:layout_width="0dp"
+                    android:layout_height="52dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/btn_yellow"
+                    android:text="SUBMIT REPORT"
+                    android:textColor="#000000"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
 
         </LinearLayout>
-    </ScrollView>
+    </com.example.floodguard.InputScrollView>
 
 </RelativeLayout>

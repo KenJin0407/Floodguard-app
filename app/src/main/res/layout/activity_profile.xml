@@ -96,29 +96,40 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center"
+                android:gravity="center_horizontal"
                 android:orientation="vertical"
                 android:layout_marginBottom="16dp">
 
-                <ImageView
-                    android:id="@+id/avatarImage"
-                    android:layout_width="88dp"
-                    android:layout_height="88dp"
-                    android:background="@drawable/circle_avatar_bg"
-                    android:padding="16dp"
-                    android:src="@drawable/ic_profile"
-                    android:contentDescription="Profile Picture" />
+                <FrameLayout
+                    android:layout_width="92dp"
+                    android:layout_height="92dp"
+                    android:layout_gravity="center_horizontal">
+
+                    <ImageView
+                        android:id="@+id/avatarImage"
+                        android:layout_width="88dp"
+                        android:layout_height="88dp"
+                        android:layout_gravity="center"
+                        android:background="@drawable/circle_avatar_bg"
+                        android:padding="16dp"
+                        android:scaleType="centerInside"
+                        android:src="@drawable/ic_profile"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:contentDescription="Profile Picture" />
+                </FrameLayout>
 
                 <LinearLayout
                     android:id="@+id/addPhotoButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
                     android:gravity="center"
                     android:orientation="horizontal"
                     android:padding="6dp"
                     android:clickable="true"
                     android:focusable="true"
-                    android:layout_marginTop="6dp">
+                    android:layout_marginTop="4dp">
 
                     <ImageView
                         android:layout_width="16dp"
@@ -172,7 +183,12 @@
                         android:textColor="@color/text_primary"
                         android:textSize="15sp"
                         android:textStyle="bold"
-                        android:inputType="textPersonName" />
+                        android:enabled="false"
+                        android:focusable="false"
+                        android:focusableInTouchMode="false"
+                        android:clickable="false"
+                        android:cursorVisible="false"
+                        android:inputType="none" />
                 </RelativeLayout>
 
                 <View
@@ -205,7 +221,12 @@
                         android:textColor="@color/text_primary"
                         android:textSize="15sp"
                         android:textStyle="bold"
-                        android:inputType="text" />
+                        android:enabled="false"
+                        android:focusable="false"
+                        android:focusableInTouchMode="false"
+                        android:clickable="false"
+                        android:cursorVisible="false"
+                        android:inputType="none" />
                 </RelativeLayout>
 
                 <View
@@ -238,40 +259,12 @@
                         android:textColor="@color/text_primary"
                         android:textSize="15sp"
                         android:textStyle="bold"
-                        android:inputType="phone" />
-                </RelativeLayout>
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:background="@color/divider_color" />
-
-                <!-- Email Row -->
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingTop="8dp"
-                    android:paddingBottom="8dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_alignParentStart="true"
-                        android:text="Email"
-                        android:textColor="#94A3B8"
-                        android:textSize="14sp" />
-
-                    <EditText
-                        android:id="@+id/profileEmailInput"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_alignParentEnd="true"
-                        android:background="@null"
-                        android:text="juan@example.com"
-                        android:textColor="@color/text_primary"
-                        android:textSize="15sp"
-                        android:textStyle="bold"
-                        android:inputType="textEmailAddress" />
+                        android:enabled="false"
+                        android:focusable="false"
+                        android:focusableInTouchMode="false"
+                        android:clickable="false"
+                        android:cursorVisible="false"
+                        android:inputType="none" />
                 </RelativeLayout>
 
             </LinearLayout>
@@ -286,9 +279,9 @@
                 android:textStyle="bold"
                 android:layout_marginBottom="12dp" />
 
-            <!-- Change Contact Button Row -->
+            <!-- Edit Profile Button Row -->
             <RelativeLayout
-                android:id="@+id/btnChangeContact"
+                android:id="@+id/btnEditProfile"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/search_bg"
@@ -297,53 +290,53 @@
                 android:focusable="true"
                 android:layout_marginBottom="10dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                <ImageView
+                    android:id="@+id/iconEditProfileBadge"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true"
-                    android:text="Change Contact"
-                    android:textColor="#000000"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
+                    android:background="@drawable/icon_badge_bg"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_profile"
+                    android:tint="#FFA500"
+                    android:contentDescription="Edit Profile Icon" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginEnd="12dp"
+                    android:layout_toEndOf="@id/iconEditProfileBadge"
+                    android:layout_toStartOf="@id/chevronEditProfile"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Edit Profile"
+                        android:textColor="#0A192F"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Update name, gender, and contact details"
+                        android:textColor="#64748B"
+                        android:textSize="11sp" />
+                </LinearLayout>
 
                 <ImageView
+                    android:id="@+id/chevronEditProfile"
                     android:layout_width="20dp"
                     android:layout_height="20dp"
                     android:layout_alignParentEnd="true"
                     android:layout_centerVertical="true"
                     android:src="@drawable/ic_edit"
-                    android:contentDescription="Edit" />
-            </RelativeLayout>
-
-            <!-- Test Emergency SMS Button Row -->
-            <RelativeLayout
-                android:id="@+id/btnTestSmsProfile"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="@drawable/search_bg"
-                android:padding="14dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:layout_marginBottom="10dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignParentStart="true"
-                    android:layout_centerVertical="true"
-                    android:text="Test Emergency SMS Alert"
-                    android:textColor="#000000"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:layout_alignParentEnd="true"
-                    android:layout_centerVertical="true"
-                    android:src="@drawable/ic_phone"
-                    android:contentDescription="Phone SMS" />
+                    android:contentDescription="Edit Profile" />
             </RelativeLayout>
 
             <!-- Change Password Button Row -->
@@ -355,19 +348,48 @@
                 android:padding="14dp"
                 android:clickable="true"
                 android:focusable="true"
-                android:layout_marginBottom="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignParentStart="true"
-                    android:layout_centerVertical="true"
-                    android:text="Change Password"
-                    android:textColor="#000000"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
+                android:layout_marginBottom="20dp">
 
                 <ImageView
+                    android:id="@+id/iconChangePasswordBadge"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:layout_alignParentStart="true"
+                    android:layout_centerVertical="true"
+                    android:background="@drawable/icon_badge_bg"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_lock"
+                    android:contentDescription="Change Password Icon" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginEnd="12dp"
+                    android:layout_toEndOf="@id/iconChangePasswordBadge"
+                    android:layout_toStartOf="@id/chevronChangePassword"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Change Password"
+                        android:textColor="#0A192F"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Update your account security password"
+                        android:textColor="#64748B"
+                        android:textSize="11sp" />
+                </LinearLayout>
+
+                <ImageView
+                    android:id="@+id/chevronChangePassword"
                     android:layout_width="20dp"
                     android:layout_height="20dp"
                     android:layout_alignParentEnd="true"
@@ -375,18 +397,6 @@
                     android:src="@drawable/ic_edit"
                     android:contentDescription="Edit" />
             </RelativeLayout>
-
-            <!-- Apply Changes Button -->
-            <Button
-                android:id="@+id/btnApplyChanges"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:background="@drawable/btn_yellow"
-                android:text="Apply Changes"
-                android:textColor="#000000"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="20dp" />
 
             <!-- Profile Reports Section -->
             <TextView
