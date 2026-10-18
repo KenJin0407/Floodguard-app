@@ -117,26 +117,68 @@
             android:layout_marginTop="12dp" />
 
         <!-- Password -->
-        <EditText
-            android:id="@+id/regPasswordField"
-            android:hint="Password"
-            android:inputType="textPassword"
-            android:background="@drawable/edittext_bg"
-            android:padding="12dp"
+        <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp" />
+            android:layout_marginTop="12dp">
+
+            <EditText
+                android:id="@+id/regPasswordField"
+                android:hint="Password"
+                android:inputType="textPassword"
+                android:background="@drawable/edittext_bg"
+                android:paddingStart="12dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:paddingEnd="46dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <ImageView
+                android:id="@+id/toggleRegPassword"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:src="@drawable/ic_visibility_off"
+                android:contentDescription="Toggle Password Visibility"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="12dp"
+                android:padding="2dp"
+                android:clickable="true"
+                android:focusable="true" />
+        </RelativeLayout>
 
         <!-- Confirm Password -->
-        <EditText
-            android:id="@+id/confirmPasswordField"
-            android:hint="Confirm Password"
-            android:inputType="textPassword"
-            android:background="@drawable/edittext_bg"
-            android:padding="12dp"
+        <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp" />
+            android:layout_marginTop="12dp">
+
+            <EditText
+                android:id="@+id/confirmPasswordField"
+                android:hint="Confirm Password"
+                android:inputType="textPassword"
+                android:background="@drawable/edittext_bg"
+                android:paddingStart="12dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:paddingEnd="46dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <ImageView
+                android:id="@+id/toggleConfirmPassword"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:src="@drawable/ic_visibility_off"
+                android:contentDescription="Toggle Confirm Password Visibility"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="12dp"
+                android:padding="2dp"
+                android:clickable="true"
+                android:focusable="true" />
+        </RelativeLayout>
 
         <!-- Register Button -->
         <Button

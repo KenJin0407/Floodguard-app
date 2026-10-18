@@ -286,7 +286,19 @@
                 android:textSize="13sp"
                 android:textStyle="bold"
                 android:checked="true"
-                android:layout_marginBottom="16dp" />
+                android:layout_marginBottom="10dp" />
+
+            <!-- Daily Report Limit Indicator -->
+            <TextView
+                android:id="@+id/tvRemainingReports"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Daily Report Limit: 4 / 4 remaining today (Resets daily)"
+                android:textColor="#0066CC"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:layout_marginBottom="12dp" />
 
             <!-- Submit Button -->
             <Button

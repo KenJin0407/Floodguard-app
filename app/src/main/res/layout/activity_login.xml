@@ -34,16 +34,37 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp" />
 
-    <!-- Password -->
-    <EditText
-        android:id="@+id/passwordField"
-        android:hint="Password"
-        android:inputType="textPassword"
-        android:background="@drawable/edittext_bg"
-        android:padding="12dp"
+    <!-- Password Field with Toggle Eye -->
+    <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp" />
+        android:layout_marginTop="12dp">
+
+        <EditText
+            android:id="@+id/passwordField"
+            android:hint="Password"
+            android:inputType="textPassword"
+            android:background="@drawable/edittext_bg"
+            android:paddingStart="12dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
+            android:paddingEnd="46dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <ImageView
+            android:id="@+id/togglePasswordVisibility"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:src="@drawable/ic_visibility_off"
+            android:contentDescription="Toggle Password Visibility"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="12dp"
+            android:padding="2dp"
+            android:clickable="true"
+            android:focusable="true" />
+    </RelativeLayout>
 
     <!-- Forgot Password -->
     <TextView

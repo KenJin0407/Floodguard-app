@@ -14,6 +14,7 @@ data class FloodReport(
     var photoUri: String? = null,
     var lat: Double = 14.6958,
     var lon: Double = 121.1207,
+    var reporterUsername: String = "",
 ) {
     fun getFormattedTimeAgo(): String {
         val diffMs = System.currentTimeMillis() - timestamp
@@ -86,6 +87,10 @@ object ReportRepository {
     }
 
     fun addReport(context: Context, report: FloodReport) {
+        val currentUser = UserSession.getUserUsername(context)
+        if (report.reporterUsername.isBlank()) {
+            report.reporterUsername = currentUser
+        }
         val db = FloodGuardDatabase(context)
         db.insertReport(report)
         if (cachedReports == null) {
@@ -94,7 +99,7 @@ object ReportRepository {
             cachedReports?.add(0, report)
         }
 
-        FloodGuardApiService.submitReportToBackend(report)
+        FloodGuardApiService.submitReportToBackend(report, currentUser)
     }
 
     fun removeReport(context: Context, id: String) {

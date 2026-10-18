@@ -33,6 +33,7 @@ class FloodGuardDatabase(context: Context) :
         const val COLUMN_PHOTO_URI = "photo_uri"
         const val COLUMN_LAT = "lat"
         const val COLUMN_LON = "lon"
+        const val COLUMN_REPORTER_USERNAME = "reporter_username"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -59,7 +60,8 @@ class FloodGuardDatabase(context: Context) :
                 $COLUMN_SEVERITY_LEVEL TEXT,
                 $COLUMN_PHOTO_URI TEXT,
                 $COLUMN_LAT REAL,
-                $COLUMN_LON REAL
+                $COLUMN_LON REAL,
+                $COLUMN_REPORTER_USERNAME TEXT
             )
         """.trimIndent()
 
@@ -68,13 +70,22 @@ class FloodGuardDatabase(context: Context) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_USERS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_REPORTS")
-        onCreate(db)
+        try {
+            db.execSQL("ALTER TABLE $TABLE_REPORTS ADD COLUMN $COLUMN_REPORTER_USERNAME TEXT DEFAULT ''")
+        } catch (_: Exception) {
+            db.execSQL("DROP TABLE IF EXISTS $TABLE_USERS")
+            db.execSQL("DROP TABLE IF EXISTS $TABLE_REPORTS")
+            onCreate(db)
+        }
     }
 
     fun insertReport(report: FloodReport): Boolean {
         val db = writableDatabase
+        // Check if reporter column exists (safe upgrade)
+        try {
+            db.execSQL("ALTER TABLE $TABLE_REPORTS ADD COLUMN $COLUMN_REPORTER_USERNAME TEXT DEFAULT ''")
+        } catch (_: Exception) {}
+
         val cv = ContentValues().apply {
             put(COLUMN_REPORT_ID, report.id)
             put(COLUMN_LOCATION, report.location)
@@ -86,14 +97,20 @@ class FloodGuardDatabase(context: Context) :
             put(COLUMN_PHOTO_URI, report.photoUri)
             put(COLUMN_LAT, report.lat)
             put(COLUMN_LON, report.lon)
+            put(COLUMN_REPORTER_USERNAME, report.reporterUsername)
         }
-        val result = db.insert(TABLE_REPORTS, null, cv)
+        val result = db.insertWithOnConflict(TABLE_REPORTS, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
         return result != -1L
     }
 
     fun getAllReports(): List<FloodReport> {
         val reportList = mutableListOf<FloodReport>()
         val db = readableDatabase
+        // Safe check for column
+        try {
+            db.execSQL("ALTER TABLE $TABLE_REPORTS ADD COLUMN $COLUMN_REPORTER_USERNAME TEXT DEFAULT ''")
+        } catch (_: Exception) {}
+
         val cursor = db.rawQuery("SELECT * FROM $TABLE_REPORTS ORDER BY $COLUMN_TIMESTAMP DESC", null)
 
         if (cursor.moveToFirst()) {
@@ -108,6 +125,10 @@ class FloodGuardDatabase(context: Context) :
                 val photoUri = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PHOTO_URI))
                 val lat = cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LAT))
                 val lon = cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LON))
+                val reporterIndex = cursor.getColumnIndex(COLUMN_REPORTER_USERNAME)
+                val reporterUsername = if (reporterIndex != -1 && !cursor.isNull(reporterIndex)) {
+                    cursor.getString(reporterIndex)
+                } else ""
 
                 val severityLevel = try {
                     SeverityLevel.valueOf(severityLevelStr)
@@ -127,6 +148,7 @@ class FloodGuardDatabase(context: Context) :
                         photoUri = photoUri,
                         lat = if (lat == 0.0) 14.6958 else lat,
                         lon = if (lon == 0.0) 121.1207 else lon,
+                        reporterUsername = reporterUsername
                     )
                 )
             } while (cursor.moveToNext())

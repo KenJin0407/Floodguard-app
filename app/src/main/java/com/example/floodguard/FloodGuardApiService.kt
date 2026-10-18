@@ -12,10 +12,43 @@ import kotlin.concurrent.thread
 object FloodGuardApiService {
 
     private val HOST_URLS = listOf(
+        "http://10.0.2.2:8000/api",
+        "http://127.0.0.1:8000/api",
+        "http://localhost:8000/api",
         "http://10.0.2.2:3000/api",
         "http://127.0.0.1:3000/api",
         "http://localhost:3000/api",
     )
+
+    fun fetchFloodGeoJsonFromBackend(onSuccess: (String) -> Unit) {
+        thread {
+            for (baseUrl in HOST_URLS) {
+                try {
+                    val url = URL("$baseUrl/mapping/flood-geojson")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.requestMethod = "GET"
+                    conn.connectTimeout = 4000
+                    conn.readTimeout = 4000
+
+                    if (conn.responseCode == 200) {
+                        val reader = BufferedReader(InputStreamReader(conn.inputStream))
+                        val response = StringBuilder()
+                        var line: String?
+                        while (reader.readLine().also { line = it } != null) {
+                            response.append(line)
+                        }
+                        reader.close()
+                        conn.disconnect()
+                        onSuccess(response.toString())
+                        return@thread
+                    }
+                    conn.disconnect()
+                } catch (e: Exception) {
+                    Log.w("FloodGuardApi", "GeoJSON fetch failed on $baseUrl: ${e.message}")
+                }
+            }
+        }
+    }
 
     fun syncReportsFromBackend(onSuccess: (List<FloodReport>) -> Unit) {
         thread {
@@ -53,6 +86,7 @@ object FloodGuardApiService {
                                 val photoUri = if (item.has("photoUri") && !item.isNull("photoUri")) item.optString("photoUri") else null
                                 val lat = item.optDouble("lat", 14.6958)
                                 val lon = item.optDouble("lon", 121.1207)
+                                val reporterUsername = item.optString("reporterUsername", "")
 
                                 val level = try {
                                     SeverityLevel.valueOf(severityLevelStr)
@@ -72,6 +106,7 @@ object FloodGuardApiService {
                                         photoUri = photoUri,
                                         lat = lat,
                                         lon = lon,
+                                        reporterUsername = reporterUsername,
                                     )
                                 )
                             }
@@ -139,7 +174,7 @@ object FloodGuardApiService {
         }
     }
 
-    fun submitReportToBackend(report: FloodReport) {
+    fun submitReportToBackend(report: FloodReport, username: String = "anonymous") {
         thread {
             for (baseUrl in HOST_URLS) {
                 try {
@@ -162,6 +197,7 @@ object FloodGuardApiService {
                         put("photoUri", report.photoUri)
                         put("lat", report.lat)
                         put("lon", report.lon)
+                        put("username", username)
                     }
 
                     val writer = OutputStreamWriter(conn.outputStream)

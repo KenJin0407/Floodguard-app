@@ -86,13 +86,25 @@ class ProfileActivity : ComponentActivity() {
     private fun populateProfileReports() {
         profileReportsContainer.removeAllViews()
 
-        val reportsList = ReportRepository.loadReports(this) {
+        val allReports = ReportRepository.loadReports(this) {
             runOnUiThread { populateProfileReports() }
         }
 
-        if (reportsList.isEmpty()) {
+        val currentUsername = UserSession.getUserUsername(this)
+        val currentEmail = UserSession.getUserEmail(this)
+        val currentName = UserSession.getUserName(this)
+
+        val myReports = allReports.filter { r ->
+            r.reporterUsername.isNotBlank() && (
+                r.reporterUsername.equals(currentUsername, ignoreCase = true) ||
+                r.reporterUsername.equals(currentEmail, ignoreCase = true) ||
+                r.reporterUsername.equals(currentName, ignoreCase = true)
+            )
+        }
+
+        if (myReports.isEmpty()) {
             val emptyText = TextView(this).apply {
-                text = "No flood reports submitted yet. Tap + Report on Alerts to submit a report."
+                text = "No flood reports submitted by you yet. Tap + Report on Alerts to submit a report."
                 setTextColor(resources.getColor(android.R.color.darker_gray, theme))
                 textSize = 13f
                 setPadding(12, 12, 12, 12)
@@ -101,7 +113,7 @@ class ProfileActivity : ComponentActivity() {
             return
         }
 
-        for (report in reportsList) {
+        for (report in myReports) {
             val cardView = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 val params = LinearLayout.LayoutParams(
