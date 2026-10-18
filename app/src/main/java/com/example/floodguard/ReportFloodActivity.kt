@@ -67,22 +67,23 @@ class ReportFloodActivity : ComponentActivity() {
         }
 
         findViewById<ImageView>(R.id.backButton)?.setOnClickListener {
-            finish()
+            navigateBack()
         }
 
         findViewById<Button>(R.id.backButtonBottom)?.setOnClickListener {
-            finish()
-        }
-
-        findViewById<LinearLayout>(R.id.logoLayout)?.setOnClickListener {
-            val intent = Intent(this, DashboardActivity::class.java)
-            startActivity(intent)
-            finish()
+            navigateBack()
         }
 
         findViewById<ImageView>(R.id.menuIcon)?.setOnClickListener { view ->
             NavigationMenuHelper.showMenu(this, view)
         }
+    }
+
+    private fun navigateBack() {
+        if (isTaskRoot) {
+            startActivity(Intent(this, AlertsActivity::class.java))
+        }
+        finish()
     }
 
     override fun onResume() {
