@@ -5,7 +5,6 @@
       "fullName": "Juan Dela Cruz",
       "gender": "Male",
       "mobile": "+639152456879",
-      "email": "juan@example.com",
       "username": "juan",
       "password": "password123"
     },
@@ -13,32 +12,11 @@
       "fullName": "pipo",
       "gender": "Female",
       "mobile": "0969546565",
-      "email": "kikidouloveme@gmail.com",
       "username": "biboy",
       "password": "1234"
-    },
-    {
-      "fullName": "bajabaab",
-      "gender": "Female",
-      "mobile": "09784653219",
-      "email": "bbbngmal.com",
-      "username": "kkkkk",
-      "password": "8909"
     }
   ],
   "reports": [
-    {
-      "id": "ca7c43c9-935a-4c9a-85fa-2cdbaaa0b2ee",
-      "location": "M.H. Del Pilar Street, San Mateo, Rizal",
-      "severity": "Knee-Deep",
-      "statusText": "Heavy vehicles only",
-      "notes": "bumbaya",
-      "timestamp": 1791501700630,
-      "severityLevel": "HEAVY_VEHICLES_ONLY",
-      "photoUri": null,
-      "lat": 14.6958,
-      "lon": 121.1207
-    },
     {
       "id": "abe0c355-6ec1-4194-9ba4-0964012315b5",
       "location": "M.H. Del Pilar Street, San Mateo, Rizal",
@@ -49,7 +27,9 @@
       "severityLevel": "HEAVY_VEHICLES_ONLY",
       "photoUri": "content://media/picker_get_content/0/com.android.providers.media.photopicker/media/1000027421",
       "lat": 14.6958,
-      "lon": 121.1207
+      "lon": 121.1207,
+      "authorUsername": "biboy",
+      "reporterName": "pipo"
     },
     {
       "id": "r_1790302635034",
@@ -58,7 +38,9 @@
       "statusText": "Not Passable",
       "notes": "Live report submission test",
       "timestamp": 1790302635034,
-      "severityLevel": "NOT_PASSABLE"
+      "severityLevel": "NOT_PASSABLE",
+      "authorUsername": "juan",
+      "reporterName": "Juan Dela Cruz"
     },
     {
       "id": "r_1790261342000",
@@ -67,7 +49,9 @@
       "statusText": "Not Passable",
       "notes": "Water level waist-deep near riverbank",
       "timestamp": 1790261342000,
-      "severityLevel": "NOT_PASSABLE"
+      "severityLevel": "NOT_PASSABLE",
+      "authorUsername": "juan",
+      "reporterName": "Juan Dela Cruz"
     },
     {
       "id": "r_1790261150852",
@@ -76,7 +60,9 @@
       "statusText": "Not Passable",
       "notes": "Test report from backend test",
       "timestamp": 1790261150853,
-      "severityLevel": "NOT_PASSABLE"
+      "severityLevel": "NOT_PASSABLE",
+      "authorUsername": "juan",
+      "reporterName": "Juan Dela Cruz"
     }
   ]
 }
