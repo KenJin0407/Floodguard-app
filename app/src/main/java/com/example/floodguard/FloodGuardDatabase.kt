@@ -11,14 +11,13 @@ class FloodGuardDatabase(context: Context) :
 
     companion object {
         private const val DATABASE_NAME = "floodguard.db"
-        private const val DATABASE_VERSION = 3
+        private const val DATABASE_VERSION = 7
 
         const val TABLE_USERS = "users"
         const val COLUMN_USER_ID = "id"
         const val COLUMN_FULL_NAME = "full_name"
         const val COLUMN_GENDER = "gender"
         const val COLUMN_MOBILE = "mobile"
-        const val COLUMN_EMAIL = "email"
         const val COLUMN_USERNAME = "username"
         const val COLUMN_PASSWORD = "password"
 
@@ -33,6 +32,8 @@ class FloodGuardDatabase(context: Context) :
         const val COLUMN_PHOTO_URI = "photo_uri"
         const val COLUMN_LAT = "lat"
         const val COLUMN_LON = "lon"
+        const val COLUMN_AUTHOR_USERNAME = "author_username"
+        const val COLUMN_REPORTER_NAME = "reporter_name"
         const val COLUMN_REPORTER_USERNAME = "reporter_username"
     }
 
@@ -43,7 +44,6 @@ class FloodGuardDatabase(context: Context) :
                 $COLUMN_FULL_NAME TEXT,
                 $COLUMN_GENDER TEXT,
                 $COLUMN_MOBILE TEXT,
-                $COLUMN_EMAIL TEXT,
                 $COLUMN_USERNAME TEXT UNIQUE,
                 $COLUMN_PASSWORD TEXT
             )
@@ -61,7 +61,8 @@ class FloodGuardDatabase(context: Context) :
                 $COLUMN_PHOTO_URI TEXT,
                 $COLUMN_LAT REAL,
                 $COLUMN_LON REAL,
-                $COLUMN_REPORTER_USERNAME TEXT
+                $COLUMN_AUTHOR_USERNAME TEXT DEFAULT '',
+                $COLUMN_REPORTER_NAME TEXT DEFAULT ''
             )
         """.trimIndent()
 
@@ -70,22 +71,110 @@ class FloodGuardDatabase(context: Context) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        try {
-            db.execSQL("ALTER TABLE $TABLE_REPORTS ADD COLUMN $COLUMN_REPORTER_USERNAME TEXT DEFAULT ''")
-        } catch (_: Exception) {
+        if (oldVersion < 3) {
             db.execSQL("DROP TABLE IF EXISTS $TABLE_USERS")
             db.execSQL("DROP TABLE IF EXISTS $TABLE_REPORTS")
             onCreate(db)
+            return
+        }
+        ensureReportColumns(db)
+        removeEmailColumnFromUsersTable(db)
+    }
+
+    override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        ensureReportColumns(db)
+        removeEmailColumnFromUsersTable(db)
+    }
+
+    override fun onOpen(db: SQLiteDatabase) {
+        super.onOpen(db)
+        if (!db.isReadOnly) {
+            ensureReportColumns(db)
+            removeEmailColumnFromUsersTable(db)
+        }
+    }
+
+    private fun removeEmailColumnFromUsersTable(db: SQLiteDatabase) {
+        val userColumns = mutableSetOf<String>()
+        try {
+            val cursor = db.rawQuery("PRAGMA table_info($TABLE_USERS)", null)
+            val nameIdx = cursor.getColumnIndex("name")
+            if (cursor.moveToFirst() && nameIdx >= 0) {
+                do {
+                    userColumns.add(cursor.getString(nameIdx))
+                } while (cursor.moveToNext())
+            }
+            cursor.close()
+        } catch (_: Exception) {
+        }
+
+        if (userColumns.contains("email")) {
+            try {
+                db.beginTransaction()
+                db.execSQL(
+                    """
+                    CREATE TABLE ${TABLE_USERS}_new (
+                        $COLUMN_USER_ID TEXT PRIMARY KEY,
+                        $COLUMN_FULL_NAME TEXT,
+                        $COLUMN_GENDER TEXT,
+                        $COLUMN_MOBILE TEXT,
+                        $COLUMN_USERNAME TEXT UNIQUE,
+                        $COLUMN_PASSWORD TEXT
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT OR REPLACE INTO ${TABLE_USERS}_new (
+                        $COLUMN_USER_ID, $COLUMN_FULL_NAME, $COLUMN_GENDER, $COLUMN_MOBILE, $COLUMN_USERNAME, $COLUMN_PASSWORD
+                    )
+                    SELECT $COLUMN_USER_ID, $COLUMN_FULL_NAME, $COLUMN_GENDER, $COLUMN_MOBILE, $COLUMN_USERNAME, $COLUMN_PASSWORD
+                    FROM $TABLE_USERS
+                    """.trimIndent()
+                )
+                db.execSQL("DROP TABLE $TABLE_USERS")
+                db.execSQL("ALTER TABLE ${TABLE_USERS}_new RENAME TO $TABLE_USERS")
+                db.setTransactionSuccessful()
+            } catch (_: Exception) {
+            } finally {
+                try {
+                    db.endTransaction()
+                } catch (_: Exception) {
+                }
+            }
+        }
+    }
+
+    private fun ensureReportColumns(db: SQLiteDatabase) {
+        val existingColumns = mutableSetOf<String>()
+        try {
+            val cursor = db.rawQuery("PRAGMA table_info($TABLE_REPORTS)", null)
+            val nameIdx = cursor.getColumnIndex("name")
+            if (cursor.moveToFirst() && nameIdx >= 0) {
+                do {
+                    existingColumns.add(cursor.getString(nameIdx))
+                } while (cursor.moveToNext())
+            }
+            cursor.close()
+        } catch (_: Exception) {
+        }
+
+        if (existingColumns.isNotEmpty() && !existingColumns.contains(COLUMN_AUTHOR_USERNAME)) {
+            try {
+                db.execSQL("ALTER TABLE $TABLE_REPORTS ADD COLUMN $COLUMN_AUTHOR_USERNAME TEXT DEFAULT ''")
+            } catch (_: Exception) {
+            }
+        }
+        if (existingColumns.isNotEmpty() && !existingColumns.contains(COLUMN_REPORTER_NAME)) {
+            try {
+                db.execSQL("ALTER TABLE $TABLE_REPORTS ADD COLUMN $COLUMN_REPORTER_NAME TEXT DEFAULT ''")
+            } catch (_: Exception) {
+            }
         }
     }
 
     fun insertReport(report: FloodReport): Boolean {
         val db = writableDatabase
-        // Check if reporter column exists (safe upgrade)
-        try {
-            db.execSQL("ALTER TABLE $TABLE_REPORTS ADD COLUMN $COLUMN_REPORTER_USERNAME TEXT DEFAULT ''")
-        } catch (_: Exception) {}
-
         val cv = ContentValues().apply {
             put(COLUMN_REPORT_ID, report.id)
             put(COLUMN_LOCATION, report.location)
@@ -97,7 +186,9 @@ class FloodGuardDatabase(context: Context) :
             put(COLUMN_PHOTO_URI, report.photoUri)
             put(COLUMN_LAT, report.lat)
             put(COLUMN_LON, report.lon)
-            put(COLUMN_REPORTER_USERNAME, report.reporterUsername)
+            val author = report.authorUsername.ifBlank { report.reporterUsername }
+            put(COLUMN_AUTHOR_USERNAME, author)
+            put(COLUMN_REPORTER_NAME, report.reporterName)
         }
         val result = db.insertWithOnConflict(TABLE_REPORTS, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
         return result != -1L
@@ -106,11 +197,6 @@ class FloodGuardDatabase(context: Context) :
     fun getAllReports(): List<FloodReport> {
         val reportList = mutableListOf<FloodReport>()
         val db = readableDatabase
-        // Safe check for column
-        try {
-            db.execSQL("ALTER TABLE $TABLE_REPORTS ADD COLUMN $COLUMN_REPORTER_USERNAME TEXT DEFAULT ''")
-        } catch (_: Exception) {}
-
         val cursor = db.rawQuery("SELECT * FROM $TABLE_REPORTS ORDER BY $COLUMN_TIMESTAMP DESC", null)
 
         if (cursor.moveToFirst()) {
@@ -125,10 +211,10 @@ class FloodGuardDatabase(context: Context) :
                 val photoUri = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PHOTO_URI))
                 val lat = cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LAT))
                 val lon = cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LON))
-                val reporterIndex = cursor.getColumnIndex(COLUMN_REPORTER_USERNAME)
-                val reporterUsername = if (reporterIndex != -1 && !cursor.isNull(reporterIndex)) {
-                    cursor.getString(reporterIndex)
-                } else ""
+                val authorIdx = cursor.getColumnIndex(COLUMN_AUTHOR_USERNAME)
+                val authorUsername = if (authorIdx >= 0 && !cursor.isNull(authorIdx)) cursor.getString(authorIdx) else ""
+                val reporterIdx = cursor.getColumnIndex(COLUMN_REPORTER_NAME)
+                val reporterName = if (reporterIdx >= 0 && !cursor.isNull(reporterIdx)) cursor.getString(reporterIdx) else ""
 
                 val severityLevel = try {
                     SeverityLevel.valueOf(severityLevelStr)
@@ -148,7 +234,9 @@ class FloodGuardDatabase(context: Context) :
                         photoUri = photoUri,
                         lat = if (lat == 0.0) 14.6958 else lat,
                         lon = if (lon == 0.0) 121.1207 else lon,
-                        reporterUsername = reporterUsername
+                        authorUsername = authorUsername,
+                        reporterName = reporterName,
+                        reporterUsername = authorUsername,
                     )
                 )
             } while (cursor.moveToNext())
@@ -157,7 +245,17 @@ class FloodGuardDatabase(context: Context) :
         return reportList
     }
 
-    fun updateReport(id: String, location: String, severity: String, statusText: String, notes: String, severityLevel: SeverityLevel): Boolean {
+    fun updateReport(
+        id: String,
+        location: String,
+        severity: String,
+        statusText: String,
+        notes: String,
+        severityLevel: SeverityLevel,
+        authorUsername: String? = null,
+        reporterName: String? = null,
+        photoUri: String? = null,
+    ): Boolean {
         val db = writableDatabase
         val cv = ContentValues().apply {
             put(COLUMN_LOCATION, location)
@@ -165,6 +263,15 @@ class FloodGuardDatabase(context: Context) :
             put(COLUMN_STATUS_TEXT, statusText)
             put(COLUMN_NOTES, notes)
             put(COLUMN_SEVERITY_LEVEL, severityLevel.name)
+            if (!authorUsername.isNullOrBlank()) {
+                put(COLUMN_AUTHOR_USERNAME, authorUsername)
+            }
+            if (!reporterName.isNullOrBlank()) {
+                put(COLUMN_REPORTER_NAME, reporterName)
+            }
+            if (!photoUri.isNullOrBlank()) {
+                put(COLUMN_PHOTO_URI, photoUri)
+            }
         }
         val result = db.update(TABLE_REPORTS, cv, "$COLUMN_REPORT_ID=?", arrayOf(id))
         return result > 0
@@ -183,7 +290,6 @@ class FloodGuardDatabase(context: Context) :
             put(COLUMN_FULL_NAME, user.fullName)
             put(COLUMN_GENDER, user.gender)
             put(COLUMN_MOBILE, user.mobile)
-            put(COLUMN_EMAIL, user.email)
             put(COLUMN_USERNAME, user.username)
             put(COLUMN_PASSWORD, user.password)
         }
@@ -193,7 +299,10 @@ class FloodGuardDatabase(context: Context) :
 
     fun getUserByUsername(username: String): UserEntity? {
         val db = readableDatabase
-        val cursor = db.rawQuery("SELECT * FROM $TABLE_USERS WHERE $COLUMN_USERNAME=?", arrayOf(username))
+        val cursor = db.rawQuery(
+            "SELECT * FROM $TABLE_USERS WHERE $COLUMN_USERNAME = ? COLLATE NOCASE",
+            arrayOf(username.trim())
+        )
         var user: UserEntity? = null
         if (cursor.moveToFirst()) {
             user = UserEntity(
@@ -201,13 +310,92 @@ class FloodGuardDatabase(context: Context) :
                 fullName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FULL_NAME)),
                 gender = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_GENDER)),
                 mobile = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MOBILE)),
-                email = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMAIL)),
                 username = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USERNAME)),
                 password = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD)),
             )
         }
         cursor.close()
         return user
+    }
+
+    fun getUserByFullName(fullName: String): UserEntity? {
+        val db = readableDatabase
+        val cursor = db.rawQuery(
+            "SELECT * FROM $TABLE_USERS WHERE $COLUMN_FULL_NAME = ? COLLATE NOCASE",
+            arrayOf(fullName.trim())
+        )
+        var user: UserEntity? = null
+        if (cursor.moveToFirst()) {
+            user = UserEntity(
+                id = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USER_ID)),
+                fullName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FULL_NAME)),
+                gender = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_GENDER)),
+                mobile = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MOBILE)),
+                username = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USERNAME)),
+                password = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD)),
+            )
+        }
+        cursor.close()
+        return user
+    }
+
+    fun updateUserProfile(username: String, fullName: String, gender: String, mobile: String): Boolean {
+        val existing = getUserByUsername(username)
+        val db = writableDatabase
+        return if (existing != null) {
+            val cv = ContentValues().apply {
+                put(COLUMN_FULL_NAME, fullName.trim())
+                put(COLUMN_GENDER, gender)
+                put(COLUMN_MOBILE, mobile.trim())
+            }
+            db.update(TABLE_USERS, cv, "$COLUMN_USERNAME = ? COLLATE NOCASE", arrayOf(username.trim())) > 0
+        } else {
+            registerUser(
+                UserEntity(
+                    fullName = fullName.trim(),
+                    gender = gender,
+                    mobile = mobile.trim(),
+                    username = username.trim(),
+                    password = "password123",
+                )
+            )
+        }
+    }
+
+    fun updatePassword(username: String, newPasswordHash: String): Boolean {
+        val db = writableDatabase
+        val cv = ContentValues().apply {
+            put(COLUMN_PASSWORD, newPasswordHash)
+        }
+        val rows = db.update(
+            TABLE_USERS,
+            cv,
+            "$COLUMN_USERNAME = ? COLLATE NOCASE",
+            arrayOf(username.trim())
+        )
+        return rows > 0
+    }
+
+    fun getAllUsers(): List<UserEntity> {
+        val list = mutableListOf<UserEntity>()
+        val db = readableDatabase
+        val cursor = db.rawQuery("SELECT * FROM $TABLE_USERS", null)
+        if (cursor.moveToFirst()) {
+            do {
+                list.add(
+                    UserEntity(
+                        id = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USER_ID)),
+                        fullName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FULL_NAME)),
+                        gender = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_GENDER)),
+                        mobile = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MOBILE)),
+                        username = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USERNAME)),
+                        password = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD)),
+                    )
+                )
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return list
     }
 
     fun getAllUserMobiles(): List<String> {
@@ -232,7 +420,7 @@ data class UserEntity(
     val fullName: String,
     val gender: String,
     val mobile: String,
-    val email: String,
     val username: String,
     val password: String,
+    val email: String = "",
 )

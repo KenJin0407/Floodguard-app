@@ -78,8 +78,14 @@ class RegisterActivity : ComponentActivity() {
             val password = regPasswordField?.text?.toString().orEmpty()
             val confirmPassword = confirmPasswordField?.text?.toString().orEmpty()
 
+            val contactError = UserSession.getContactValidationError(mobile)
+
             if (fullName.isEmpty() || mobile.isEmpty() || username.isEmpty() || password.isEmpty()) {
                 Toast.makeText(this, "Please fill in all required fields", Toast.LENGTH_SHORT).show()
+            } else if (contactError != null) {
+                mobileField?.error = contactError
+                mobileField?.requestFocus()
+                Toast.makeText(this, contactError, Toast.LENGTH_LONG).show()
             } else if (password != confirmPassword) {
                 Toast.makeText(this, "Passwords do not match", Toast.LENGTH_SHORT).show()
             } else {
@@ -98,7 +104,6 @@ class RegisterActivity : ComponentActivity() {
                 UserSession.setLoggedIn(
                     context = this,
                     loggedIn = true,
-                    username = username,
                     userName = fullName,
                     username = username,
                     userGender = selectedGender,

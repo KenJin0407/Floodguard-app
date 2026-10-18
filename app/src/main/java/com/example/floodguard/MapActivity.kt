@@ -51,16 +51,12 @@ class MapActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         FloatingAlertManager.onActivityResumed(this)
+        updateMapRadius()
     }
 
     override fun onPause() {
         super.onPause()
         FloatingAlertManager.onActivityPaused(this)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        updateMapRadius()
     }
 
     private fun initViews() {

@@ -146,7 +146,12 @@ class UserProfileUpdate(BaseModel):
     fullName: str
     gender: Optional[str] = None
     mobile: Optional[str] = None
-    email: str
+    email: Optional[str] = ""
+
+class UserPasswordUpdate(BaseModel):
+    username: str
+    currentPassword: str
+    newPassword: str
 
 # --- DEPENDENCY ---
 def get_db():
@@ -166,9 +171,23 @@ def hash_password(plain_pw: str) -> str:
     import hashlib
     return hashlib.sha256(plain_pw.encode("utf-8")).hexdigest()
 
+def validate_contact_number(mobile: str) -> bool:
+    clean = (mobile or "").strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+    if clean.startswith("09"):
+        return len(clean) == 11 and clean.isdigit()
+    elif clean.startswith("+63"):
+        rest = clean[3:]
+        return (len(rest) in (10, 11)) and rest.isdigit()
+    return False
+
 @app.post("/api/auth/register")
 def register_user(user: UserRegister, db: Session = Depends(get_db)):
     print(f"📥 Registration Request: username='{user.username}', email='{user.email}'")
+    if user.mobile and not validate_contact_number(user.mobile):
+        raise HTTPException(
+            status_code=400,
+            detail="Contact number must start with +63 or 09 and consist of 11 digits (e.g. 09123456789 or +639123456789)"
+        )
     existing = db.query(User).filter((User.username == user.username) | (User.email == user.email)).first()
     if existing:
         print(f"⚠️ User '{user.username}' already exists in SQLite database!")
@@ -217,6 +236,11 @@ def update_profile(profile: UserProfileUpdate, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == profile.username).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if profile.mobile and not validate_contact_number(profile.mobile):
+        raise HTTPException(
+            status_code=400,
+            detail="Contact number must start with +63 or 09 and consist of 11 digits (e.g. 09123456789 or +639123456789)"
+        )
     user.fullName = profile.fullName
     user.gender = profile.gender
     user.mobile = profile.mobile
@@ -224,6 +248,22 @@ def update_profile(profile: UserProfileUpdate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
     return {"success": True, "message": "Profile updated successfully"}
+
+@app.put("/api/auth/password")
+def change_password(payload: UserPasswordUpdate, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == payload.username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    hashed_current = hash_password(payload.currentPassword)
+    if user.password != payload.currentPassword and user.password != hashed_current:
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    new_hashed = hash_password(payload.newPassword) if len(payload.newPassword) != 64 else payload.newPassword
+    user.password = new_hashed
+    db.commit()
+    db.refresh(user)
+    return {"success": True, "message": "Password changed successfully"}
 
 @app.get("/api/users")
 def get_users(db: Session = Depends(get_db)):
@@ -264,7 +304,14 @@ def create_report(report: FloodReportCreate, db: Session = Depends(get_db)):
     # 1. Validate against profanity and gibberish/nonsense
     validate_report_content(report.location, report.notes or "")
 
-    # 2. Enforce 4 reports per day per user limit (resets daily)
+    # 2. Enforce mandatory flood photo attachment
+    if not report.photoUri or not str(report.photoUri).strip():
+        raise HTTPException(
+            status_code=400,
+            detail="A flood-related photo is required to submit a report."
+        )
+
+    # 3. Enforce 4 reports per day per user limit (resets daily)
     today_str = datetime.now().strftime("%Y-%m-%d")
     user_key = f"{(report.username or 'anonymous').lower().strip()}:{today_str}"
     used_today = daily_user_reports.get(user_key, 0)
