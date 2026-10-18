@@ -178,11 +178,25 @@ object FloodGuardApiService {
                     if (code in 200..299) {
                         val response = conn.inputStream?.bufferedReader()?.use { it.readText() }
                             ?: "{}"
-                        val notificationAccepted = JSONObject(response)
+                        val respJson = JSONObject(response)
+                        val notificationAccepted = respJson
                             .optJSONObject("notification")
                             ?.optBoolean("accepted", false) == true
+                        val smsBcastObj = respJson.optJSONObject("smsBroadcast")
+                        val parsedBroadcast = if (smsBcastObj != null) {
+                            SmsAlertBroadcastManager.jsonToBroadcast(smsBcastObj)
+                        } else {
+                            null
+                        }
                         conn.disconnect()
-                        onResult(ReportSubmissionStatus(submittedToServer = true, pushAccepted = notificationAccepted))
+                        onResult(
+                            ReportSubmissionStatus(
+                                submittedToServer = true,
+                                pushAccepted = notificationAccepted || parsedBroadcast != null,
+                                smsBroadcastTriggered = parsedBroadcast != null,
+                                smsBroadcast = parsedBroadcast,
+                            )
+                        )
                         return@thread
                     }
                     conn.disconnect()
@@ -392,11 +406,53 @@ object FloodGuardApiService {
         }
     }
 
+    fun syncBroadcastsFromBackend(onSuccess: (List<FloodBroadcast>) -> Unit) {
+        thread {
+            for (baseUrl in HOST_URLS) {
+                try {
+                    val url = URL("$baseUrl/broadcasts")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.requestMethod = "GET"
+                    conn.connectTimeout = 4000
+                    conn.readTimeout = 4000
+
+                    if (conn.responseCode == 200) {
+                        val reader = BufferedReader(InputStreamReader(conn.inputStream))
+                        val response = StringBuilder()
+                        var line: String?
+                        while (reader.readLine().also { line = it } != null) {
+                            response.append(line)
+                        }
+                        reader.close()
+
+                        val json = JSONObject(response.toString())
+                        val array = json.optJSONArray("broadcasts")
+                        val list = mutableListOf<FloodBroadcast>()
+                        if (array != null) {
+                            for (i in 0 until array.length()) {
+                                val item = array.optJSONObject(i) ?: continue
+                                list.add(SmsAlertBroadcastManager.jsonToBroadcast(item))
+                            }
+                        }
+                        conn.disconnect()
+                        onSuccess(list)
+                        return@thread
+                    }
+                    conn.disconnect()
+                } catch (e: Exception) {
+                    Log.w("FloodGuardApi", "Sync broadcasts failed on $baseUrl: ${e.message}")
+                }
+            }
+        }
+    }
+
 }
 
 data class ReportSubmissionStatus(
     val submittedToServer: Boolean,
     val pushAccepted: Boolean,
+    val smsBroadcastTriggered: Boolean = false,
+    val smsBroadcast: FloodBroadcast? = null,
 )
 
 data class FloodBroadcast(
@@ -407,4 +463,14 @@ data class FloodBroadcast(
     val reporterName: String,
     val timestamp: Long,
     val authorUsername: String = "",
+    val statusText: String = "Not Passable",
+    val similarReportCount: Int = 2,
+    val lat: Double = 14.6958,
+    val lon: Double = 121.1207,
+    val radiusKm: Double = 5.0,
+    val smsMessage: String = "",
+    val smsProvider: String = "Textbelt Free SMS API",
+    val smsRecipientsCount: Int = 1,
+    val recipientPhones: List<String> = emptyList(),
 )
+

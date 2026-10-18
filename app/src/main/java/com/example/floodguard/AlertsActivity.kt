@@ -10,7 +10,6 @@ import android.widget.RelativeLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import com.example.floodguard.R
 
 class AlertsActivity : ComponentActivity() {
 
@@ -77,9 +76,10 @@ class AlertsActivity : ComponentActivity() {
         val currentUsername = UserSession.getUsername(this)
         val currentFullName = UserSession.getUserName(this)
 
-        val reportsList = ReportRepository.loadCommunityReports(this) {
+        val allReports = ReportRepository.loadReports(this) {
             runOnUiThread { populateAlerts() }
         }
+        val reportsList = allReports.filter { !it.isAuthoredBy(currentUsername, currentFullName) }
 
         if (reportsList.isEmpty()) {
             val emptyText = TextView(this).apply {
@@ -93,6 +93,7 @@ class AlertsActivity : ComponentActivity() {
         }
 
         for (report in reportsList) {
+            val similarReports = SmsAlertBroadcastManager.findSimilarActiveReports(report, allReports)
             val cardView = RelativeLayout(this).apply {
                 val params = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -156,6 +157,45 @@ class AlertsActivity : ComponentActivity() {
 
             textLayout.addView(titleText)
             textLayout.addView(subtitleText)
+
+            if (similarReports.size >= 2) {
+                val smsBadgeBtn = TextView(this).apply {
+                    text = "🚨 SMS Broadcast Active (${similarReports.size} similar reports near area) • View Alert"
+                    setTextColor(android.graphics.Color.parseColor("#DC2626"))
+                    textSize = 11.5f
+                    paint.isFakeBoldText = true
+                    val topMarginPx = (6 * resources.displayMetrics.density).toInt()
+                    setPadding(0, topMarginPx, 0, 0)
+                    setOnClickListener {
+                        val (lat, lon) = SmsAlertBroadcastManager.resolveCoordinatesForLocation(report.location)
+                        val phones = SmsAlertBroadcastManager.collectNearbyRecipientPhones(this@AlertsActivity)
+                        val reporters = similarReports
+                            .map { it.reporterName.ifBlank { it.authorUsername.ifBlank { "Community Reporter" } } }
+                            .distinct()
+                            .take(3)
+                            .joinToString(", ")
+                        val smsMsg = "[FLOODGUARD SMS ALERT] URGENT: ${similarReports.size} similar flood reports verified near ${report.location}. Water Level: ${report.severity} (${report.statusText}). ${report.notes}. Avoid flooded roads and move to safer ground."
+                        val broadcast = FloodBroadcast(
+                            id = "sms_bcast_${report.id}_${similarReports.size}",
+                            location = report.location,
+                            severity = report.severity,
+                            notes = report.notes,
+                            reporterName = reporters,
+                            timestamp = report.timestamp,
+                            authorUsername = report.authorUsername,
+                            statusText = report.statusText,
+                            similarReportCount = similarReports.size,
+                            lat = lat,
+                            lon = lon,
+                            smsMessage = smsMsg,
+                            smsRecipientsCount = phones.size,
+                            recipientPhones = phones
+                        )
+                        FloatingAlertManager.showSmsWarningPopUpDialog(this@AlertsActivity, broadcast)
+                    }
+                }
+                textLayout.addView(smsBadgeBtn)
+            }
 
             if (!report.photoUri.isNullOrBlank()) {
                 val photoBtn = TextView(this).apply {
