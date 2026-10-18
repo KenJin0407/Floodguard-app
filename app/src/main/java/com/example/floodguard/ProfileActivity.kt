@@ -19,7 +19,6 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
-import com.example.floodguard.R
 
 class ProfileActivity : ComponentActivity() {
 
@@ -37,8 +36,17 @@ class ProfileActivity : ComponentActivity() {
 
     private val selectPhotoLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
-            avatarImage.setImageURI(uri)
-            Toast.makeText(this, "Profile picture updated", Toast.LENGTH_SHORT).show()
+            val persisted = ReportPhotoHelper.persistPickedPhoto(this, uri)
+            val bitmap = ReportPhotoHelper.loadBitmap(this, persisted ?: uri.toString())
+            if (bitmap != null) {
+                ReportPhotoHelper.showAdjustAvatarDialog(this, bitmap) { adjustedBitmap, encodedDataUri ->
+                    UserSession.setUserAvatar(this, encodedDataUri)
+                    applyCircularAvatar(adjustedBitmap)
+                    Toast.makeText(this, "Profile picture updated", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(this, "Unable to load selected photo", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -88,10 +96,34 @@ class ProfileActivity : ComponentActivity() {
         }
     }
 
+    private fun applyCircularAvatar(bitmap: android.graphics.Bitmap) {
+        val circular = ReportPhotoHelper.createCircularAvatarBitmap(bitmap, 280)
+        avatarImage.setPadding(0, 0, 0, 0)
+        avatarImage.background = null
+        avatarImage.scaleType = ImageView.ScaleType.FIT_CENTER
+        avatarImage.setImageBitmap(circular)
+    }
+
+    private fun resetDefaultAvatar() {
+        val padPx = (16 * resources.displayMetrics.density).toInt()
+        avatarImage.setPadding(padPx, padPx, padPx, padPx)
+        avatarImage.setBackgroundResource(R.drawable.circle_avatar_bg)
+        avatarImage.scaleType = ImageView.ScaleType.CENTER_INSIDE
+        avatarImage.setImageResource(R.drawable.ic_profile)
+    }
+
     private fun loadUserData() {
         profileNameInput.setText(UserSession.getUserName(this))
         profileGenderInput.setText(UserSession.getUserGender(this))
         profileContactInput.setText(UserSession.getUserContact(this))
+
+        val savedAvatar = UserSession.getUserAvatar(this)
+        val bitmap = ReportPhotoHelper.loadBitmap(this, savedAvatar)
+        if (bitmap != null) {
+            applyCircularAvatar(bitmap)
+        } else {
+            resetDefaultAvatar()
+        }
     }
 
     private fun populateProfileReports() {
@@ -315,6 +347,10 @@ class ProfileActivity : ComponentActivity() {
     }
 
     private fun setupListeners() {
+        avatarImage.setOnClickListener {
+            selectPhotoLauncher.launch("image/*")
+        }
+
         addPhotoButton.setOnClickListener {
             selectPhotoLauncher.launch("image/*")
         }

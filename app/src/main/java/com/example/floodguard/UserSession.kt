@@ -115,4 +115,19 @@ object UserSession {
             }
         }
     }
+
+    fun setUserAvatar(context: Context, avatarData: String) {
+        val currentUserKey = getUsername(context).trim().lowercase()
+        if (currentUserKey.isNotEmpty()) {
+            getPrefs(context).edit {
+                putString("saved_avatar_$currentUserKey", avatarData)
+            }
+        }
+    }
+
+    fun getUserAvatar(context: Context): String? {
+        val currentUserKey = getUsername(context).trim().lowercase()
+        if (currentUserKey.isEmpty()) return null
+        return getPrefs(context).getString("saved_avatar_$currentUserKey", null)
+    }
 }
