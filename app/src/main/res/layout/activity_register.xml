@@ -1,177 +1,217 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.example.floodguard.InputScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/app_bg"
-    android:fillViewport="true"
-    android:scrollbars="vertical"
-    android:clipToPadding="false">
+    android:background="@color/divider_color"
+    android:fillViewport="true">
 
     <LinearLayout
-        android:orientation="vertical"
-        android:gravity="center_horizontal"
-        android:padding="24dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="24dp">
 
         <!-- Logo -->
         <ImageView
-            android:src="@drawable/fg_logo"
             android:layout_width="100dp"
             android:layout_height="100dp"
-            android:contentDescription="FloodGuard Logo" />
+            android:contentDescription="FloodGuard Logo"
+            android:src="@drawable/fg_logo" />
 
         <!-- Title -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:text="CREATE ACCOUNT"
+            android:textColor="@color/black"
             android:textSize="22sp"
-            android:textStyle="bold"
-            android:textColor="@color/text_primary"
-            android:layout_marginTop="12dp" />
+            android:textStyle="bold" />
 
         <!-- Full Name -->
         <EditText
             android:id="@+id/fullNameField"
-            android:hint="Full Name"
-            android:inputType="textPersonName"
-            android:background="@drawable/edittext_bg"
-            android:padding="12dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp" />
+            android:layout_marginTop="20dp"
+            android:background="@color/text_secondary"
+            android:hint="Full Name"
+            android:inputType="textPersonName"
+            android:padding="12dp" />
 
         <!-- Mobile Number -->
         <EditText
             android:id="@+id/mobileField"
-            android:hint="Mobile Number (+63...)"
-            android:inputType="phone"
-            android:background="@drawable/edittext_bg"
-            android:padding="12dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp" />
+            android:layout_marginTop="12dp"
+            android:background="@color/text_secondary"
+            android:hint="Contact Number (09... or +63...)"
+            android:inputType="phone"
+            android:padding="12dp" />
 
         <!-- Gender Selection -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Gender"
-            android:textColor="@color/text_primary"
-            android:textSize="13sp"
-            android:textStyle="bold"
             android:layout_marginTop="12dp"
-            android:layout_marginBottom="6dp" />
+            android:layout_marginBottom="6dp"
+            android:text="Gender"
+            android:textColor="@color/black"
+            android:textSize="13sp"
+            android:textStyle="bold" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="46dp"
-            android:orientation="horizontal"
-            android:layout_marginBottom="4dp">
+            android:layout_marginBottom="4dp"
+            android:orientation="horizontal">
 
             <Button
                 android:id="@+id/btnRegMale"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
+                android:layout_marginEnd="6dp"
                 android:layout_weight="1"
                 android:background="@drawable/btn_severity_selected"
                 android:text="Male"
+                android:textAllCaps="false"
                 android:textColor="@android:color/white"
                 android:textSize="14sp"
-                android:textStyle="bold"
-                android:textAllCaps="false"
-                android:layout_marginEnd="6dp" />
+                android:textStyle="bold" />
 
             <Button
                 android:id="@+id/btnRegFemale"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
+                android:layout_marginStart="6dp"
                 android:layout_weight="1"
                 android:background="@drawable/btn_severity_default"
                 android:text="Female"
+                android:textAllCaps="false"
                 android:textColor="@android:color/black"
                 android:textSize="14sp"
-                android:textStyle="bold"
-                android:textAllCaps="false"
-                android:layout_marginStart="6dp" />
+                android:textStyle="bold" />
         </LinearLayout>
 
         <!-- Email -->
         <EditText
             android:id="@+id/emailField"
-            android:hint="Email Address"
-            android:inputType="textEmailAddress"
-            android:background="@drawable/edittext_bg"
-            android:padding="12dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp" />
+            android:layout_marginTop="12dp"
+            android:background="@color/text_secondary"
+            android:hint="Email Address"
+            android:inputType="textEmailAddress"
+            android:padding="12dp" />
 
         <!-- Username -->
         <EditText
             android:id="@+id/regUsernameField"
-            android:hint="Username"
-            android:background="@drawable/edittext_bg"
-            android:padding="12dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp" />
+            android:layout_marginTop="12dp"
+            android:background="@color/text_secondary"
+            android:hint="Username"
+            android:padding="12dp" />
 
         <!-- Password -->
-        <EditText
-            android:id="@+id/regPasswordField"
-            android:hint="Password"
-            android:inputType="textPassword"
-            android:background="@drawable/edittext_bg"
-            android:padding="12dp"
+        <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp" />
+            android:layout_marginTop="12dp">
+
+            <EditText
+                android:id="@+id/regPasswordField"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/text_secondary"
+                android:hint="Password"
+                android:inputType="textPassword"
+                android:paddingStart="12dp"
+                android:paddingTop="12dp"
+                android:paddingEnd="46dp"
+                android:paddingBottom="12dp" />
+
+            <ImageView
+                android:id="@+id/toggleRegPassword"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="12dp"
+                android:clickable="true"
+                android:contentDescription="Toggle Password Visibility"
+                android:focusable="true"
+                android:padding="2dp"
+                android:src="@drawable/ic_visibility_off" />
+        </RelativeLayout>
 
         <!-- Confirm Password -->
-        <EditText
-            android:id="@+id/confirmPasswordField"
-            android:hint="Confirm Password"
-            android:inputType="textPassword"
-            android:background="@drawable/edittext_bg"
-            android:padding="12dp"
+        <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp" />
+            android:layout_marginTop="12dp">
+
+            <EditText
+                android:id="@+id/confirmPasswordField"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/text_secondary"
+                android:hint="Confirm Password"
+                android:inputType="textPassword"
+                android:paddingStart="12dp"
+                android:paddingTop="12dp"
+                android:paddingEnd="46dp"
+                android:paddingBottom="12dp" />
+
+            <ImageView
+                android:id="@+id/toggleConfirmPassword"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="12dp"
+                android:clickable="true"
+                android:contentDescription="Toggle Confirm Password Visibility"
+                android:focusable="true"
+                android:padding="2dp"
+                android:src="@drawable/ic_visibility_off" />
+        </RelativeLayout>
 
         <!-- Register Button -->
         <Button
             android:id="@+id/registerButton"
-            android:text="REGISTER"
-            android:backgroundTint="@android:color/white"
-            android:textColor="@android:color/black"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp" />
+            android:layout_marginTop="20dp"
+            android:backgroundTint="@android:color/holo_red_dark"
+            android:text="REGISTER"
+            android:textColor="@color/app_bg" />
 
         <!-- Back to Login -->
         <LinearLayout
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_marginTop="16dp"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content">
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:orientation="horizontal">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Already have an account?"
-                android:textColor="@color/text_secondary" />
+                android:textColor="@color/black" />
 
             <TextView
                 android:id="@+id/loginLink"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text=" LOG IN"
-                android:textColor="@android:color/holo_red_light"
+                android:textColor="@color/light_blue_900"
                 android:textStyle="bold" />
         </LinearLayout>
 
     </LinearLayout>
-</com.example.floodguard.InputScrollView>
+</ScrollView>
