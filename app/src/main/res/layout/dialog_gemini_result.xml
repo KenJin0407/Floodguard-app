@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/dropdown_menu_bg"
+    android:orientation="vertical">
+
+    <!-- FloodGuard Navy Header Banner -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/dialog_header_bg"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="18dp">
+
+        <ImageView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/circle_avatar_bg"
+            android:padding="6dp"
+            android:src="@drawable/fg_logo"
+            android:contentDescription="FloodGuard AI" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Flood"
+                    android:textColor="@android:color/white"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Guard"
+                    android:textColor="#FFA500"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:text="AI"
+                    android:textColor="#38BDF8"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvGeminiHeaderSubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Google Gemini 1.5 Flash Vision Report"
+                android:textColor="#94A3B8"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:src="@drawable/ic_ai_sparkle"
+            android:contentDescription="AI badge" />
+    </LinearLayout>
+
+    <!-- Dialog Body -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- Status Chip / Badge -->
+        <LinearLayout
+            android:id="@+id/layoutGeminiStatusBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp"
+            android:background="@drawable/badge_ai_warning"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingTop="5dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="5dp">
+
+            <ImageView
+                android:id="@+id/ivGeminiStatusIcon"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:src="@drawable/ic_alert"
+                android:contentDescription="Status icon" />
+
+            <TextView
+                android:id="@+id/tvGeminiStatusBadgeText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:text="⚠️ Flood Conditions Not Detected"
+                android:textColor="#B91C1C"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Photo Thumbnail & Metrics Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/ivGeminiThumbnail"
+                android:layout_width="70dp"
+                android:layout_height="70dp"
+                android:background="@drawable/dialog_gemini_card_bg"
+                android:clipToOutline="true"
+                android:scaleType="centerCrop"
+                android:contentDescription="Submitted photo thumbnail" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvGeminiVerdictTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Verification Incomplete"
+                    android:textColor="#0A192F"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvGeminiConfidenceText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="Model: Gemini 1.5 Flash • High Confidence"
+                    android:textColor="#64748B"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/tvGeminiEstimatedSeverity"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="Severity: None"
+                    android:textColor="#FFA500"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- AI Reason Assessment Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp"
+            android:background="@drawable/dialog_gemini_card_bg"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:src="@drawable/ic_ai_sparkle"
+                    android:contentDescription="AI Assessment" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text="GEMINI AI ASSESSMENT"
+                    android:textColor="#64748B"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvGeminiReason"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="2dp"
+                android:text="The photo appears to show an indoor setting or non-flood scene. No flooded roads, standing waters, or inundated waterways were found."
+                android:textColor="#0F172A"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- App Policy / Requirement Notice -->
+        <TextView
+            android:id="@+id/tvGeminiGuidance"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp"
+            android:lineSpacingExtra="2dp"
+            android:text="FloodGuard requires authentic photos of flooded roads, overflowing waterways, or inundated areas to ensure trustworthy community warnings in San Mateo."
+            android:textColor="#64748B"
+            android:textSize="12sp" />
+
+        <!-- Action Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnGeminiCancel"
+                android:layout_width="0dp"
+                android:layout_height="46dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:background="@drawable/btn_severity_default"
+                android:text="Cancel"
+                android:textAllCaps="false"
+                android:textColor="#4B5563"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnGeminiAction"
+                android:layout_width="0dp"
+                android:layout_height="46dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:background="@drawable/btn_yellow"
+                android:text="Choose Photo"
+                android:textAllCaps="false"
+                android:textColor="#0A192F"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

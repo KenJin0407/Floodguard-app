@@ -6,8 +6,11 @@ import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.graphics.Typeface
+import android.view.LayoutInflater
 import android.location.Geocoder
 import android.location.Location
 import android.location.LocationListener
@@ -155,6 +158,7 @@ class ReportFloodActivity : ComponentActivity() {
                     photoPreview.setImageURI(uri)
                 }
                 photoPreview.visibility = View.VISIBLE
+                tvPhotoBadge.text = "⚡ Ready for Gemini AI • Tap to Change"
                 tvPhotoBadge.visibility = View.VISIBLE
                 photoPlaceholder.visibility = View.GONE
             }
@@ -710,28 +714,32 @@ class ReportFloodActivity : ComponentActivity() {
         // 2. Validate flood photo attachment (MANDATORY REQUIREMENT)
         val hasPhoto = !persistedPhotoData.isNullOrBlank() || selectedImageUri != null
         if (!hasPhoto) {
-            AlertDialog.Builder(this)
-                .setTitle("Flood Photo Required")
-                .setMessage("You need to attach a photo of the flood before submitting the report to prove the situation on the road.")
-                .setPositiveButton("Attach a Photo") { _, _ ->
-                    selectImageLauncher.launch("image/*")
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
+            val emptyResult = GeminiVerificationResult(
+                isValid = false,
+                isFlood = false,
+                confidence = 1.0,
+                estimatedSeverity = "None",
+                reason = "A flood-related photo is required before submitting your report to prove the situation on the road."
+            )
+            showGeminiResultDialog(emptyResult, null) {
+                selectImageLauncher.launch("image/*")
+            }
             return
         }
 
         val photoBitmap = ReportPhotoHelper.loadBitmap(this, persistedPhotoData ?: selectedImageUri?.toString())
         val photoCheck = ReportPhotoHelper.validateFloodPhoto(photoBitmap)
         if (!photoCheck.isValid) {
-            AlertDialog.Builder(this)
-                .setTitle("Invalid Flood Photo")
-                .setMessage(photoCheck.errorMessage ?: "We need a real photo of a flooded street.")
-                .setPositiveButton("Choose different Photo") { _, _ ->
-                    selectImageLauncher.launch("image/*")
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
+            val invalidResult = GeminiVerificationResult(
+                isValid = false,
+                isFlood = false,
+                confidence = 0.99,
+                estimatedSeverity = "None",
+                reason = photoCheck.errorMessage ?: "The selected image appears blank, single-colored, or corrupted. Please provide a clear photo of the flood."
+            )
+            showGeminiResultDialog(invalidResult, photoBitmap) {
+                selectImageLauncher.launch("image/*")
+            }
             return
         }
 
@@ -794,13 +802,7 @@ class ReportFloodActivity : ComponentActivity() {
         )
 
         submitReportButton.isEnabled = false
-
-        val verifyingDialog = AlertDialog.Builder(this)
-            .setTitle("Google Gemini AI Verification")
-            .setMessage("Analyzing photo to verify flood conditions...\nPlease wait a moment.")
-            .setCancelable(false)
-            .create()
-        verifyingDialog.show()
+        showGeminiVerifyingDialog()
 
         thread {
             val aiResult = if (photoBitmap != null) {
@@ -816,27 +818,13 @@ class ReportFloodActivity : ComponentActivity() {
             }
 
             runOnUiThread {
-                if (!isFinishing && !isDestroyed) {
-                    try {
-                        verifyingDialog.dismiss()
-                    } catch (_: Exception) {
-                    }
-                }
+                dismissGeminiVerifyingDialog()
 
                 if (!aiResult.isValid) {
                     submitReportButton.isEnabled = true
-                    AlertDialog.Builder(this@ReportFloodActivity)
-                        .setTitle("AI Verification Failed")
-                        .setMessage(
-                            "Google Gemini AI analyzed your photo and determined that it does not show flood conditions.\n\n" +
-                            "Reason: ${aiResult.reason}\n\n" +
-                            "Please attach a clear photo of the flooded street or waterlogged area to submit your report."
-                        )
-                        .setPositiveButton("Choose Another Photo") { _, _ ->
-                            selectImageLauncher.launch("image/*")
-                        }
-                        .setNegativeButton("Cancel", null)
-                        .show()
+                    showGeminiResultDialog(aiResult, photoBitmap) {
+                        selectImageLauncher.launch("image/*")
+                    }
                     return@runOnUiThread
                 }
 
@@ -868,7 +856,7 @@ class ReportFloodActivity : ComponentActivity() {
                 }
 
                 val aiNote = if (aiResult.isFlood && !aiResult.isErrorOrTimeout) {
-                    "Photo verified by Google Gemini AI"
+                    "Photo verified by FloodGuard Gemini AI (Water Level: ${aiResult.estimatedSeverity})"
                 } else null
                 if (aiNote != null) {
                     Toast.makeText(this@ReportFloodActivity, "✅ $aiNote", Toast.LENGTH_SHORT).show()
@@ -879,6 +867,91 @@ class ReportFloodActivity : ComponentActivity() {
                 finish()
             }
         }
+    }
+
+    private var geminiVerifyingDialog: AlertDialog? = null
+
+    private fun showGeminiVerifyingDialog() {
+        if (isFinishing || isDestroyed) return
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_gemini_verifying, null)
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        geminiVerifyingDialog = dialog
+        dialog.show()
+    }
+
+    private fun dismissGeminiVerifyingDialog() {
+        try {
+            geminiVerifyingDialog?.dismiss()
+        } catch (_: Exception) {
+        }
+        geminiVerifyingDialog = null
+    }
+
+    private fun showGeminiResultDialog(
+        result: GeminiVerificationResult,
+        photoBitmap: Bitmap?,
+        onActionClicked: () -> Unit
+    ) {
+        if (isFinishing || isDestroyed) return
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_gemini_result, null)
+        val ivThumbnail = dialogView.findViewById<ImageView>(R.id.ivGeminiThumbnail)
+        val tvVerdict = dialogView.findViewById<TextView>(R.id.tvGeminiVerdictTitle)
+        val tvConfidence = dialogView.findViewById<TextView>(R.id.tvGeminiConfidenceText)
+        val tvSeverity = dialogView.findViewById<TextView>(R.id.tvGeminiEstimatedSeverity)
+        val tvReason = dialogView.findViewById<TextView>(R.id.tvGeminiReason)
+        val layoutStatusBadge = dialogView.findViewById<LinearLayout>(R.id.layoutGeminiStatusBadge)
+        val tvStatusBadgeText = dialogView.findViewById<TextView>(R.id.tvGeminiStatusBadgeText)
+        val ivStatusIcon = dialogView.findViewById<ImageView>(R.id.ivGeminiStatusIcon)
+        val btnCancel = dialogView.findViewById<Button>(R.id.btnGeminiCancel)
+        val btnAction = dialogView.findViewById<Button>(R.id.btnGeminiAction)
+
+        if (photoBitmap != null) {
+            ivThumbnail.setImageBitmap(photoBitmap)
+        } else {
+            ivThumbnail.setImageResource(R.drawable.fg_logo)
+        }
+
+        if (!result.isValid) {
+            layoutStatusBadge.setBackgroundResource(R.drawable.badge_ai_warning)
+            ivStatusIcon.setImageResource(R.drawable.ic_alert)
+            tvStatusBadgeText.text = "⚠️ Flood Conditions Not Detected"
+            tvStatusBadgeText.setTextColor(Color.parseColor("#B91C1C"))
+            tvVerdict.text = "Photo Verification Declined"
+            tvConfidence.text = "Model: Gemini 1.5 Flash • ${(result.confidence * 100).toInt()}% Confidence"
+            tvSeverity.text = "Detected Severity: None / Non-Flood"
+            tvReason.text = result.reason
+            btnAction.text = if (photoBitmap != null) "Choose Another Photo" else "Attach Flood Photo"
+        } else {
+            layoutStatusBadge.setBackgroundResource(R.drawable.badge_ai_success)
+            ivStatusIcon.setImageResource(R.drawable.ic_ai_sparkle)
+            tvStatusBadgeText.text = "✅ Flood Conditions Verified"
+            tvStatusBadgeText.setTextColor(Color.parseColor("#15803D"))
+            tvVerdict.text = "Verified by Gemini AI"
+            tvConfidence.text = "Model: Gemini 1.5 Flash • ${(result.confidence * 100).toInt()}% Confidence"
+            tvSeverity.text = "Estimated Water Level: ${result.estimatedSeverity}"
+            tvReason.text = result.reason
+            btnAction.text = "Continue"
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .create()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        btnCancel.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        btnAction.setOnClickListener {
+            dialog.dismiss()
+            onActionClicked()
+        }
+
+        dialog.show()
     }
 
     private class LocationDropdownAdapter(
