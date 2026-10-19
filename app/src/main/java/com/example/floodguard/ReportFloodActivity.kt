@@ -794,35 +794,91 @@ class ReportFloodActivity : ComponentActivity() {
         )
 
         submitReportButton.isEnabled = false
-        val remainingAfter = UserSession.incrementDailyReportCount(this)
-        updateRemainingReportsUI()
 
-        ReportRepository.addReport(applicationContext, newReport) { result ->
+        val verifyingDialog = AlertDialog.Builder(this)
+            .setTitle("Google Gemini AI Verification")
+            .setMessage("Analyzing photo to verify flood conditions...\nPlease wait a moment.")
+            .setCancelable(false)
+            .create()
+        verifyingDialog.show()
+
+        thread {
+            val aiResult = if (photoBitmap != null) {
+                GeminiPhotoVerifier.verifyPhoto(photoBitmap)
+            } else {
+                GeminiVerificationResult(
+                    isValid = true,
+                    isFlood = true,
+                    confidence = 0.5,
+                    estimatedSeverity = "Unknown",
+                    reason = "No photo bitmap found"
+                )
+            }
+
             runOnUiThread {
-                val message = when {
-                    result.smsBroadcastTriggered ->
-                        "Multiple similar reports verified! Free SMS API warning broadcasted to nearby users."
-                    result.submittedToServer ->
-                        "Flood report submitted successfully! Natitirang report ngayong araw: $remainingAfter / ${UserSession.MAX_DAILY_REPORTS}"
-                    else ->
-                        "Report saved on this device. Natitirang report ngayong araw: $remainingAfter / ${UserSession.MAX_DAILY_REPORTS}"
+                if (!isFinishing && !isDestroyed) {
+                    try {
+                        verifyingDialog.dismiss()
+                    } catch (_: Exception) {
+                    }
                 }
-                Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
+
+                if (!aiResult.isValid) {
+                    submitReportButton.isEnabled = true
+                    AlertDialog.Builder(this@ReportFloodActivity)
+                        .setTitle("AI Verification Failed")
+                        .setMessage(
+                            "Google Gemini AI analyzed your photo and determined that it does not show flood conditions.\n\n" +
+                            "Reason: ${aiResult.reason}\n\n" +
+                            "Please attach a clear photo of the flooded street or waterlogged area to submit your report."
+                        )
+                        .setPositiveButton("Choose Another Photo") { _, _ ->
+                            selectImageLauncher.launch("image/*")
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                    return@runOnUiThread
+                }
+
+                // AI Verification Passed (or offline fallback)
+                val remainingAfter = UserSession.incrementDailyReportCount(this@ReportFloodActivity)
+                updateRemainingReportsUI()
+
+                ReportRepository.addReport(applicationContext, newReport) { result ->
+                    runOnUiThread {
+                        val message = when {
+                            result.smsBroadcastTriggered ->
+                                "Multiple similar reports verified! Free SMS API warning broadcasted to nearby users."
+                            result.submittedToServer ->
+                                "Flood report submitted successfully! Natitirang report ngayong araw: $remainingAfter / ${UserSession.MAX_DAILY_REPORTS}"
+                            else ->
+                                "Report saved on this device. Natitirang report ngayong araw: $remainingAfter / ${UserSession.MAX_DAILY_REPORTS}"
+                        }
+                        Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
+                    }
+                }
+
+                if (chkSendSmsOnSubmit.isChecked) {
+                    SmsHelper.broadcastSmsToAllUsers(
+                        context = this@ReportFloodActivity,
+                        location = loc,
+                        severity = selectedSeverity,
+                        notes = notes
+                    )
+                }
+
+                val aiNote = if (aiResult.isFlood && !aiResult.isErrorOrTimeout) {
+                    "Photo verified by Google Gemini AI"
+                } else null
+                if (aiNote != null) {
+                    Toast.makeText(this@ReportFloodActivity, "✅ $aiNote", Toast.LENGTH_SHORT).show()
+                }
+
+                val intent = Intent(this@ReportFloodActivity, AlertsActivity::class.java)
+                startActivity(intent)
+                finish()
             }
         }
-
-        if (chkSendSmsOnSubmit.isChecked) {
-            SmsHelper.broadcastSmsToAllUsers(
-                context = this,
-                location = loc,
-                severity = selectedSeverity,
-                notes = notes
-            )
-        }
-
-        val intent = Intent(this, AlertsActivity::class.java)
-        startActivity(intent)
-        finish()
     }
 
     private class LocationDropdownAdapter(
