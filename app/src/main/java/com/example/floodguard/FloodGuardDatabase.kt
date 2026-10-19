@@ -422,5 +422,4 @@ data class UserEntity(
     val mobile: String,
     val username: String,
     val password: String,
-    val email: String = "",
 )

@@ -106,7 +106,7 @@ class User(Base):
     fullName = Column(String, nullable=False)
     gender = Column(String, nullable=True)
     mobile = Column(String, nullable=True)
-    email = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, nullable=True, default="")
     username = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)
 
@@ -137,7 +137,7 @@ class UserRegister(BaseModel):
     fullName: str
     gender: Optional[str] = None
     mobile: Optional[str] = None
-    email: str
+    email: Optional[str] = ""
     username: str
     password: str
 
@@ -265,13 +265,13 @@ def validate_contact_number(mobile: str) -> bool:
 
 @app.post("/api/auth/register")
 def register_user(user: UserRegister, db: Session = Depends(get_db)):
-    print(f"📥 Registration Request: username='{user.username}', email='{user.email}'")
+    print(f"📥 Registration Request: username='{user.username}', mobile='{user.mobile}'")
     if user.mobile and not validate_contact_number(user.mobile):
         raise HTTPException(
             status_code=400,
             detail="Contact number must start with +63 or 09 and consist of 11 digits (e.g. 09123456789 or +639123456789)"
         )
-    existing = db.query(User).filter((User.username == user.username) | (User.email == user.email)).first()
+    existing = db.query(User).filter(User.username == user.username).first()
     if existing:
         print(f"⚠️ User '{user.username}' already exists in SQLite database!")
         return {"success": True, "message": "User already registered", "user": user.dict()}
@@ -309,7 +309,6 @@ def login_user(credentials: UserLogin, db: Session = Depends(get_db)):
         "fullName": user.fullName,
         "gender": user.gender,
         "mobile": user.mobile,
-        "email": user.email,
         "username": user.username
     }
     return {"success": True, "message": "Login successful", "user": user_dict}
@@ -327,7 +326,8 @@ def update_profile(profile: UserProfileUpdate, db: Session = Depends(get_db)):
     user.fullName = profile.fullName
     user.gender = profile.gender
     user.mobile = profile.mobile
-    user.email = profile.email
+    if hasattr(profile, "email") and profile.email:
+        user.email = profile.email
     db.commit()
     db.refresh(user)
     return {"success": True, "message": "Profile updated successfully"}
@@ -356,7 +356,6 @@ def get_users(db: Session = Depends(get_db)):
         "fullName": u.fullName,
         "gender": u.gender,
         "mobile": u.mobile,
-        "email": u.email,
         "username": u.username
     } for u in users]
     return {"users": user_list}

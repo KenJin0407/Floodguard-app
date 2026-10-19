@@ -60,7 +60,6 @@ class LoginActivity : ComponentActivity() {
                         username = savedUser.username,
                         userGender = savedUser.gender,
                         userContact = savedUser.mobile,
-                        userEmail = savedUser.email
                     )
                     Toast.makeText(this, "Welcome back, ${savedUser.fullName}!", Toast.LENGTH_SHORT).show()
                     val intent = Intent(this, DashboardActivity::class.java)
@@ -83,7 +82,6 @@ class LoginActivity : ComponentActivity() {
                                 username = remoteUser.username,
                                 userGender = remoteUser.gender,
                                 userContact = remoteUser.mobile,
-                                userEmail = remoteUser.email
                             )
                             Toast.makeText(this, "Welcome back, ${remoteUser.fullName}!", Toast.LENGTH_SHORT).show()
                             val intent = Intent(this, DashboardActivity::class.java)

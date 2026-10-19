@@ -158,7 +158,6 @@ object FloodGuardApiService {
                                         fullName = item.optString("fullName"),
                                         gender = item.optString("gender", "Male"),
                                         mobile = item.optString("mobile"),
-                                        email = item.optString("email"),
                                         username = item.optString("username"),
                                         password = item.optString("password", "password123")
                                     )
@@ -339,7 +338,6 @@ object FloodGuardApiService {
                         put("fullName", user.fullName)
                         put("gender", user.gender)
                         put("mobile", user.mobile)
-                        put("email", user.email)
                         put("username", user.username)
                         put("password", user.password)
                     }
@@ -364,7 +362,7 @@ object FloodGuardApiService {
         }
     }
 
-    fun updateUserProfileInBackend(username: String, fullName: String, gender: String, mobile: String, email: String = "") {
+    fun updateUserProfileInBackend(username: String, fullName: String, gender: String, mobile: String) {
         thread {
             for (baseUrl in HOST_URLS) {
                 try {
@@ -381,7 +379,6 @@ object FloodGuardApiService {
                         put("fullName", fullName)
                         put("gender", gender)
                         put("mobile", mobile)
-                        put("email", email)
                     }
 
                     val writer = OutputStreamWriter(conn.outputStream)
@@ -497,7 +494,6 @@ object FloodGuardApiService {
                                 fullName = userObj.optString("fullName"),
                                 gender = userObj.optString("gender", "Male"),
                                 mobile = userObj.optString("mobile"),
-                                email = userObj.optString("email"),
                                 username = userObj.optString("username", username),
                                 password = password,
                             )
