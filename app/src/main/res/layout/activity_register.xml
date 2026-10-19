@@ -3,12 +3,15 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/divider_color"
-    android:fillViewport="true">
+    android:fillViewport="true"
+    android:isScrollContainer="true"
+    android:overScrollMode="ifContentScrolls"
+    android:scrollbars="vertical">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center"
+        android:gravity="center_horizontal"
         android:orientation="vertical"
         android:padding="24dp">
 
@@ -184,6 +187,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
+            android:layout_marginBottom="32dp"
             android:gravity="center"
             android:orientation="horizontal">
 
