@@ -1,13 +1,19 @@
 package com.example.floodguard
 
+import android.app.AlertDialog
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.os.CountDownTimer
+import android.view.LayoutInflater
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import java.util.Locale
 
 class RegisterActivity : ComponentActivity() {
 
@@ -89,30 +95,17 @@ class RegisterActivity : ComponentActivity() {
             } else if (password != confirmPassword) {
                 Toast.makeText(this, "Passwords do not match", Toast.LENGTH_SHORT).show()
             } else {
-                val db = FloodGuardDatabase(this)
                 val hashedPassword = UserSession.hashPassword(password)
-                val user = UserEntity(
+                val newUser = UserEntity(
                     fullName = fullName,
                     gender = selectedGender,
                     mobile = mobile,
                     username = username,
                     password = hashedPassword
                 )
-                db.registerUser(user)
-                FloodGuardApiService.registerUserInBackend(user)
 
-                UserSession.setLoggedIn(
-                    context = this,
-                    loggedIn = true,
-                    userName = fullName,
-                    username = username,
-                    userGender = selectedGender,
-                    userContact = mobile
-                )
-                Toast.makeText(this, "Account created successfully!", Toast.LENGTH_SHORT).show()
-                val intent = Intent(this, DashboardActivity::class.java)
-                startActivity(intent)
-                finish()
+                // Trigger OTP Verification for mobile number
+                showOtpVerificationDialog(newUser)
             }
         }
 
@@ -120,4 +113,133 @@ class RegisterActivity : ComponentActivity() {
             finish()
         }
     }
+
+    private fun showOtpVerificationDialog(user: UserEntity) {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_otp_verification, null)
+        val tvPhone = dialogView.findViewById<TextView>(R.id.tvOtpPhoneNumber)
+        val etOtp = dialogView.findViewById<EditText>(R.id.etOtpCode)
+        val tvStatus = dialogView.findViewById<TextView>(R.id.tvOtpStatusMessage)
+        val tvTimer = dialogView.findViewById<TextView>(R.id.tvOtpTimer)
+        val btnResend = dialogView.findViewById<TextView>(R.id.btnResendOtp)
+        val btnCancel = dialogView.findViewById<Button>(R.id.btnOtpCancel)
+        val btnVerify = dialogView.findViewById<Button>(R.id.btnOtpVerify)
+
+        val formattedPhone = FirebaseAuthOtpHelper.formatToE164(user.mobile)
+        tvPhone.text = formattedPhone
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        var countDownTimer: CountDownTimer? = null
+
+        fun startCountdown() {
+            countDownTimer?.cancel()
+            btnResend.isEnabled = false
+            btnResend.setTextColor(Color.parseColor("#94A3B8"))
+
+            countDownTimer = object : CountDownTimer(60000, 1000) {
+                override fun onTick(millisUntilFinished: Long) {
+                    val sec = millisUntilFinished / 1000
+                    tvTimer.text = String.format(Locale.US, "Resend code in %02d:%02d", sec / 60, sec % 60)
+                }
+
+                override fun onFinish() {
+                    tvTimer.text = "Didn't receive SMS?"
+                    btnResend.isEnabled = true
+                    btnResend.setTextColor(Color.parseColor("#FFA500"))
+                }
+            }.start()
+        }
+
+        fun sendVerificationCode() {
+            tvStatus.text = "Sending verification code via SMS..."
+            tvStatus.setTextColor(Color.parseColor("#0284C7"))
+            startCountdown()
+
+            FirebaseAuthOtpHelper.sendOtp(
+                activity = this,
+                mobileNumber = user.mobile,
+                callback = object : FirebaseAuthOtpHelper.OtpCallback {
+                    override fun onCodeSent(formattedPhone: String) {
+                        tvStatus.text = "SMS sent! Enter the 6-digit code above."
+                        tvStatus.setTextColor(Color.parseColor("#0284C7"))
+                    }
+
+                    override fun onAutoVerified() {
+                        countDownTimer?.cancel()
+                        dialog.dismiss()
+                        completeRegistration(user)
+                    }
+
+                    override fun onError(message: String) {
+                        tvStatus.text = message
+                        tvStatus.setTextColor(Color.parseColor("#DC2626"))
+                    }
+                }
+            )
+        }
+
+        btnResend.setOnClickListener {
+            sendVerificationCode()
+        }
+
+        btnCancel.setOnClickListener {
+            countDownTimer?.cancel()
+            dialog.dismiss()
+        }
+
+        btnVerify.setOnClickListener {
+            val code = etOtp.text.toString().trim()
+            if (code.length < 6) {
+                tvStatus.text = "Please enter the full 6-digit verification code."
+                tvStatus.setTextColor(Color.parseColor("#DC2626"))
+                return@setOnClickListener
+            }
+
+            btnVerify.isEnabled = false
+            tvStatus.text = "Verifying code..."
+            tvStatus.setTextColor(Color.parseColor("#0284C7"))
+
+            FirebaseAuthOtpHelper.verifyCode(
+                enteredCode = code,
+                onSuccess = {
+                    countDownTimer?.cancel()
+                    dialog.dismiss()
+                    completeRegistration(user)
+                },
+                onError = { errMsg ->
+                    btnVerify.isEnabled = true
+                    tvStatus.text = errMsg
+                    tvStatus.setTextColor(Color.parseColor("#DC2626"))
+                }
+            )
+        }
+
+        dialog.show()
+        sendVerificationCode()
+    }
+
+    private fun completeRegistration(user: UserEntity) {
+        val db = FloodGuardDatabase(this)
+        db.registerUser(user)
+        FloodGuardApiService.registerUserInBackend(user)
+
+        UserSession.setLoggedIn(
+            context = this,
+            loggedIn = true,
+            userName = user.fullName,
+            username = user.username,
+            userGender = user.gender,
+            userContact = user.mobile
+        )
+
+        Toast.makeText(this, "✅ Mobile number verified! Account created.", Toast.LENGTH_LONG).show()
+        val intent = Intent(this, DashboardActivity::class.java)
+        startActivity(intent)
+        finish()
+    }
 }
+
