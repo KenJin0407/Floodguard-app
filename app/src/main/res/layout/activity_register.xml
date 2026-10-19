@@ -95,17 +95,6 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Email -->
-        <EditText
-            android:id="@+id/emailField"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="@color/text_secondary"
-            android:hint="Email Address"
-            android:inputType="textEmailAddress"
-            android:padding="12dp" />
-
         <!-- Username -->
         <EditText
             android:id="@+id/regUsernameField"

@@ -15,7 +15,6 @@ object UserSession {
     private const val KEY_USERNAME = "username"
     private const val KEY_USER_GENDER = "user_gender"
     private const val KEY_USER_CONTACT = "user_contact"
-    private const val KEY_USER_EMAIL = "user_email"
 
     const val MAX_DAILY_REPORTS = 4
 
@@ -39,7 +38,6 @@ object UserSession {
         username: String = "juan",
         userGender: String = "Male",
         userContact: String = "+63 915 245 6879",
-        userEmail: String = "",
     ) {
         val cleanUser = username.trim()
         val cleanName = userName.trim()
@@ -50,7 +48,6 @@ object UserSession {
             putString(KEY_USERNAME, cleanUser)
             putString(KEY_USER_GENDER, userGender)
             putString(KEY_USER_CONTACT, userContact)
-            putString(KEY_USER_EMAIL, userEmail)
             if (userKey.isNotEmpty()) {
                 putString("saved_name_$userKey", cleanName)
                 putString("saved_gender_$userKey", userGender)
@@ -66,7 +63,6 @@ object UserSession {
             remove(KEY_USER_NAME)
             remove(KEY_USER_GENDER)
             remove(KEY_USER_CONTACT)
-            remove(KEY_USER_EMAIL)
         }
     }
 
@@ -107,10 +103,6 @@ object UserSession {
         return getPrefs(context).getString(KEY_USER_CONTACT, "+63 915 245 6879") ?: "+63 915 245 6879"
     }
 
-    fun getUserEmail(context: Context): String {
-        return getPrefs(context).getString(KEY_USER_EMAIL, "") ?: ""
-    }
-
     fun getSavedNameForUser(context: Context, username: String): String? {
         return getPrefs(context).getString("saved_name_${username.trim().lowercase(Locale.ROOT)}", null)
     }
@@ -123,13 +115,12 @@ object UserSession {
         return getPrefs(context).getString("saved_contact_${username.trim().lowercase(Locale.ROOT)}", null)
     }
 
-    fun updateProfile(context: Context, name: String, gender: String, contact: String, email: String = "") {
+    fun updateProfile(context: Context, name: String, gender: String, contact: String) {
         val currentUserKey = getUsername(context).trim().lowercase(Locale.ROOT)
         getPrefs(context).edit {
             putString(KEY_USER_NAME, name.trim())
             putString(KEY_USER_GENDER, gender)
             putString(KEY_USER_CONTACT, contact)
-            if (email.isNotEmpty()) putString(KEY_USER_EMAIL, email)
             if (currentUserKey.isNotEmpty()) {
                 putString("saved_name_$currentUserKey", name.trim())
                 putString("saved_gender_$currentUserKey", gender)
