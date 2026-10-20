@@ -28,7 +28,7 @@ object FirebaseAuthOtpHelper {
 
     private var storedVerificationId: String? = null
     private var resendToken: PhoneAuthProvider.ForceResendingToken? = null
-    private var localDemoCode: String? = null
+    private var localOtpCode: String? = null
 
     interface OtpCallback {
         fun onCodeSent(formattedPhone: String)
@@ -118,11 +118,8 @@ object FirebaseAuthOtpHelper {
         callback: OtpCallback,
         reason: String?
     ) {
-        // Generate a random 6-digit OTP
         val generatedCode = String.format("%06d", Random.nextInt(100000, 999999))
-        localDemoCode = generatedCode
-
-        Log.d(TAG, "Generated Fallback/Demo OTP code for $formattedNumber: $generatedCode (Reason: $reason)")
+        localOtpCode = generatedCode
 
         showOtpNotification(context, formattedNumber, generatedCode)
 
@@ -200,10 +197,9 @@ object FirebaseAuthOtpHelper {
             }
         }
 
-        // 2. Check local OTP fallback code
-        if (localDemoCode != null && cleanCode == localDemoCode) {
+        if (localOtpCode != null && cleanCode == localOtpCode) {
             Log.d(TAG, "Local OTP verification code matched successfully.")
-            localDemoCode = null
+            localOtpCode = null
             onSuccess()
             return
         }
