@@ -21,6 +21,10 @@ data class GeminiVerificationResult(
     val isErrorOrTimeout: Boolean = false
 )
 
+/**
+ * AI Photo Verifier powered by Google Gemini Vision models.
+ * Examines uploaded photos to verify genuine flooding and prevent false or inappropriate reports.
+ */
 object GeminiPhotoVerifier {
     private const val TAG = "GeminiPhotoVerifier"
     private val API_KEY: String by lazy {

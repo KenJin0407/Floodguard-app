@@ -20,6 +20,11 @@ import com.google.firebase.auth.PhoneAuthProvider
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
+/**
+ * Helper object for Google Firebase Phone Authentication & One-Time Password (OTP) verification.
+ * Handles phone number normalization to E.164, SMS dispatch via Firebase PhoneAuthProvider,
+ * and seamless fallback notification delivery if live cloud SMS is unreachable.
+ */
 object FirebaseAuthOtpHelper {
 
     private const val TAG = "FirebaseAuthOtpHelper"
@@ -36,6 +41,7 @@ object FirebaseAuthOtpHelper {
         fun onError(message: String)
     }
 
+    /** Normalizes Philippine mobile numbers (09xx / 9xx) to standard E.164 (+639xx) format */
     fun formatToE164(rawPhone: String): String {
         val clean = rawPhone.trim().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
         return when {
@@ -47,6 +53,7 @@ object FirebaseAuthOtpHelper {
         }
     }
 
+    /** Checks if Firebase is initialized with google-services.json */
     fun isFirebaseConfigured(context: Context): Boolean {
         return try {
             FirebaseApp.getApps(context).isNotEmpty()
@@ -55,6 +62,7 @@ object FirebaseAuthOtpHelper {
         }
     }
 
+    /** Sends a 6-digit OTP code to the provided mobile number using Firebase PhoneAuth */
     fun sendOtp(
         activity: Activity,
         mobileNumber: String,
@@ -167,6 +175,7 @@ object FirebaseAuthOtpHelper {
         }
     }
 
+    /** Verifies the 6-digit code against Firebase credentials or the device security code */
     fun verifyCode(
         enteredCode: String,
         onSuccess: () -> Unit,

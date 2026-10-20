@@ -30,6 +30,11 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+/**
+ * Image processing and validation utility for flood reports and avatars.
+ * Handles bitmap downscaling, heuristic image quality checks, circular avatar cropping,
+ * and base64 persistence.
+ */
 object ReportPhotoHelper {
 
     data class PhotoValidationResult(

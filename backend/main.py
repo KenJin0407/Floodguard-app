@@ -1,3 +1,9 @@
+"""
+FloodGuard REST API Backend Service
+Provides endpoints for user authentication, flood report synchronization,
+Gemini AI image validation, Open-Meteo weather forecasts, and satellite GeoJSON flood mapping.
+"""
+
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, DateTime, Float, func
 from sqlalchemy.ext.declarative import declarative_base
@@ -236,6 +242,10 @@ class UserPasswordUpdate(BaseModel):
     currentPassword: str
     newPassword: str
 
+class UserPasswordReset(BaseModel):
+    username: str
+    newPassword: str
+
 # --- DEPENDENCY ---
 def get_db():
     db = SessionLocal()
@@ -347,6 +357,17 @@ def change_password(payload: UserPasswordUpdate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
     return {"success": True, "message": "Password changed successfully"}
+
+@app.put("/api/auth/reset-password")
+def reset_password(payload: UserPasswordReset, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == payload.username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    new_hashed = hash_password(payload.newPassword) if len(payload.newPassword) != 64 else payload.newPassword
+    user.password = new_hashed
+    db.commit()
+    db.refresh(user)
+    return {"success": True, "message": "Password reset successfully"}
 
 @app.get("/api/users")
 def get_users(db: Session = Depends(get_db)):

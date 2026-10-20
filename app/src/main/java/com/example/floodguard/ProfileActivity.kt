@@ -20,6 +20,11 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 
+/**
+ * Activity for displaying and editing the current user's profile.
+ * Supports updating Full Name, Gender, Mobile Number, profile photo avatar,
+ * password changes, viewing user's submitted reports, and logging out.
+ */
 class ProfileActivity : ComponentActivity() {
 
     private lateinit var avatarImage: ImageView

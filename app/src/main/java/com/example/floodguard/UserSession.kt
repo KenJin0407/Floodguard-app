@@ -8,6 +8,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Shared preferences manager for user authentication state,
+ * active user profile information, and daily report submission limits.
+ */
 object UserSession {
     private const val PREF_NAME = "floodguard_session"
     private const val KEY_IS_LOGGED_IN = "is_logged_in"

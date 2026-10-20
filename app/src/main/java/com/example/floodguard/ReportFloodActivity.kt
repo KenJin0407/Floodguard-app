@@ -60,6 +60,11 @@ data class LocationSuggestionItem(
     override fun toString(): String = title
 }
 
+/**
+ * Activity for submitting new community flood reports.
+ * Includes photo capture, automated Gemini AI photo validation,
+ * GPS/OpenStreetMap geolocation lookup, and optional emergency SMS broadcasting.
+ */
 class ReportFloodActivity : ComponentActivity() {
 
     private lateinit var photoPickerBox: FrameLayout

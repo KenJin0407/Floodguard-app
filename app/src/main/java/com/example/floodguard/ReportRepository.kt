@@ -86,6 +86,10 @@ enum class SeverityLevel {
     CLEARED,
 }
 
+/**
+ * Central repository managing flood incident reports.
+ * Coordinates local SQLite storage, backend synchronization, report caching, and author mapping.
+ */
 object ReportRepository {
 
     private var cachedReports: MutableList<FloodReport>? = null

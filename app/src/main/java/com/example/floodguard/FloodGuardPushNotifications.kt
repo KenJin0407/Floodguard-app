@@ -13,6 +13,10 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
+/**
+ * Push notification service integrated with Firebase Cloud Messaging (FCM).
+ * Manages notification channels, user notification permissions, and incoming broadcast alerts.
+ */
 object FloodGuardPushNotifications {
 
     private const val TOPIC = "floodguard"

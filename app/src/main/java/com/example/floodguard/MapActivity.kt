@@ -25,6 +25,11 @@ import java.net.URLEncoder
 import java.util.Locale
 import kotlin.concurrent.thread
 
+/**
+ * Activity for the full-screen interactive Leaflet flood map.
+ * Displays real-time location heatmaps, flood depth markers, preset barangay quick-zoom chips,
+ * and geocoded search capabilities.
+ */
 class MapActivity : ComponentActivity() {
 
     private lateinit var fullMapView: WebView

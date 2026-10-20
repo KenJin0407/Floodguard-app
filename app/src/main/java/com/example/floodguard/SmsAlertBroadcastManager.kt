@@ -16,6 +16,10 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
+/**
+ * Broadcast manager for dispatching community emergency flood alert SMS messages
+ * and managing broadcast history and notification triggers based on geolocation proximity.
+ */
 object SmsAlertBroadcastManager {
 
     private const val PREF_NAME = "floodguard_sms_broadcasts"
