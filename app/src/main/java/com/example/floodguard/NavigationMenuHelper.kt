@@ -11,6 +11,10 @@ import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.Toast
 
+/**
+ * Helper for rendering the top app bar popup menu.
+ * Provides shortcuts to the user's profile, the About FloodGuard dialog, and account logout.
+ */
 object NavigationMenuHelper {
 
     @SuppressLint("InflateParams")

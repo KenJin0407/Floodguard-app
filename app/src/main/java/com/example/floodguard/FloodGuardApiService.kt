@@ -10,6 +10,11 @@ import java.net.URL
 import java.net.URLEncoder
 import kotlin.concurrent.thread
 
+/**
+ * HTTP client service for communicating with the FloodGuard REST backend.
+ * Provides synchronization for flood reports, user registration, authentication,
+ * weather data, and satellite GeoJSON flood hazard mapping layers.
+ */
 object FloodGuardApiService {
 
     private val HOST_URLS = listOf(
@@ -449,6 +454,58 @@ object FloodGuardApiService {
                     }
                 } catch (e: Exception) {
                     Log.w("FloodGuardApi", "Update password failed on $baseUrl: ${e.message}")
+                }
+            }
+            onResult?.invoke(false, "Server unreachable")
+        }
+    }
+
+    fun resetPasswordInBackend(
+        username: String,
+        newPassword: String,
+        onResult: ((Boolean, String) -> Unit)? = null
+    ) {
+        thread {
+            for (baseUrl in HOST_URLS) {
+                try {
+                    val url = URL("$baseUrl/auth/reset-password")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.requestMethod = "PUT"
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.connectTimeout = 4000
+                    conn.readTimeout = 4000
+                    conn.doOutput = true
+
+                    val payload = JSONObject().apply {
+                        put("username", username)
+                        put("newPassword", newPassword)
+                    }
+
+                    val writer = OutputStreamWriter(conn.outputStream)
+                    writer.write(payload.toString())
+                    writer.flush()
+                    writer.close()
+
+                    val code = conn.responseCode
+                    Log.d("FloodGuardApi", "Reset password on $baseUrl code: $code")
+                    if (code in 200..299) {
+                        conn.inputStream?.readBytes()
+                        conn.disconnect()
+                        onResult?.invoke(true, "Password reset successfully!")
+                        return@thread
+                    } else {
+                        val err = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                        val detail = try {
+                            JSONObject(err).optString("detail", "Failed to reset password on server")
+                        } catch (_: Exception) {
+                            "Failed to reset password on server"
+                        }
+                        conn.disconnect()
+                        onResult?.invoke(false, detail)
+                        return@thread
+                    }
+                } catch (e: Exception) {
+                    Log.w("FloodGuardApi", "Reset password failed on $baseUrl: ${e.message}")
                 }
             }
             onResult?.invoke(false, "Server unreachable")

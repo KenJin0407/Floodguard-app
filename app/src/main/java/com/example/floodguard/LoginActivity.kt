@@ -1,14 +1,25 @@
 package com.example.floodguard
 
+import android.app.AlertDialog
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 
+/**
+ * Activity for user authentication.
+ * Supports credentials verification against local SQLite database with offline-first support,
+ * fallback verification against the FloodGuard REST backend API, and secure password reset via mobile OTP.
+ */
 class LoginActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -18,6 +29,7 @@ class LoginActivity : ComponentActivity() {
         val usernameField = findViewById<EditText>(R.id.usernameField)
         val passwordField = findViewById<EditText>(R.id.passwordField)
         val togglePasswordVisibility = findViewById<ImageView>(R.id.togglePasswordVisibility)
+        val forgotPasswordLink = findViewById<TextView>(R.id.forgotPasswordLink)
         val signInButton = findViewById<Button>(R.id.signInButton)
         val createAccountLink = findViewById<TextView>(R.id.createAccountLink)
 
@@ -99,9 +111,194 @@ class LoginActivity : ComponentActivity() {
             }
         }
 
+        forgotPasswordLink?.setOnClickListener {
+            showForgotPasswordDialog()
+        }
+
         createAccountLink?.setOnClickListener {
             val intent = Intent(this, RegisterActivity::class.java)
             startActivity(intent)
         }
+    }
+
+    /**
+     * Displays a multi-step dialog for resetting a forgotten password using mobile OTP verification.
+     * Step 1: User enters username -> verifies associated mobile number -> dispatches OTP.
+     * Step 2: User enters the 6-digit OTP code and a new password -> updates SQLite and Backend.
+     */
+    private fun showForgotPasswordDialog() {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_forgot_password, null)
+        val layoutStepUser = dialogView.findViewById<LinearLayout>(R.id.layoutForgotStepUser)
+        val layoutStepReset = dialogView.findViewById<LinearLayout>(R.id.layoutForgotStepReset)
+
+        val inputUsername = dialogView.findViewById<EditText>(R.id.forgotUsernameInput)
+        val userStatusText = dialogView.findViewById<TextView>(R.id.forgotUserStatusMessage)
+        val btnCancel = dialogView.findViewById<Button>(R.id.btnForgotCancel)
+        val btnNext = dialogView.findViewById<Button>(R.id.btnForgotNext)
+
+        val otpNoticeText = dialogView.findViewById<TextView>(R.id.forgotOtpNoticeText)
+        val inputOtp = dialogView.findViewById<EditText>(R.id.forgotOtpCodeInput)
+        val inputNewPass = dialogView.findViewById<EditText>(R.id.forgotNewPassInput)
+        val inputConfirmPass = dialogView.findViewById<EditText>(R.id.forgotConfirmPassInput)
+        val resetStatusText = dialogView.findViewById<TextView>(R.id.forgotResetStatusMessage)
+        val btnBack = dialogView.findViewById<Button>(R.id.btnForgotBack)
+        val btnSubmit = dialogView.findViewById<Button>(R.id.btnForgotSubmit)
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        var resolvedUser: UserEntity? = null
+
+        btnCancel.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        btnNext.setOnClickListener {
+            val enteredUser = inputUsername.text.toString().trim()
+            if (enteredUser.isEmpty()) {
+                userStatusText.text = "Please enter your username."
+                userStatusText.setTextColor(Color.parseColor("#DC2626"))
+                return@setOnClickListener
+            }
+
+            btnNext.isEnabled = false
+            userStatusText.text = "Looking up account..."
+            userStatusText.setTextColor(Color.parseColor("#0284C7"))
+
+            val db = FloodGuardDatabase(this)
+            val localUser = db.getUserByUsername(enteredUser)
+
+            fun onUserFound(user: UserEntity) {
+                resolvedUser = user
+                val mobile = user.mobile
+                if (mobile.isBlank()) {
+                    btnNext.isEnabled = true
+                    userStatusText.text = "No mobile number linked with this account."
+                    userStatusText.setTextColor(Color.parseColor("#DC2626"))
+                    return
+                }
+
+                userStatusText.text = "Sending verification code via SMS..."
+                userStatusText.setTextColor(Color.parseColor("#0284C7"))
+
+                FirebaseAuthOtpHelper.sendOtp(
+                    activity = this,
+                    mobileNumber = mobile,
+                    callback = object : FirebaseAuthOtpHelper.OtpCallback {
+                        override fun onCodeSent(formattedPhone: String) {
+                            btnNext.isEnabled = true
+                            layoutStepUser.visibility = View.GONE
+                            layoutStepReset.visibility = View.VISIBLE
+                            otpNoticeText.text = "We sent an OTP code to $formattedPhone"
+                        }
+
+                        override fun onAutoVerified() {
+                            btnNext.isEnabled = true
+                            layoutStepUser.visibility = View.GONE
+                            layoutStepReset.visibility = View.VISIBLE
+                            inputOtp.setText("AUTO-VERIFIED")
+                            inputOtp.isEnabled = false
+                        }
+
+                        override fun onError(message: String) {
+                            btnNext.isEnabled = true
+                            userStatusText.text = message
+                            userStatusText.setTextColor(Color.parseColor("#DC2626"))
+                        }
+                    }
+                )
+            }
+
+            if (localUser != null) {
+                onUserFound(localUser)
+            } else {
+                // Try fetching users from backend to see if user exists remotely
+                FloodGuardApiService.syncUsersFromBackend { remoteUsers ->
+                    runOnUiThread {
+                        val match = remoteUsers.find { it.username.equals(enteredUser, ignoreCase = true) }
+                        if (match != null) {
+                            db.registerUser(match)
+                            onUserFound(match)
+                        } else {
+                            btnNext.isEnabled = true
+                            userStatusText.text = "Account '$enteredUser' not found. Please register."
+                            userStatusText.setTextColor(Color.parseColor("#DC2626"))
+                        }
+                    }
+                }
+            }
+        }
+
+        btnBack.setOnClickListener {
+            layoutStepReset.visibility = View.GONE
+            layoutStepUser.visibility = View.VISIBLE
+            resetStatusText.visibility = View.GONE
+        }
+
+        btnSubmit.setOnClickListener {
+            val user = resolvedUser ?: return@setOnClickListener
+            val otpCode = inputOtp.text.toString().trim()
+            val newPass = inputNewPass.text.toString()
+            val confirmPass = inputConfirmPass.text.toString()
+
+            if (inputOtp.isEnabled && otpCode.length < 6) {
+                resetStatusText.text = "Please enter the 6-digit OTP code."
+                resetStatusText.visibility = View.VISIBLE
+                return@setOnClickListener
+            }
+            if (newPass.length < 6) {
+                resetStatusText.text = "New password must be at least 6 characters."
+                resetStatusText.visibility = View.VISIBLE
+                return@setOnClickListener
+            }
+            if (newPass != confirmPass) {
+                resetStatusText.text = "Passwords do not match."
+                resetStatusText.visibility = View.VISIBLE
+                return@setOnClickListener
+            }
+
+            btnSubmit.isEnabled = false
+            resetStatusText.text = "Verifying code & resetting password..."
+            resetStatusText.setTextColor(Color.parseColor("#0284C7"))
+            resetStatusText.visibility = View.VISIBLE
+
+            fun performPasswordUpdate() {
+                val db = FloodGuardDatabase(this)
+                val newHash = UserSession.hashPassword(newPass)
+                db.updatePassword(user.username, newHash)
+
+                FloodGuardApiService.resetPasswordInBackend(user.username, newPass) { _, _ ->
+                    // Backend synchronization handled in background
+                }
+
+                runOnUiThread {
+                    dialog.dismiss()
+                    Toast.makeText(this, "✅ Password reset successfully! You can now log in.", Toast.LENGTH_LONG).show()
+                }
+            }
+
+            if (!inputOtp.isEnabled) {
+                // Already auto-verified
+                performPasswordUpdate()
+            } else {
+                FirebaseAuthOtpHelper.verifyCode(
+                    enteredCode = otpCode,
+                    onSuccess = {
+                        performPasswordUpdate()
+                    },
+                    onError = { errMsg ->
+                        btnSubmit.isEnabled = true
+                        resetStatusText.text = errMsg
+                        resetStatusText.setTextColor(Color.parseColor("#DC2626"))
+                        resetStatusText.visibility = View.VISIBLE
+                    }
+                )
+            }
+        }
+
+        dialog.show()
     }
 }

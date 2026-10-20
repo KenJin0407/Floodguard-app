@@ -1,11 +1,15 @@
 package com.example.floodguard
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
+import android.content.Intent
 import android.telephony.SmsManager
 import android.widget.Toast
 
+/**
+ * Utility for collecting registered community phone contacts and dispatching SMS alerts
+ * via the native Android SMS telephony manager.
+ */
 object SmsHelper {
 
     private val SAN_MATEO_COMMUNITY_CONTACTS = listOf(

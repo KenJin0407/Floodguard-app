@@ -6,6 +6,10 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import java.util.UUID
 
+/**
+ * Local SQLite OpenHelper database manager for FloodGuard.
+ * Stores local user profiles, offline credentials, and community flood incident reports.
+ */
 class FloodGuardDatabase(context: Context) :
     SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 

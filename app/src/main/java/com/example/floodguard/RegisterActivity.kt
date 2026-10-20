@@ -15,6 +15,11 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import java.util.Locale
 
+/**
+ * Activity for user account creation.
+ * Collects Full Name, Contact Number, Gender, Username, and Password.
+ * Triggers Google Firebase SMS OTP verification before persisting account data to SQLite & backend.
+ */
 class RegisterActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -114,6 +119,7 @@ class RegisterActivity : ComponentActivity() {
         }
     }
 
+    /** Displays the themed 6-digit OTP modal dialog for mobile number verification */
     private fun showOtpVerificationDialog(user: UserEntity) {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_otp_verification, null)
         val tvPhone = dialogView.findViewById<TextView>(R.id.tvOtpPhoneNumber)
@@ -222,6 +228,7 @@ class RegisterActivity : ComponentActivity() {
         sendVerificationCode()
     }
 
+    /** Finalizes user registration, saves records in SQLite and the backend, and initializes session */
     private fun completeRegistration(user: UserEntity) {
         val db = FloodGuardDatabase(this)
         db.registerUser(user)
@@ -242,4 +249,3 @@ class RegisterActivity : ComponentActivity() {
         finish()
     }
 }
-

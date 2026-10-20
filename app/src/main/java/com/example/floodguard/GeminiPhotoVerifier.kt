@@ -21,6 +21,10 @@ data class GeminiVerificationResult(
     val isErrorOrTimeout: Boolean = false
 )
 
+/**
+ * AI Photo Verifier powered by Google Gemini Vision models.
+ * Examines uploaded photos to verify genuine flooding and prevent false or inappropriate reports.
+ */
 object GeminiPhotoVerifier {
     private const val TAG = "GeminiPhotoVerifier"
     private val API_KEY: String by lazy {
@@ -49,59 +53,56 @@ object GeminiPhotoVerifier {
     fun verifyPhoto(bitmap: Bitmap): GeminiVerificationResult {
         val scaled = scaleForInference(bitmap, 512)
         val stream = ByteArrayOutputStream()
-        scaled.compress(Bitmap.CompressFormat.JPEG, 75, stream)
-        val jpegBytes = stream.toByteArray()
-        val base64Data = Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
+        scaled.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+        val base64Image = Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
+
+        val requestJson = JSONObject().apply {
+            put("contents", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("parts", JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("text", VERIFICATION_PROMPT)
+                        })
+                        put(JSONObject().apply {
+                            put("inline_data", JSONObject().apply {
+                                put("mime_type", "image/jpeg")
+                                put("data", base64Image)
+                            })
+                        })
+                    })
+                })
+            })
+            put("generationConfig", JSONObject().apply {
+                put("response_mime_type", "application/json")
+                put("temperature", 0.1)
+            })
+        }
+
+        val requestBody = requestJson.toString()
 
         for (model in MODELS) {
             try {
-                val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$API_KEY")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.setRequestProperty("Content-Type", "application/json")
-                conn.connectTimeout = 12000
-                conn.readTimeout = 18000
-                conn.doOutput = true
-
-                val payload = JSONObject().apply {
-                    val contentsArr = JSONArray().apply {
-                        val contentObj = JSONObject().apply {
-                            val partsArr = JSONArray().apply {
-                                val textPart = JSONObject().apply {
-                                    put("text", VERIFICATION_PROMPT)
-                                }
-                                val imagePart = JSONObject().apply {
-                                    val inlineData = JSONObject().apply {
-                                        put("mime_type", "image/jpeg")
-                                        put("data", base64Data)
-                                    }
-                                    put("inline_data", inlineData)
-                                }
-                                put(textPart)
-                                put(imagePart)
-                            }
-                            put("parts", partsArr)
-                        }
-                        put(contentObj)
-                    }
-                    put("contents", contentsArr)
-                    val genConfig = JSONObject().apply {
-                        put("response_mime_type", "application/json")
-                    }
-                    put("generationConfig", genConfig)
+                val endpoint = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$API_KEY"
+                val url = URL(endpoint)
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 12000
+                    readTimeout = 12000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json; charset=UTF-8")
                 }
 
-                val writer = OutputStreamWriter(conn.outputStream)
-                writer.write(payload.toString())
-                writer.flush()
-                writer.close()
+                OutputStreamWriter(conn.outputStream, "UTF-8").use {
+                    it.write(requestBody)
+                    it.flush()
+                }
 
                 val code = conn.responseCode
                 if (code == 200) {
-                    val responseStr = conn.inputStream.bufferedReader().use { it.readText() }
+                    val resp = conn.inputStream.bufferedReader().use { it.readText() }
                     conn.disconnect()
 
-                    val root = JSONObject(responseStr)
+                    val root = JSONObject(resp)
                     val candidates = root.optJSONArray("candidates")
                     if (candidates != null && candidates.length() > 0) {
                         val firstCandidate = candidates.getJSONObject(0)
