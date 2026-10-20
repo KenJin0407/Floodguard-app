@@ -11,11 +11,21 @@ import java.util.UUID
  * Stores local user profiles, offline credentials, and community flood incident reports.
  */
 class FloodGuardDatabase(context: Context) :
-    SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+    SQLiteOpenHelper(context.applicationContext, DATABASE_NAME, null, DATABASE_VERSION) {
 
     companion object {
         private const val DATABASE_NAME = "floodguard.db"
         private const val DATABASE_VERSION = 7
+
+        @Volatile
+        private var instance: FloodGuardDatabase? = null
+
+        @JvmStatic
+        fun getInstance(context: Context): FloodGuardDatabase {
+            return instance ?: synchronized(this) {
+                instance ?: FloodGuardDatabase(context.applicationContext).also { instance = it }
+            }
+        }
 
         const val TABLE_USERS = "users"
         const val COLUMN_USER_ID = "id"

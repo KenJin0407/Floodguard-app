@@ -1,8 +1,8 @@
 package com.example.floodguard
 
 import android.content.Context
-import android.net.Uri
 import android.content.Intent
+import android.net.Uri
 import android.telephony.SmsManager
 import android.widget.Toast
 
@@ -23,7 +23,7 @@ object SmsHelper {
      * Collects contact numbers for all application users registered in San Mateo / flood vicinity.
      */
     fun getSanMateoVicinityContacts(context: Context): List<String> {
-        val db = FloodGuardDatabase(context)
+        val db = FloodGuardDatabase.getInstance(context)
         
         FloodGuardApiService.syncUsersFromBackend { remoteUsers ->
             for (u in remoteUsers) {

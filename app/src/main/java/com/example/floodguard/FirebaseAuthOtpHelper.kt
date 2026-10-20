@@ -17,6 +17,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
@@ -90,6 +91,7 @@ object FirebaseAuthOtpHelper {
 
                         override fun onVerificationFailed(e: FirebaseException) {
                             Log.w(TAG, "Firebase verification failed: ${e.message}", e)
+                            // Fallback to local OTP dispatch so user is not blocked
                             fallbackToLocalOtp(activity, formattedNumber, callback, e.localizedMessage)
                         }
 
@@ -115,6 +117,7 @@ object FirebaseAuthOtpHelper {
             }
         }
 
+        // If Firebase is not yet connected via google-services.json, run fallback OTP flow
         fallbackToLocalOtp(activity, formattedNumber, callback, null)
     }
 
@@ -124,7 +127,7 @@ object FirebaseAuthOtpHelper {
         callback: OtpCallback,
         reason: String?
     ) {
-        val generatedCode = String.format("%06d", Random.nextInt(100000, 999999))
+        val generatedCode = String.format(Locale.US, "%06d", Random.nextInt(100000, 999999))
         localOtpCode = generatedCode
 
         showOtpNotification(context, formattedNumber, generatedCode)
@@ -181,6 +184,7 @@ object FirebaseAuthOtpHelper {
     ) {
         val cleanCode = enteredCode.trim()
 
+        // 1. Check if we have an active Firebase verificationId
         val vId = storedVerificationId
         if (!vId.isNullOrBlank()) {
             try {

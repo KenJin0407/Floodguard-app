@@ -86,6 +86,10 @@ enum class SeverityLevel {
     CLEARED,
 }
 
+/**
+ * Central repository managing flood incident reports.
+ * Coordinates local SQLite storage, backend synchronization, report caching, and author mapping.
+ */
 object ReportRepository {
 
     private var cachedReports: MutableList<FloodReport>? = null
@@ -95,7 +99,7 @@ object ReportRepository {
         get() = cachedReports ?: mutableListOf()
 
     fun loadReports(context: Context, onSynced: (() -> Unit)? = null): List<FloodReport> {
-        val db = FloodGuardDatabase(context)
+        val db = FloodGuardDatabase.getInstance(context)
         val loaded = db.getAllReports().toMutableList()
 
         val previousCache = cachedReports
@@ -220,7 +224,7 @@ object ReportRepository {
             report.lon = resolvedLon
         }
 
-        val db = FloodGuardDatabase(context)
+        val db = FloodGuardDatabase.getInstance(context)
         db.insertReport(report)
         if (cachedReports == null) {
             loadReports(context)
@@ -268,7 +272,7 @@ object ReportRepository {
     fun removeReport(context: Context, id: String): Boolean {
         val currentUsername = UserSession.getUsername(context)
         val currentFullName = UserSession.getUserName(context)
-        val db = FloodGuardDatabase(context)
+        val db = FloodGuardDatabase.getInstance(context)
         val existing = (cachedReports ?: db.getAllReports()).find { it.id == id }
         if (existing != null && !existing.isAuthoredBy(currentUsername, currentFullName)) {
             return false
@@ -284,7 +288,7 @@ object ReportRepository {
     fun updateReport(context: Context, id: String, location: String, severity: String, notes: String): Boolean {
         val currentUsername = UserSession.getUsername(context)
         val currentFullName = UserSession.getUserName(context)
-        val db = FloodGuardDatabase(context)
+        val db = FloodGuardDatabase.getInstance(context)
         val existing = (cachedReports ?: db.getAllReports()).find { it.id == id }
         if (existing != null && !existing.isAuthoredBy(currentUsername, currentFullName)) {
             return false

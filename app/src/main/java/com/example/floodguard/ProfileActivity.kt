@@ -20,6 +20,11 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 
+/**
+ * Activity for displaying and editing the current user's profile.
+ * Supports updating Full Name, Gender, Mobile Number, profile photo avatar,
+ * password changes, viewing user's submitted reports, and logging out.
+ */
 class ProfileActivity : ComponentActivity() {
 
     private lateinit var avatarImage: ImageView
@@ -434,7 +439,7 @@ class ProfileActivity : ComponentActivity() {
                 profileContactInput.setText(newContact)
 
                 UserSession.updateProfile(this, newName, selectedGender, newContact)
-                FloodGuardDatabase(this).updateUserProfile(username, newName, selectedGender, newContact)
+                FloodGuardDatabase.getInstance(this).updateUserProfile(username, newName, selectedGender, newContact)
                 FloodGuardApiService.updateUserProfileInBackend(username, newName, selectedGender, newContact)
                 populateProfileReports()
                 Toast.makeText(this, "Profile information updated successfully!", Toast.LENGTH_SHORT).show()
@@ -483,7 +488,7 @@ class ProfileActivity : ComponentActivity() {
             }
 
             val username = UserSession.getUsername(this)
-            val db = FloodGuardDatabase(this)
+            val db = FloodGuardDatabase.getInstance(this)
             val savedUser = db.getUserByUsername(username)
             val hashedCurrent = UserSession.hashPassword(currentText)
 
