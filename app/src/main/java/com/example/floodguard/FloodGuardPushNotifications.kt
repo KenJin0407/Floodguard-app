@@ -59,6 +59,11 @@ object FloodGuardPushNotifications {
 
 class FloodGuardMessagingService : FirebaseMessagingService() {
 
+    override fun onNewToken(token: String) {
+        super.onNewToken(token)
+        Log.d("FloodGuardPush", "Refreshed FCM token: $token")
+    }
+
     override fun onMessageReceived(message: RemoteMessage) {
         val data = message.data
         val similarCount = data["similarReportCount"]?.toIntOrNull() ?: 1

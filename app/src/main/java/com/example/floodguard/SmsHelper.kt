@@ -23,7 +23,7 @@ object SmsHelper {
      * Collects contact numbers for all application users registered in San Mateo / flood vicinity.
      */
     fun getSanMateoVicinityContacts(context: Context): List<String> {
-        val db = FloodGuardDatabase(context)
+        val db = FloodGuardDatabase.getInstance(context)
         
         FloodGuardApiService.syncUsersFromBackend { remoteUsers ->
             for (u in remoteUsers) {

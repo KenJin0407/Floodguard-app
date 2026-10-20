@@ -80,7 +80,7 @@ object UserSession {
             return "juan"
         }
         val matchedUser = try {
-            FloodGuardDatabase(context).getUserByFullName(fallbackName)
+            FloodGuardDatabase.getInstance(context).getUserByFullName(fallbackName)
         } catch (_: Exception) {
             null
         }

@@ -26,6 +26,7 @@ import android.widget.TextView
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -266,7 +267,7 @@ object ReportPhotoHelper {
             updatingSliderFromPinch = true
             val progress = ((currentZoom - 1.0f) / 3.0f * 100f).roundToInt().coerceIn(0, 100)
             zoomSeekBar.progress = progress
-            zoomValueText.text = String.format("%.1fx", currentZoom)
+            zoomValueText.text = String.format(Locale.US, "%.1fx", currentZoom)
             updatingSliderFromPinch = false
         }.apply {
             layoutParams = LinearLayout.LayoutParams(cropViewSizePx, cropViewSizePx).apply {
@@ -333,7 +334,7 @@ object ReportPhotoHelper {
                     if (!updatingSliderFromPinch) {
                         val zoom = 1.0f + (progress / 100f) * 3.0f
                         cropView.setZoomFactor(zoom)
-                        zoomValueText.text = String.format("%.1fx", zoom)
+                        zoomValueText.text = String.format(Locale.US, "%.1fx", zoom)
                     }
                 }
 

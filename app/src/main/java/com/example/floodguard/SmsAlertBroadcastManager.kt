@@ -153,7 +153,7 @@ object SmsAlertBroadcastManager {
             if (currentContact.isNotBlank()) {
                 phones.add(currentContact)
             }
-            val dbUsers = FloodGuardDatabase(context).getAllUsers()
+            val dbUsers = FloodGuardDatabase.getInstance(context).getAllUsers()
             for (u in dbUsers) {
                 val formatted = formatPhoneE164(u.mobile)
                 if (formatted.isNotBlank()) {

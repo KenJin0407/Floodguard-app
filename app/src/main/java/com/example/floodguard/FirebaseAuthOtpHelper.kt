@@ -17,6 +17,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
@@ -126,7 +127,7 @@ object FirebaseAuthOtpHelper {
         callback: OtpCallback,
         reason: String?
     ) {
-        val generatedCode = String.format("%06d", Random.nextInt(100000, 999999))
+        val generatedCode = String.format(Locale.US, "%06d", Random.nextInt(100000, 999999))
         localOtpCode = generatedCode
 
         showOtpNotification(context, formattedNumber, generatedCode)

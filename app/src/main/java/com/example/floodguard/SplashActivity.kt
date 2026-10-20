@@ -18,7 +18,7 @@ class SplashActivity : AppCompatActivity() {
 
         // Initialize and open database connection so Database Inspector connects immediately
         try {
-            FloodGuardDatabase(this).writableDatabase
+            FloodGuardDatabase.getInstance(this).writableDatabase
         } catch (_: Exception) {
         }
 

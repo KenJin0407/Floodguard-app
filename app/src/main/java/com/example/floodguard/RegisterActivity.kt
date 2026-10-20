@@ -230,7 +230,7 @@ class RegisterActivity : ComponentActivity() {
 
     /** Finalizes user registration, saves records in SQLite and the backend, and initializes session */
     private fun completeRegistration(user: UserEntity) {
-        val db = FloodGuardDatabase(this)
+        val db = FloodGuardDatabase.getInstance(this)
         db.registerUser(user)
         FloodGuardApiService.registerUserInBackend(user)
 

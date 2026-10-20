@@ -55,7 +55,7 @@ class LoginActivity : ComponentActivity() {
             if (username.isBlank() || password.isBlank()) {
                 Toast.makeText(this, "Please enter username and password", Toast.LENGTH_SHORT).show()
             } else {
-                val db = FloodGuardDatabase(this)
+                val db = FloodGuardDatabase.getInstance(this)
                 val savedUser = db.getUserByUsername(username)
                 val hashedInput = UserSession.hashPassword(password)
 
@@ -168,7 +168,7 @@ class LoginActivity : ComponentActivity() {
             userStatusText.text = "Looking up account..."
             userStatusText.setTextColor(Color.parseColor("#0284C7"))
 
-            val db = FloodGuardDatabase(this)
+            val db = FloodGuardDatabase.getInstance(this)
             val localUser = db.getUserByUsername(enteredUser)
 
             fun onUserFound(user: UserEntity) {
@@ -266,7 +266,7 @@ class LoginActivity : ComponentActivity() {
             resetStatusText.visibility = View.VISIBLE
 
             fun performPasswordUpdate() {
-                val db = FloodGuardDatabase(this)
+                val db = FloodGuardDatabase.getInstance(this)
                 val newHash = UserSession.hashPassword(newPass)
                 db.updatePassword(user.username, newHash)
 

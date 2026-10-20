@@ -39,6 +39,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -213,18 +214,15 @@ class ReportFloodActivity : ComponentActivity() {
             navigateBack()
         }
 
-        findViewById<View>(R.id.logoLayout)?.setOnClickListener {
-            navigateBack()
-        }
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                navigateBack()
+            }
+        })
 
         findViewById<ImageView>(R.id.menuIcon)?.setOnClickListener { view ->
             NavigationMenuHelper.showMenu(this, view)
         }
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        navigateBack()
     }
 
     private fun navigateBack() {
