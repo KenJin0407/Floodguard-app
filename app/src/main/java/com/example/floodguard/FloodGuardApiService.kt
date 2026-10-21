@@ -18,6 +18,9 @@ import kotlin.concurrent.thread
 object FloodGuardApiService {
 
     private val HOST_URLS = listOf(
+        "http://192.168.254.175:8000/api",
+        "http://192.168.254.148:8000/api",
+        "http://192.168.100.184:8000/api",
         "http://10.0.2.2:8000/api",
         "http://127.0.0.1:8000/api",
         "http://localhost:8000/api",
