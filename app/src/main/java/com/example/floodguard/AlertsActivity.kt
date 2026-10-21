@@ -31,10 +31,15 @@ class AlertsActivity : ComponentActivity() {
         setupBottomNavigation()
     }
 
+    private var isFirstResume = true
+
     override fun onResume() {
         super.onResume()
         FloatingAlertManager.onActivityResumed(this)
-        populateAlerts()
+        if (!isFirstResume) {
+            populateAlerts()
+        }
+        isFirstResume = false
     }
 
     override fun onPause() {
@@ -82,7 +87,7 @@ class AlertsActivity : ComponentActivity() {
 
         val allReports = ReportRepository.loadReports(this) {
             runOnUiThread { populateAlerts() }
-        }
+        }.toList()
         val reportsList = allReports.filter { !it.isAuthoredBy(currentUsername, currentFullName) }
 
         if (reportsList.isEmpty()) {

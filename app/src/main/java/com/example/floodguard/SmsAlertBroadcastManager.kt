@@ -130,7 +130,8 @@ object SmsAlertBroadcastManager {
 
     fun findSimilarActiveReports(targetReport: FloodReport, allReports: List<FloodReport>): List<FloodReport> {
         if (targetReport.severityLevel == SeverityLevel.CLEARED) return emptyList()
-        return allReports.filter { candidate ->
+        val snapshot = allReports.toList()
+        return snapshot.filter { candidate ->
             candidate.severityLevel != SeverityLevel.CLEARED && areReportsSimilar(targetReport, candidate)
         }
     }
