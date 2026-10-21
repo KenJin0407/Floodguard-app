@@ -6,8 +6,11 @@ import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.graphics.Typeface
+import android.view.LayoutInflater
 import android.location.Geocoder
 import android.location.Location
 import android.location.LocationListener
@@ -19,20 +22,25 @@ import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AutoCompleteTextView
 import android.widget.BaseAdapter
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.Filter
 import android.widget.Filterable
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import org.json.JSONArray
@@ -53,19 +61,27 @@ data class LocationSuggestionItem(
     override fun toString(): String = title
 }
 
+/**
+ * Activity for submitting new community flood reports.
+ * Includes photo capture, automated Gemini AI photo validation,
+ * GPS/OpenStreetMap geolocation lookup, and optional emergency SMS broadcasting.
+ */
 class ReportFloodActivity : ComponentActivity() {
 
     private lateinit var photoPickerBox: FrameLayout
     private lateinit var photoPreview: ImageView
     private lateinit var photoPlaceholder: LinearLayout
+    private lateinit var reportScrollView: ScrollView
     private lateinit var locationInput: AutoCompleteTextView
     private lateinit var btnRefreshLocation: TextView
     private lateinit var btnClearLocation: TextView
     private lateinit var btnLocationDropdown: TextView
     private lateinit var locationCoordsText: TextView
     private lateinit var notesInput: EditText
+    private lateinit var chkSendSmsOnSubmit: CheckBox
     private lateinit var tvRemainingReports: TextView
     private lateinit var submitReportButton: Button
+    private lateinit var tvPhotoBadge: TextView
 
     private lateinit var btnAnkleDeep: Button
     private lateinit var btnKneeDeep: Button
@@ -119,18 +135,39 @@ class ReportFloodActivity : ComponentActivity() {
         LocationSuggestionItem("Burgos, Rodriguez (Montalban), Rizal", "Adjacent Municipality • Northern Corridor", 14.7310, 121.1420),
     )
 
-    private val selectImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+    private val selectImageLauncher: ActivityResultLauncher<String> = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
-            selectedImageUri = uri
-            persistedPhotoData = ReportPhotoHelper.persistPickedPhoto(this, uri)
-            val bitmap = ReportPhotoHelper.loadBitmap(this, persistedPhotoData ?: uri.toString())
-            if (bitmap != null) {
-                photoPreview.setImageBitmap(bitmap)
+            val photoData = ReportPhotoHelper.persistPickedPhoto(this, uri)
+            val bitmap = ReportPhotoHelper.loadBitmap(this, photoData ?: uri.toString())
+            val validation = ReportPhotoHelper.validateFloodPhoto(bitmap)
+            if (!validation.isValid) {
+                AlertDialog.Builder(this)
+                    .setTitle("Invalid Flood Photo")
+                    .setMessage(validation.errorMessage ?: "Hindi valid ang napiling litrato ng baha.")
+                    .setPositiveButton("Pumili ng Ibang Litrato") { _, _ ->
+                        selectImageLauncher.launch("image/*")
+                    }
+                    .setNegativeButton("OK", null)
+                    .show()
+                selectedImageUri = null
+                persistedPhotoData = null
+                photoPreview.setImageDrawable(null)
+                photoPreview.visibility = View.GONE
+                tvPhotoBadge.visibility = View.GONE
+                photoPlaceholder.visibility = View.VISIBLE
             } else {
-                photoPreview.setImageURI(uri)
+                selectedImageUri = uri
+                persistedPhotoData = photoData
+                if (bitmap != null) {
+                    photoPreview.setImageBitmap(bitmap)
+                } else {
+                    photoPreview.setImageURI(uri)
+                }
+                photoPreview.visibility = View.VISIBLE
+                tvPhotoBadge.text = "⚡ Ready for Gemini AI • Tap to Change"
+                tvPhotoBadge.visibility = View.VISIBLE
+                photoPlaceholder.visibility = View.GONE
             }
-            photoPreview.visibility = View.VISIBLE
-            photoPlaceholder.visibility = View.GONE
         }
     }
 
@@ -169,13 +206,19 @@ class ReportFloodActivity : ComponentActivity() {
             requestAndAutoDetectDeviceLocation()
         }
 
-        findViewById<ImageView>(R.id.backButton)?.setOnClickListener {
+        findViewById<View>(R.id.btnHeaderBack)?.setOnClickListener {
             navigateBack()
         }
 
-        findViewById<Button>(R.id.backButtonBottom)?.setOnClickListener {
+        findViewById<View>(R.id.btnCancelReport)?.setOnClickListener {
             navigateBack()
         }
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                navigateBack()
+            }
+        })
 
         findViewById<ImageView>(R.id.menuIcon)?.setOnClickListener { view ->
             NavigationMenuHelper.showMenu(this, view)
@@ -184,7 +227,7 @@ class ReportFloodActivity : ComponentActivity() {
 
     private fun navigateBack() {
         if (isTaskRoot) {
-            startActivity(Intent(this, AlertsActivity::class.java))
+            startActivity(Intent(this, DashboardActivity::class.java))
         }
         finish()
     }
@@ -202,15 +245,18 @@ class ReportFloodActivity : ComponentActivity() {
     }
 
     private fun initViews() {
+        reportScrollView = findViewById(R.id.reportScrollView)
         photoPickerBox = findViewById(R.id.photoPickerBox)
         photoPreview = findViewById(R.id.photoPreview)
         photoPlaceholder = findViewById(R.id.photoPlaceholder)
+        tvPhotoBadge = findViewById(R.id.tvPhotoBadge)
         locationInput = findViewById(R.id.locationInput)
         btnRefreshLocation = findViewById(R.id.btnRefreshLocation)
         btnClearLocation = findViewById(R.id.btnClearLocation)
         btnLocationDropdown = findViewById(R.id.btnLocationDropdown)
         locationCoordsText = findViewById(R.id.locationCoordsText)
         notesInput = findViewById(R.id.notesInput)
+        chkSendSmsOnSubmit = findViewById(R.id.chkSendSmsOnSubmit)
         tvRemainingReports = findViewById(R.id.tvRemainingReports)
         submitReportButton = findViewById(R.id.submitReportButton)
 
@@ -218,54 +264,88 @@ class ReportFloodActivity : ComponentActivity() {
         btnKneeDeep = findViewById(R.id.btnKneeDeep)
         btnWaistDeep = findViewById(R.id.btnWaistDeep)
         btnImpassable = findViewById(R.id.btnImpassable)
+
+        // Improve typing experience by auto-scrolling to the focused field
+        locationInput.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                reportScrollView.postDelayed({
+                    if (!isFinishing && !isDestroyed) {
+                        val parentY = (locationInput.parent?.parent as? View)?.top ?: locationInput.top
+                        reportScrollView.smoothScrollTo(0, (parentY - 40).coerceAtLeast(0))
+                    }
+                }, 200)
+            }
+        }
+
+        notesInput.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                reportScrollView.postDelayed({
+                    if (!isFinishing && !isDestroyed) {
+                        reportScrollView.smoothScrollTo(0, (notesInput.top - 60).coerceAtLeast(0))
+                    }
+                }, 200)
+            }
+        }
+
+        notesInput.setOnTouchListener { v, event ->
+            if (v.hasFocus()) {
+                v.parent.requestDisallowInterceptTouchEvent(true)
+                if (event.action == MotionEvent.ACTION_UP || event.action == MotionEvent.ACTION_CANCEL) {
+                    v.parent.requestDisallowInterceptTouchEvent(false)
+                }
+            }
+            false
+        }
     }
 
     private fun updateRemainingReportsUI() {
         val remaining = UserSession.getRemainingReportsToday(this)
-        tvRemainingReports.text = "Natitirang Report Ngayong Araw: $remaining / ${UserSession.MAX_DAILY_REPORTS}"
-        if (remaining <= 0) {
-            tvRemainingReports.setTextColor(resources.getColor(android.R.color.holo_red_dark, theme))
+        val max = UserSession.MAX_DAILY_REPORTS
+        if (remaining > 0) {
+            tvRemainingReports.text = "Remaining Reports today: $remaining / $max (Resets daily)"
+            tvRemainingReports.setTextColor(Color.parseColor("#0066CC"))
+            submitReportButton.text = "SUBMIT REPORT ($remaining LEFT TODAY)"
+            submitReportButton.alpha = 1.0f
         } else {
-            tvRemainingReports.setTextColor(Color.parseColor("#0277BD"))
+            tvRemainingReports.text = "You Reached your limit: 0 / $max remaining (resets tomorrow)"
+            tvRemainingReports.setTextColor(Color.parseColor("#D32F2F"))
+            submitReportButton.text = "DAILY LIMIT REACHED (0 / $max)"
+            submitReportButton.alpha = 0.6f
         }
     }
 
-    @SuppressLint("SetTextI18n")
     private fun setupLocationDropdown() {
         locationAdapter = LocationDropdownAdapter(this, presetLocations)
         locationInput.setAdapter(locationAdapter)
+        locationInput.threshold = 1
 
         locationInput.setOnItemClickListener { _, _, position, _ ->
-            val item = locationAdapter.getItem(position) ?: return@setOnItemClickListener
+            val selectedItem = locationAdapter.getItem(position) ?: return@setOnItemClickListener
             userChoseLocation = true
-            currentLat = item.lat
-            currentLon = item.lon
-            setLocationTextProgrammatically(item.title)
-            locationInput.setSelection(item.title.length)
-            val sourceLabel = if (item.isDeviceLocation) "Device GPS" else "Selected Area"
+            currentLat = selectedItem.lat
+            currentLon = selectedItem.lon
+            setLocationTextProgrammatically(selectedItem.title)
             locationCoordsText.text = String.format(
                 Locale.US,
-                "📍 %s: %.4f, %.4f • %s",
-                sourceLabel,
-                item.lat,
-                item.lon,
-                item.subtitle
+                "📍 Selected Coordinates: %.4f, %.4f (%s)",
+                selectedItem.lat,
+                selectedItem.lon,
+                if (selectedItem.isDeviceLocation) "Device GPS" else "Preset/Map"
             )
+            btnClearLocation.visibility = View.VISIBLE
         }
 
         locationInput.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                if (programmaticTextChange) return
+                userChoseLocation = true
                 val text = s?.toString().orEmpty()
-                btnClearLocation.visibility = if (text.isNotEmpty()) View.VISIBLE else View.GONE
-                if (!programmaticTextChange && locationInput.hasFocus()) {
-                    userChoseLocation = true
-                    if (text.isNotEmpty() && !text.contains("Detecting device location")) {
-                        locationAdapter.filter.filter(text)
-                        locationInput.post {
-                            if (!isFinishing && !isDestroyed && !locationInput.isPopupShowing) {
-                                locationInput.showDropDown()
-                            }
+                btnClearLocation.visibility = if (text.isNotBlank()) View.VISIBLE else View.GONE
+                if (text.isNotBlank()) {
+                    locationInput.post {
+                        if (!isFinishing && !isDestroyed && !locationInput.isPopupShowing) {
+                            locationInput.showDropDown()
                         }
                     }
                 }
@@ -464,19 +544,14 @@ class ReportFloodActivity : ComponentActivity() {
                     conn.connectTimeout = 3500
                     conn.readTimeout = 3500
                     if (conn.responseCode == 200) {
-                        val resp = conn.inputStream.bufferedReader().use { it.readText() }
-                        val json = JSONObject(resp)
-                        val addrObj = json.optJSONObject("address")
-                        if (addrObj != null) {
-                            val road = addrObj.optString("road").ifBlank {
-                                addrObj.optString("neighbourhood").ifBlank { addrObj.optString("suburb") }
-                            }
-                            val suburb = addrObj.optString("suburb").ifBlank { addrObj.optString("village") }
-                            val town = addrObj.optString("town").ifBlank {
-                                addrObj.optString("city").ifBlank { addrObj.optString("municipality", "San Mateo") }
-                            }
-                            val state = addrObj.optString("state", "Rizal")
-                            val parts = listOf(road, suburb, town, state).filter { it.isNotBlank() }.distinct()
+                        val body = conn.inputStream.bufferedReader().use { it.readText() }
+                        val json = JSONObject(body)
+                        val addressObj = json.optJSONObject("address")
+                        if (addressObj != null) {
+                            val road = addressObj.optString("road", addressObj.optString("pedestrian"))
+                            val suburb = addressObj.optString("suburb", addressObj.optString("neighbourhood"))
+                            val city = addressObj.optString("city", addressObj.optString("town", addressObj.optString("municipality", "San Mateo")))
+                            val parts = listOf(road, suburb, city).filter { it.isNotBlank() }
                             if (parts.isNotEmpty()) {
                                 resolvedAddress = parts.joinToString(", ")
                             }
@@ -487,31 +562,27 @@ class ReportFloodActivity : ComponentActivity() {
                 }
             }
 
-            val finalLocationName = resolvedAddress ?: "Gen. Luna Ave, Guitnang Bayan, San Mateo, Rizal"
+            val finalTitle = when {
+                !resolvedAddress.isNullOrBlank() -> resolvedAddress
+                !isFallback -> String.format(Locale.US, "Current Device Location (%.4f, %.4f)", lat, lon)
+                else -> "Gen. Luna Ave, Guitnang Bayan, San Mateo, Rizal"
+            }
+
+            val deviceItem = LocationSuggestionItem(
+                title = finalTitle,
+                subtitle = if (isFallback) "Default Fallback (San Mateo Center)" else "Detected Current Device Location",
+                lat = lat,
+                lon = lon,
+                isDeviceLocation = !isFallback
+            )
+            detectedDeviceSuggestion = deviceItem
 
             runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
-                val deviceItem = LocationSuggestionItem(
-                    title = finalLocationName,
-                    subtitle = String.format(Locale.US, "Current Device Location (%.4f, %.4f)", lat, lon),
-                    lat = lat,
-                    lon = lon,
-                    isDeviceLocation = true
-                )
-                detectedDeviceSuggestion = deviceItem
                 locationAdapter.setDeviceLocationItem(deviceItem)
-
-                locationInput.setText(finalLocationName, false)
-                btnClearLocation.visibility = View.VISIBLE
-                locationCoordsText.text = if (isFallback) {
-                    String.format(
-                        Locale.US,
-                        "📍 Default Area GPS: %.4f, %.4f • Type or tap ▼ to select location",
-                        lat,
-                        lon
-                    )
-                } else {
-                    String.format(
+                if (!userChoseLocation) {
+                    setLocationTextProgrammatically(deviceItem.title)
+                    btnClearLocation.visibility = View.VISIBLE
+                    locationCoordsText.text = String.format(
                         Locale.US,
                         "📍 Device GPS Detected: %.4f, %.4f • Type or tap ▼ to change",
                         lat,
@@ -564,45 +635,114 @@ class ReportFloodActivity : ComponentActivity() {
 
     private fun isGibberishText(text: String): Boolean {
         val cleaned = text.trim()
-        if (cleaned.length < 3) return true
-        if (Regex("^(.)\\1{3,}$").matches(cleaned)) return true
-        val lettersOnly = cleaned.filter { it.isLetter() }
-        if (lettersOnly.isEmpty()) return true
-        val vowels = lettersOnly.count { it.lowercaseChar() in listOf('a', 'e', 'i', 'o', 'u') }
-        val vowelRatio = vowels.toDouble() / lettersOnly.length
-        if (lettersOnly.length >= 6 && (vowelRatio < 0.12 || vowelRatio > 0.85)) {
+        if (cleaned.isEmpty()) return false
+
+        val lettersOnly = cleaned.filter { it.isLetter() }.lowercase(Locale.ROOT)
+        if (lettersOnly.length < 3) return true
+
+        // 4 or more identical characters in a row (e.g. "aaaa", "zzzz", "1111")
+        if (Regex("(.)\\1{3,}", RegexOption.IGNORE_CASE).containsMatchIn(cleaned)) {
             return true
         }
+
+        // Common keyboard mash or troll patterns
+        val mashPatterns = listOf(
+            "asdf", "qwerty", "zxcv", "hjkl", "bnm", "uiop",
+            "hahaha", "hehehe", "hihihi", "huhuhu", "lololol",
+            "walang kwenta", "trip lang", "joke lang", "testing lang", "test lang", "blablabla", "blahblah", "putanginamo", "tite",
+            "burat", "tarantado", "pepe"
+        )
+        val lowerText = cleaned.lowercase(Locale.ROOT)
+        if (mashPatterns.any { lowerText.contains(it) }) {
+            return true
+        }
+
+        // 5 or more consecutive consonants (e.g. "dfghjk", "xzkjhq")
+        if (Regex("[bcdfghjklmnpqrstvwxyz]{5,}").containsMatchIn(lettersOnly)) {
+            return true
+        }
+
+        // Vowel ratio check: Tagalog and English words normally have at least 18% vowels
+        val vowelCount = lettersOnly.count { it in "aeiou" }
+        val vowelRatio = vowelCount.toDouble() / lettersOnly.length.toDouble()
+        if (lettersOnly.length >= 5 && (vowelRatio < 0.18 || vowelRatio > 0.85)) {
+            return true
+        }
+
         return false
     }
 
-    private fun validateReportContent(notes: String, location: String): String? {
-        val combined = "$location $notes"
-        val inappropriateWords = listOf(
-            "tangina", "gago", "puta", "tarantado", "ulol", "bobo", "inutil",
-            "puke", "kantot", "tite", "kupal", "tae", "leche", "shit", "fuck",
-            "bitch", "asshole", "piss", "damn", "bastard"
+    private fun validateReportContent(location: String, notes: String): String? {
+        val profanityWords = listOf(
+            "putangina", "putang ina", "tangina", "taena", "puta", "gago", "gaga",
+            "tanga", "bobo", "ulol", "tarantado", "kupal", "kantot", "iyot", "tite",
+            "titi", "puke", "pepe", "pekpek", "burat", "tamod", "jakol", "jabol",
+            "pokpok", "punyeta", "leche", "pakshet", "buwisit", "bwisit", "hindot",
+            "inutil", "hayop ka", "kingina", "shunga", "engot", "supot", "bayag",
+            "fuck", "fck", "fuk", "shit", "bitch", "asshole", "dick", "cock",
+            "pussy", "porn", "sex", "nude", "boobs", "bastard", "slut", "whore", "cunt"
         )
-        for (word in inappropriateWords) {
-            val pattern = Regex("\\b${Regex.escape(word)}\\b", RegexOption.IGNORE_CASE)
-            if (pattern.containsMatchIn(combined)) {
-                return "Hindi naaangkop ang salitang ginamit sa iyong report. Paki-ayos at maging magalang upang makatulong sa komunidad."
+
+        val combined = "$location $notes".lowercase(Locale.ROOT)
+        for (badWord in profanityWords) {
+            val regex = Regex("\\b${Regex.escape(badWord)}\\b", RegexOption.IGNORE_CASE)
+            if (regex.containsMatchIn(combined) || combined.contains(badWord)) {
+                return "Hindi appropriate ang iyong report dahil may nakitang bastos o hindi magandang salita. Mangyaring maglagay ng maayos na impormasyon."
             }
         }
-        if (notes.isNotBlank() && notes.length >= 4 && isGibberishText(notes)) {
-            return "Mukhang walang kabuluhan o hindi maayos ang nilagay na impormasyon sa report. Pakilagay ng totoong deskripsyon ng baha."
+
+        if (location.length < 3 || isGibberishText(location)) {
+            return "The Location you put is not appropriate or doesn't make sense. Please enter the correct street or barangay name in San Mateo."
         }
+
+        if (notes.isNotBlank() && (notes.length < 4 || isGibberishText(notes))) {
+            return "What was put in the Notes is either inappropriate or doesn't make sense. Please provide clear and real details about the flood."
+        }
+
         return null
     }
 
     private fun submitReport() {
-        val remaining = UserSession.getRemainingReportsToday(this)
-        if (remaining <= 0) {
+        // 1. Check 4-report daily limit per user
+        val remainingBefore = UserSession.getRemainingReportsToday(this)
+        if (remainingBefore <= 0) {
             AlertDialog.Builder(this)
-                .setTitle("Limit Reached")
-                .setMessage("Naabot mo na ang limitasyon na 4 na report para sa araw na ito. Mag-rereset ang iyong limit bukas.")
+                .setTitle("Daily Report Limit Reached (4 / 4)")
+                .setMessage("You've reached the limit of 4 flood reports for today. Your report limit will automatically reset tomorrow.")
                 .setPositiveButton("OK", null)
                 .show()
+            return
+        }
+
+        // 2. Validate flood photo attachment (MANDATORY REQUIREMENT)
+        val hasPhoto = !persistedPhotoData.isNullOrBlank() || selectedImageUri != null
+        if (!hasPhoto) {
+            val emptyResult = GeminiVerificationResult(
+                isValid = false,
+                isFlood = false,
+                confidence = 1.0,
+                estimatedSeverity = "None",
+                reason = "A flood-related photo is required before submitting your report to prove the situation on the road."
+            )
+            showGeminiResultDialog(emptyResult, null) {
+                selectImageLauncher.launch("image/*")
+            }
+            return
+        }
+
+        val photoBitmap = ReportPhotoHelper.loadBitmap(this, persistedPhotoData ?: selectedImageUri?.toString())
+        val photoCheck = ReportPhotoHelper.validateFloodPhoto(photoBitmap)
+        if (!photoCheck.isValid) {
+            val invalidResult = GeminiVerificationResult(
+                isValid = false,
+                isFlood = false,
+                confidence = 0.99,
+                estimatedSeverity = "None",
+                reason = photoCheck.errorMessage ?: "The selected image appears blank, single-colored, or corrupted. Please provide a clear photo of the flood."
+            )
+            showGeminiResultDialog(invalidResult, photoBitmap) {
+                selectImageLauncher.launch("image/*")
+            }
             return
         }
 
@@ -617,12 +757,13 @@ class ReportFloodActivity : ComponentActivity() {
         }
         val notes = notesInput.text.toString().trim()
 
-        val validationError = validateReportContent(notes, loc)
+        // 2. Validate report content (Profanity & Nonsense Filter)
+        val validationError = validateReportContent(loc, notes)
         if (validationError != null) {
             AlertDialog.Builder(this)
-                .setTitle("Hindi Naaangkop ang Report")
+                .setTitle("Hindi Appropriate ang Report")
                 .setMessage(validationError)
-                .setPositiveButton("OK", null)
+                .setPositiveButton("Ayusin ang Report", null)
                 .show()
             return
         }
@@ -663,26 +804,157 @@ class ReportFloodActivity : ComponentActivity() {
             reporterName = UserSession.getUserName(this),
         )
 
-        UserSession.incrementDailyReportCount(this)
-        updateRemainingReportsUI()
         submitReportButton.isEnabled = false
-        ReportRepository.addReport(applicationContext, newReport) { result ->
+        showGeminiVerifyingDialog()
+
+        thread {
+            val aiResult = if (photoBitmap != null) {
+                GeminiPhotoVerifier.verifyPhoto(photoBitmap)
+            } else {
+                GeminiVerificationResult(
+                    isValid = true,
+                    isFlood = true,
+                    confidence = 0.5,
+                    estimatedSeverity = "Unknown",
+                    reason = "No photo bitmap found"
+                )
+            }
+
             runOnUiThread {
-                val message = when {
-                    result.smsBroadcastTriggered ->
-                        "Multiple similar reports verified! Free SMS API warning broadcasted to nearby users."
-                    result.submittedToServer ->
-                        "Flood report submitted successfully."
-                    else ->
-                        "Report saved on this device."
+                dismissGeminiVerifyingDialog()
+
+                if (!aiResult.isValid) {
+                    submitReportButton.isEnabled = true
+                    showGeminiResultDialog(aiResult, photoBitmap) {
+                        selectImageLauncher.launch("image/*")
+                    }
+                    return@runOnUiThread
                 }
-                Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
+
+                // AI Verification Passed (or offline fallback)
+                val remainingAfter = UserSession.incrementDailyReportCount(this@ReportFloodActivity)
+                updateRemainingReportsUI()
+
+                ReportRepository.addReport(applicationContext, newReport) { result ->
+                    runOnUiThread {
+                        val message = when {
+                            result.smsBroadcastTriggered ->
+                                "Multiple similar reports verified! Free SMS API warning broadcasted to nearby users."
+                            result.submittedToServer ->
+                                "Flood report submitted successfully! Natitirang report ngayong araw: $remainingAfter / ${UserSession.MAX_DAILY_REPORTS}"
+                            else ->
+                                "Report saved on this device. Natitirang report ngayong araw: $remainingAfter / ${UserSession.MAX_DAILY_REPORTS}"
+                        }
+                        Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
+                    }
+                }
+
+                if (chkSendSmsOnSubmit.isChecked) {
+                    SmsHelper.broadcastSmsToAllUsers(
+                        context = this@ReportFloodActivity,
+                        location = loc,
+                        severity = selectedSeverity,
+                        notes = notes
+                    )
+                }
+
+                val aiNote = if (aiResult.isFlood && !aiResult.isErrorOrTimeout) {
+                    "Photo verified by FloodGuard Gemini AI (Water Level: ${aiResult.estimatedSeverity})"
+                } else null
+                if (aiNote != null) {
+                    Toast.makeText(this@ReportFloodActivity, "✅ $aiNote", Toast.LENGTH_SHORT).show()
+                }
+
+                val intent = Intent(this@ReportFloodActivity, AlertsActivity::class.java)
+                startActivity(intent)
+                finish()
             }
         }
+    }
 
-        val intent = Intent(this, ProfileActivity::class.java)
-        startActivity(intent)
-        finish()
+    private var geminiVerifyingDialog: AlertDialog? = null
+
+    private fun showGeminiVerifyingDialog() {
+        if (isFinishing || isDestroyed) return
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_gemini_verifying, null)
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        geminiVerifyingDialog = dialog
+        dialog.show()
+    }
+
+    private fun dismissGeminiVerifyingDialog() {
+        try {
+            geminiVerifyingDialog?.dismiss()
+        } catch (_: Exception) {
+        }
+        geminiVerifyingDialog = null
+    }
+
+    private fun showGeminiResultDialog(
+        result: GeminiVerificationResult,
+        photoBitmap: Bitmap?,
+        onActionClicked: () -> Unit
+    ) {
+        if (isFinishing || isDestroyed) return
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_gemini_result, null)
+        val ivThumbnail = dialogView.findViewById<ImageView>(R.id.ivGeminiThumbnail)
+        val tvVerdict = dialogView.findViewById<TextView>(R.id.tvGeminiVerdictTitle)
+        val tvConfidence = dialogView.findViewById<TextView>(R.id.tvGeminiConfidenceText)
+        val tvSeverity = dialogView.findViewById<TextView>(R.id.tvGeminiEstimatedSeverity)
+        val tvReason = dialogView.findViewById<TextView>(R.id.tvGeminiReason)
+        val layoutStatusBadge = dialogView.findViewById<LinearLayout>(R.id.layoutGeminiStatusBadge)
+        val tvStatusBadgeText = dialogView.findViewById<TextView>(R.id.tvGeminiStatusBadgeText)
+        val ivStatusIcon = dialogView.findViewById<ImageView>(R.id.ivGeminiStatusIcon)
+        val btnCancel = dialogView.findViewById<Button>(R.id.btnGeminiCancel)
+        val btnAction = dialogView.findViewById<Button>(R.id.btnGeminiAction)
+
+        if (photoBitmap != null) {
+            ivThumbnail.setImageBitmap(photoBitmap)
+        } else {
+            ivThumbnail.setImageResource(R.drawable.fg_logo)
+        }
+
+        if (!result.isValid) {
+            layoutStatusBadge.setBackgroundResource(R.drawable.badge_ai_warning)
+            ivStatusIcon.setImageResource(R.drawable.ic_alert)
+            tvStatusBadgeText.text = "⚠️ Flood Conditions Not Detected"
+            tvStatusBadgeText.setTextColor(Color.parseColor("#B91C1C"))
+            tvVerdict.text = "Photo Verification Declined"
+            tvConfidence.text = "Model: Gemini 1.5 Flash • ${(result.confidence * 100).toInt()}% Confidence"
+            tvSeverity.text = "Detected Severity: None / Non-Flood"
+            tvReason.text = result.reason
+            btnAction.text = if (photoBitmap != null) "Choose Another Photo" else "Attach Flood Photo"
+        } else {
+            layoutStatusBadge.setBackgroundResource(R.drawable.badge_ai_success)
+            ivStatusIcon.setImageResource(R.drawable.ic_ai_sparkle)
+            tvStatusBadgeText.text = "✅ Flood Conditions Verified"
+            tvStatusBadgeText.setTextColor(Color.parseColor("#15803D"))
+            tvVerdict.text = "Verified by Gemini AI"
+            tvConfidence.text = "Model: Gemini 1.5 Flash • ${(result.confidence * 100).toInt()}% Confidence"
+            tvSeverity.text = "Estimated Water Level: ${result.estimatedSeverity}"
+            tvReason.text = result.reason
+            btnAction.text = "Continue"
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .create()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        btnCancel.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        btnAction.setOnClickListener {
+            dialog.dismiss()
+            onActionClicked()
+        }
+
+        dialog.show()
     }
 
     private class LocationDropdownAdapter(
@@ -838,4 +1110,3 @@ class ReportFloodActivity : ComponentActivity() {
         }
     }
 }
-

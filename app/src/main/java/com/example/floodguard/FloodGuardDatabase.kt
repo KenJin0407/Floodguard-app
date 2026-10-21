@@ -6,12 +6,26 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import java.util.UUID
 
+/**
+ * Local SQLite OpenHelper database manager for FloodGuard.
+ * Stores local user profiles, offline credentials, and community flood incident reports.
+ */
 class FloodGuardDatabase(context: Context) :
-    SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+    SQLiteOpenHelper(context.applicationContext, DATABASE_NAME, null, DATABASE_VERSION) {
 
     companion object {
         private const val DATABASE_NAME = "floodguard.db"
-        private const val DATABASE_VERSION = 6
+        private const val DATABASE_VERSION = 7
+
+        @Volatile
+        private var instance: FloodGuardDatabase? = null
+
+        @JvmStatic
+        fun getInstance(context: Context): FloodGuardDatabase {
+            return instance ?: synchronized(this) {
+                instance ?: FloodGuardDatabase(context.applicationContext).also { instance = it }
+            }
+        }
 
         const val TABLE_USERS = "users"
         const val COLUMN_USER_ID = "id"
@@ -20,7 +34,6 @@ class FloodGuardDatabase(context: Context) :
         const val COLUMN_MOBILE = "mobile"
         const val COLUMN_USERNAME = "username"
         const val COLUMN_PASSWORD = "password"
-        const val COLUMN_IS_VERIFIED = "is_verified"
 
         const val TABLE_REPORTS = "reports"
         const val COLUMN_REPORT_ID = "id"
@@ -35,6 +48,7 @@ class FloodGuardDatabase(context: Context) :
         const val COLUMN_LON = "lon"
         const val COLUMN_AUTHOR_USERNAME = "author_username"
         const val COLUMN_REPORTER_NAME = "reporter_name"
+        const val COLUMN_REPORTER_USERNAME = "reporter_username"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -45,8 +59,7 @@ class FloodGuardDatabase(context: Context) :
                 $COLUMN_GENDER TEXT,
                 $COLUMN_MOBILE TEXT,
                 $COLUMN_USERNAME TEXT UNIQUE,
-                $COLUMN_PASSWORD TEXT,
-                $COLUMN_IS_VERIFIED INTEGER DEFAULT 1
+                $COLUMN_PASSWORD TEXT
             )
         """.trimIndent()
 
@@ -79,7 +92,11 @@ class FloodGuardDatabase(context: Context) :
             return
         }
         ensureReportColumns(db)
-        ensureUserColumns(db)
+        removeEmailColumnFromUsersTable(db)
+    }
+
+    override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        ensureReportColumns(db)
         removeEmailColumnFromUsersTable(db)
     }
 
@@ -87,7 +104,6 @@ class FloodGuardDatabase(context: Context) :
         super.onOpen(db)
         if (!db.isReadOnly) {
             ensureReportColumns(db)
-            ensureUserColumns(db)
             removeEmailColumnFromUsersTable(db)
         }
     }
@@ -143,6 +159,42 @@ class FloodGuardDatabase(context: Context) :
         }
     }
 
+    fun getUserByMobile(mobile: String): UserEntity? {
+        val cleanMobile = mobile.replace(" ", "").replace("-", "").trim()
+        val db = readableDatabase
+        val cursor = db.query(
+            TABLE_USERS,
+            null,
+            "$COLUMN_MOBILE = ? OR REPLACE(REPLACE($COLUMN_MOBILE, ' ', ''), '-', '') = ?",
+            arrayOf(mobile, cleanMobile),
+            null,
+            null,
+            null
+        )
+        var user: UserEntity? = null
+        if (cursor.moveToFirst()) {
+            user = UserEntity(
+                id = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USER_ID)),
+                fullName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FULL_NAME)),
+                gender = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_GENDER)),
+                mobile = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MOBILE)),
+                username = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USERNAME)),
+                password = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD))
+            )
+        }
+        cursor.close()
+        return user
+    }
+
+    fun updateUserPassword(username: String, newPasswordHash: String): Boolean {
+        val db = writableDatabase
+        val values = ContentValues().apply {
+            put(COLUMN_PASSWORD, newPasswordHash)
+        }
+        val rows = db.update(TABLE_USERS, values, "$COLUMN_USERNAME = ?", arrayOf(username))
+        return rows > 0
+    }
+
     private fun ensureReportColumns(db: SQLiteDatabase) {
         val existingColumns = mutableSetOf<String>()
         try {
@@ -171,27 +223,6 @@ class FloodGuardDatabase(context: Context) :
         }
     }
 
-    private fun ensureUserColumns(db: SQLiteDatabase) {
-        val userColumns = mutableSetOf<String>()
-        try {
-            val cursor = db.rawQuery("PRAGMA table_info($TABLE_USERS)", null)
-            val nameIdx = cursor.getColumnIndex("name")
-            if (cursor.moveToFirst() && nameIdx >= 0) {
-                do {
-                    userColumns.add(cursor.getString(nameIdx))
-                } while (cursor.moveToNext())
-            }
-            cursor.close()
-        } catch (_: Exception) {
-        }
-        if (userColumns.isNotEmpty() && !userColumns.contains(COLUMN_IS_VERIFIED)) {
-            try {
-                db.execSQL("ALTER TABLE $TABLE_USERS ADD COLUMN $COLUMN_IS_VERIFIED INTEGER DEFAULT 1")
-            } catch (_: Exception) {
-            }
-        }
-    }
-
     fun insertReport(report: FloodReport): Boolean {
         val db = writableDatabase
         val cv = ContentValues().apply {
@@ -205,7 +236,8 @@ class FloodGuardDatabase(context: Context) :
             put(COLUMN_PHOTO_URI, report.photoUri)
             put(COLUMN_LAT, report.lat)
             put(COLUMN_LON, report.lon)
-            put(COLUMN_AUTHOR_USERNAME, report.authorUsername)
+            val author = report.authorUsername.ifBlank { report.reporterUsername }
+            put(COLUMN_AUTHOR_USERNAME, author)
             put(COLUMN_REPORTER_NAME, report.reporterName)
         }
         val result = db.insertWithOnConflict(TABLE_REPORTS, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
@@ -254,6 +286,7 @@ class FloodGuardDatabase(context: Context) :
                         lon = if (lon == 0.0) 121.1207 else lon,
                         authorUsername = authorUsername,
                         reporterName = reporterName,
+                        reporterUsername = authorUsername,
                     )
                 )
             } while (cursor.moveToNext())
@@ -309,7 +342,6 @@ class FloodGuardDatabase(context: Context) :
             put(COLUMN_MOBILE, user.mobile)
             put(COLUMN_USERNAME, user.username)
             put(COLUMN_PASSWORD, user.password)
-            put(COLUMN_IS_VERIFIED, if (user.isVerified) 1 else 0)
         }
         val result = db.insertWithOnConflict(TABLE_USERS, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
         return result != -1L
@@ -323,8 +355,6 @@ class FloodGuardDatabase(context: Context) :
         )
         var user: UserEntity? = null
         if (cursor.moveToFirst()) {
-            val verIdx = cursor.getColumnIndex(COLUMN_IS_VERIFIED)
-            val isVer = if (verIdx >= 0 && !cursor.isNull(verIdx)) cursor.getInt(verIdx) == 1 else true
             user = UserEntity(
                 id = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USER_ID)),
                 fullName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FULL_NAME)),
@@ -332,45 +362,10 @@ class FloodGuardDatabase(context: Context) :
                 mobile = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MOBILE)),
                 username = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USERNAME)),
                 password = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD)),
-                isVerified = isVer,
             )
         }
         cursor.close()
         return user
-    }
-
-    fun getUserByMobile(mobile: String): UserEntity? {
-        val clean = mobile.filter { it.isDigit() }
-        val suffix = if (clean.length >= 10) clean.takeLast(10) else clean
-        val db = readableDatabase
-        val cursor = db.rawQuery(
-            "SELECT * FROM $TABLE_USERS WHERE $COLUMN_MOBILE LIKE ? LIMIT 1",
-            arrayOf("%" + suffix)
-        )
-        var user: UserEntity? = null
-        if (cursor.moveToFirst()) {
-            val verIdx = cursor.getColumnIndex(COLUMN_IS_VERIFIED)
-            val isVer = if (verIdx >= 0 && !cursor.isNull(verIdx)) cursor.getInt(verIdx) == 1 else true
-            user = UserEntity(
-                id = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USER_ID)),
-                fullName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FULL_NAME)),
-                gender = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_GENDER)),
-                mobile = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MOBILE)),
-                username = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USERNAME)),
-                password = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD)),
-                isVerified = isVer,
-            )
-        }
-        cursor.close()
-        return user
-    }
-
-    fun updateUserPassword(username: String, newHashedPassword: String): Boolean {
-        val db = writableDatabase
-        val cv = ContentValues().apply {
-            put(COLUMN_PASSWORD, newHashedPassword)
-        }
-        return db.update(TABLE_USERS, cv, "$COLUMN_USERNAME = ? COLLATE NOCASE", arrayOf(username.trim())) > 0
     }
 
     fun getUserByFullName(fullName: String): UserEntity? {
@@ -381,8 +376,6 @@ class FloodGuardDatabase(context: Context) :
         )
         var user: UserEntity? = null
         if (cursor.moveToFirst()) {
-            val verIdx = cursor.getColumnIndex(COLUMN_IS_VERIFIED)
-            val isVer = if (verIdx >= 0 && !cursor.isNull(verIdx)) cursor.getInt(verIdx) == 1 else true
             user = UserEntity(
                 id = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USER_ID)),
                 fullName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FULL_NAME)),
@@ -390,7 +383,6 @@ class FloodGuardDatabase(context: Context) :
                 mobile = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MOBILE)),
                 username = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USERNAME)),
                 password = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD)),
-                isVerified = isVer,
             )
         }
         cursor.close()
@@ -415,10 +407,23 @@ class FloodGuardDatabase(context: Context) :
                     mobile = mobile.trim(),
                     username = username.trim(),
                     password = "password123",
-                    isVerified = true,
                 )
             )
         }
+    }
+
+    fun updatePassword(username: String, newPasswordHash: String): Boolean {
+        val db = writableDatabase
+        val cv = ContentValues().apply {
+            put(COLUMN_PASSWORD, newPasswordHash)
+        }
+        val rows = db.update(
+            TABLE_USERS,
+            cv,
+            "$COLUMN_USERNAME = ? COLLATE NOCASE",
+            arrayOf(username.trim())
+        )
+        return rows > 0
     }
 
     fun getAllUsers(): List<UserEntity> {
@@ -426,9 +431,7 @@ class FloodGuardDatabase(context: Context) :
         val db = readableDatabase
         val cursor = db.rawQuery("SELECT * FROM $TABLE_USERS", null)
         if (cursor.moveToFirst()) {
-            val verIdx = cursor.getColumnIndex(COLUMN_IS_VERIFIED)
             do {
-                val isVer = if (verIdx >= 0 && !cursor.isNull(verIdx)) cursor.getInt(verIdx) == 1 else true
                 list.add(
                     UserEntity(
                         id = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USER_ID)),
@@ -437,7 +440,6 @@ class FloodGuardDatabase(context: Context) :
                         mobile = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MOBILE)),
                         username = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USERNAME)),
                         password = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD)),
-                        isVerified = isVer,
                     )
                 )
             } while (cursor.moveToNext())
@@ -470,5 +472,4 @@ data class UserEntity(
     val mobile: String,
     val username: String,
     val password: String,
-    val isVerified: Boolean = true,
 )

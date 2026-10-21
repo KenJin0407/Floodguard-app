@@ -11,6 +11,10 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 
+/**
+ * Activity for displaying real-time community flood alerts,
+ * emergency hotline shortcuts, and severity-colored warnings.
+ */
 class AlertsActivity : ComponentActivity() {
 
     private lateinit var alertsContainer: LinearLayout

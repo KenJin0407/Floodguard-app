@@ -20,6 +20,11 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 
+/**
+ * Activity for displaying and editing the current user's profile.
+ * Supports updating Full Name, Gender, Mobile Number, profile photo avatar,
+ * password changes, viewing user's submitted reports, and logging out.
+ */
 class ProfileActivity : ComponentActivity() {
 
     private lateinit var avatarImage: ImageView
@@ -116,12 +121,6 @@ class ProfileActivity : ComponentActivity() {
         profileNameInput.setText(UserSession.getUserName(this))
         profileGenderInput.setText(UserSession.getUserGender(this))
         profileContactInput.setText(UserSession.getUserContact(this))
-
-        val tvBadge = findViewById<TextView>(R.id.tvPhoneVerifiedBadge)
-        if (tvBadge != null) {
-            val isVerified = UserSession.isPhoneVerified(this)
-            tvBadge.visibility = if (isVerified) View.VISIBLE else View.GONE
-        }
 
         val savedAvatar = UserSession.getUserAvatar(this)
         val bitmap = ReportPhotoHelper.loadBitmap(this, savedAvatar)
@@ -425,30 +424,27 @@ class ProfileActivity : ComponentActivity() {
         btnSave.setOnClickListener {
             val newName = nameEdit.text.toString().trim()
             val newContact = contactEdit.text.toString().trim()
+            val contactError = UserSession.getContactValidationError(newContact)
 
             if (newName.isEmpty() || newContact.isEmpty()) {
                 Toast.makeText(this, "Name and contact cannot be empty", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val (isValidPhone, validPhoneMsg) = PhilippineNumberValidator.validate(newContact)
-            if (!isValidPhone) {
-                Toast.makeText(this, validPhoneMsg, Toast.LENGTH_LONG).show()
-                return@setOnClickListener
-            }
-
-            val standardizedPhone = validPhoneMsg
+            } else if (contactError != null) {
+                contactEdit.error = contactError
+                contactEdit.requestFocus()
+                Toast.makeText(this, contactError, Toast.LENGTH_LONG).show()
+            } else {
                 val username = UserSession.getUsername(this)
                 profileNameInput.setText(newName)
                 profileGenderInput.setText(selectedGender)
-                profileContactInput.setText(standardizedPhone)
+                profileContactInput.setText(newContact)
 
-                UserSession.updateProfile(this, newName, selectedGender, standardizedPhone)
-                FloodGuardDatabase(this).updateUserProfile(username, newName, selectedGender, standardizedPhone)
-                FloodGuardApiService.updateUserProfileInBackend(username, newName, selectedGender, standardizedPhone)
+                UserSession.updateProfile(this, newName, selectedGender, newContact)
+                FloodGuardDatabase.getInstance(this).updateUserProfile(username, newName, selectedGender, newContact)
+                FloodGuardApiService.updateUserProfileInBackend(username, newName, selectedGender, newContact)
                 populateProfileReports()
                 Toast.makeText(this, "Profile information updated successfully!", Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
+            }
         }
 
         dialog.show()
@@ -472,25 +468,55 @@ class ProfileActivity : ComponentActivity() {
         }
 
         btnSave.setOnClickListener {
-            val currentText = currentPass.text.toString()
-            val newText = newPass.text.toString()
-            val confirmText = confirmPass.text.toString()
+            val currentText = currentPass.text.toString().trim()
+            val newText = newPass.text.toString().trim()
+            val confirmText = confirmPass.text.toString().trim()
 
             when {
                 currentText.isEmpty() || newText.isEmpty() || confirmText.isEmpty() -> {
                     Toast.makeText(this, "Please fill in all password fields", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
                 }
                 newText.length < 6 -> {
-                    Toast.makeText(this, "Password must be at least 6 characters", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "New password must be at least 6 characters", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
                 }
                 newText != confirmText -> {
                     Toast.makeText(this, "New passwords do not match", Toast.LENGTH_SHORT).show()
-                }
-                else -> {
-                    Toast.makeText(this, "Password changed successfully!", Toast.LENGTH_SHORT).show()
-                    dialog.dismiss()
+                    return@setOnClickListener
                 }
             }
+
+            val username = UserSession.getUsername(this)
+            val db = FloodGuardDatabase.getInstance(this)
+            val savedUser = db.getUserByUsername(username)
+            val hashedCurrent = UserSession.hashPassword(currentText)
+
+            if (savedUser != null && savedUser.password != hashedCurrent && savedUser.password != currentText) {
+                Toast.makeText(this, "Current password is incorrect", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val hashedNew = UserSession.hashPassword(newText)
+            if (savedUser != null) {
+                db.updatePassword(username, hashedNew)
+            } else {
+                db.registerUser(
+                    UserEntity(
+                        fullName = UserSession.getUserName(this),
+                        gender = UserSession.getUserGender(this),
+                        mobile = UserSession.getUserContact(this),
+                        username = username,
+                        password = hashedNew,
+                    )
+                )
+            }
+
+            // Also update password on the backend server
+            FloodGuardApiService.updatePasswordInBackend(username, currentText, newText)
+
+            Toast.makeText(this, "Password changed successfully!", Toast.LENGTH_SHORT).show()
+            dialog.dismiss()
         }
 
         dialog.show()

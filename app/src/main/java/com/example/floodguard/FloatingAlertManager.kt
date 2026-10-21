@@ -32,6 +32,11 @@ import androidx.core.content.ContextCompat
 import java.lang.ref.WeakReference
 import java.util.Locale
 
+/**
+ * In-app floating alert notification and banner manager.
+ * Displays high-visibility heads-up warning banners when severe flood reports or emergency broadcasts
+ * are detected near the user's current location.
+ */
 object FloatingAlertManager {
 
     private var activeActivityRef: WeakReference<Activity>? = null

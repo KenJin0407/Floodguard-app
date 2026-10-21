@@ -26,11 +26,82 @@ import android.widget.TextView
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+/**
+ * Image processing and validation utility for flood reports and avatars.
+ * Handles bitmap downscaling, heuristic image quality checks, circular avatar cropping,
+ * and base64 persistence.
+ */
 object ReportPhotoHelper {
+
+    data class PhotoValidationResult(
+        val isValid: Boolean,
+        val errorMessage: String? = null
+    )
+
+    fun validateFloodPhoto(bitmap: Bitmap?): PhotoValidationResult {
+        if (bitmap == null) {
+            return PhotoValidationResult(
+                isValid = false,
+                errorMessage = "Hindi mabasa ang litrato o corrupted ang file. Mangyaring mag-attach ng panibagong litrato ng baha."
+            )
+        }
+
+        if (bitmap.width < 50 || bitmap.height < 50) {
+            return PhotoValidationResult(
+                isValid = false,
+                errorMessage = "Masyadong maliit ang resolution ng larawan. Mangyaring mag-attach ng malinaw na litrato ng binabahang kalsada."
+            )
+        }
+
+        val sampleGrid = 16
+        val stepX = (bitmap.width / sampleGrid).coerceAtLeast(1)
+        val stepY = (bitmap.height / sampleGrid).coerceAtLeast(1)
+
+        val pixels = ArrayList<Int>(sampleGrid * sampleGrid)
+        var totalR = 0L
+        var totalG = 0L
+        var totalB = 0L
+
+        for (x in 0 until sampleGrid) {
+            for (y in 0 until sampleGrid) {
+                val px = (x * stepX).coerceIn(0, bitmap.width - 1)
+                val py = (y * stepY).coerceIn(0, bitmap.height - 1)
+                val pixel = bitmap.getPixel(px, py)
+                pixels.add(pixel)
+                totalR += Color.red(pixel)
+                totalG += Color.green(pixel)
+                totalB += Color.blue(pixel)
+            }
+        }
+
+        val count = pixels.size
+        val avgR = totalR.toDouble() / count
+        val avgG = totalG.toDouble() / count
+        val avgB = totalB.toDouble() / count
+
+        var varianceSum = 0.0
+        for (p in pixels) {
+            val dr = Color.red(p) - avgR
+            val dg = Color.green(p) - avgG
+            val db = Color.blue(p) - avgB
+            varianceSum += (dr * dr + dg * dg + db * db) / 3.0
+        }
+        val stdDev = Math.sqrt(varianceSum / count)
+
+        if (stdDev < 6.0) {
+            return PhotoValidationResult(
+                isValid = false,
+                errorMessage = "Ang napiling larawan ay tila blangko o iisang kulay lamang. Kinakailangan mag-attach ng totoong litrato ng binabahang kalsada o lugar."
+            )
+        }
+
+        return PhotoValidationResult(isValid = true, errorMessage = null)
+    }
 
     fun persistPickedPhoto(context: Context, sourceUri: Uri): String? {
         return try {
@@ -196,7 +267,7 @@ object ReportPhotoHelper {
             updatingSliderFromPinch = true
             val progress = ((currentZoom - 1.0f) / 3.0f * 100f).roundToInt().coerceIn(0, 100)
             zoomSeekBar.progress = progress
-            zoomValueText.text = String.format(java.util.Locale.US, "%.1fx", currentZoom)
+            zoomValueText.text = String.format(Locale.US, "%.1fx", currentZoom)
             updatingSliderFromPinch = false
         }.apply {
             layoutParams = LinearLayout.LayoutParams(cropViewSizePx, cropViewSizePx).apply {
@@ -263,7 +334,7 @@ object ReportPhotoHelper {
                     if (!updatingSliderFromPinch) {
                         val zoom = 1.0f + (progress / 100f) * 3.0f
                         cropView.setZoomFactor(zoom)
-                        zoomValueText.text = String.format(java.util.Locale.US, "%.1fx", zoom)
+                        zoomValueText.text = String.format(Locale.US, "%.1fx", zoom)
                     }
                 }
 

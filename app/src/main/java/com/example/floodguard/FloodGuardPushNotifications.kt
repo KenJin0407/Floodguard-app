@@ -13,6 +13,10 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
+/**
+ * Push notification service integrated with Firebase Cloud Messaging (FCM).
+ * Manages notification channels, user notification permissions, and incoming broadcast alerts.
+ */
 object FloodGuardPushNotifications {
 
     private const val TOPIC = "floodguard"
@@ -57,7 +61,7 @@ class FloodGuardMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        Log.d("FloodGuardPush", "FCM token refreshed: $token")
+        Log.d("FloodGuardPush", "Refreshed FCM token: $token")
     }
 
     override fun onMessageReceived(message: RemoteMessage) {

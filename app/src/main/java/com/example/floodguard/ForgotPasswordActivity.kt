@@ -213,7 +213,7 @@ class ForgotPasswordActivity : ComponentActivity() {
         val fallbackOtp = (100000..999999).random().toString()
         activeLocalOtp = fallbackOtp
 
-        FloodGuardApiService.sendOtpToBackend(mobile) { success, demoCode, message ->
+        FloodGuardApiService.sendOtpToBackend(mobile, activeUsername) { success, demoCode, message ->
             runOnUiThread {
                 val effectiveOtp = if (!demoCode.isNullOrBlank()) {
                     activeLocalOtp = demoCode

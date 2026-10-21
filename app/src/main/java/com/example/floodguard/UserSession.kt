@@ -3,15 +3,24 @@ package com.example.floodguard
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
+/**
+ * Shared preferences manager for user authentication state,
+ * active user profile information, and daily report submission limits.
+ */
 object UserSession {
     private const val PREF_NAME = "floodguard_session"
     private const val KEY_IS_LOGGED_IN = "is_logged_in"
-    private const val KEY_IS_PHONE_VERIFIED = "is_phone_verified"
-    private const val KEY_USERNAME = "username"
     private const val KEY_USER_NAME = "user_name"
+    private const val KEY_USERNAME = "username"
     private const val KEY_USER_GENDER = "user_gender"
     private const val KEY_USER_CONTACT = "user_contact"
+
+    const val MAX_DAILY_REPORTS = 4
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
@@ -21,33 +30,26 @@ object UserSession {
         return getPrefs(context).getBoolean(KEY_IS_LOGGED_IN, false)
     }
 
-    fun isPhoneVerified(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_IS_PHONE_VERIFIED, true)
-    }
-
-    fun setPhoneVerified(context: Context, verified: Boolean) {
-        getPrefs(context).edit {
-            putBoolean(KEY_IS_PHONE_VERIFIED, verified)
-        }
+    fun hashPassword(password: String): String {
+        val bytes = MessageDigest.getInstance("SHA-256").digest(password.toByteArray())
+        return bytes.joinToString("") { "%02x".format(it) }
     }
 
     fun setLoggedIn(
         context: Context,
         loggedIn: Boolean,
-        username: String = "juan",
         userName: String = "Juan Dela Cruz",
+        username: String = "juan",
         userGender: String = "Male",
         userContact: String = "+63 915 245 6879",
-        phoneVerified: Boolean = true,
     ) {
         val cleanUser = username.trim()
         val cleanName = userName.trim()
-        val userKey = cleanUser.lowercase()
+        val userKey = cleanUser.lowercase(Locale.ROOT)
         getPrefs(context).edit {
             putBoolean(KEY_IS_LOGGED_IN, loggedIn)
-            putBoolean(KEY_IS_PHONE_VERIFIED, phoneVerified)
-            putString(KEY_USERNAME, cleanUser)
             putString(KEY_USER_NAME, cleanName)
+            putString(KEY_USERNAME, cleanUser)
             putString(KEY_USER_GENDER, userGender)
             putString(KEY_USER_CONTACT, userContact)
             if (userKey.isNotEmpty()) {
@@ -78,7 +80,7 @@ object UserSession {
             return "juan"
         }
         val matchedUser = try {
-            FloodGuardDatabase(context).getUserByFullName(fallbackName)
+            FloodGuardDatabase.getInstance(context).getUserByFullName(fallbackName)
         } catch (_: Exception) {
             null
         }
@@ -90,6 +92,8 @@ object UserSession {
         }
         return fallbackName
     }
+
+    fun getUserUsername(context: Context): String = getUsername(context)
 
     fun getUserName(context: Context): String {
         return getPrefs(context).getString(KEY_USER_NAME, "Juan Dela Cruz") ?: "Juan Dela Cruz"
@@ -104,19 +108,19 @@ object UserSession {
     }
 
     fun getSavedNameForUser(context: Context, username: String): String? {
-        return getPrefs(context).getString("saved_name_${username.trim().lowercase()}", null)
+        return getPrefs(context).getString("saved_name_${username.trim().lowercase(Locale.ROOT)}", null)
     }
 
     fun getSavedGenderForUser(context: Context, username: String): String? {
-        return getPrefs(context).getString("saved_gender_${username.trim().lowercase()}", null)
+        return getPrefs(context).getString("saved_gender_${username.trim().lowercase(Locale.ROOT)}", null)
     }
 
     fun getSavedContactForUser(context: Context, username: String): String? {
-        return getPrefs(context).getString("saved_contact_${username.trim().lowercase()}", null)
+        return getPrefs(context).getString("saved_contact_${username.trim().lowercase(Locale.ROOT)}", null)
     }
 
     fun updateProfile(context: Context, name: String, gender: String, contact: String) {
-        val currentUserKey = getUsername(context).trim().lowercase()
+        val currentUserKey = getUsername(context).trim().lowercase(Locale.ROOT)
         getPrefs(context).edit {
             putString(KEY_USER_NAME, name.trim())
             putString(KEY_USER_GENDER, gender)
@@ -130,7 +134,7 @@ object UserSession {
     }
 
     fun setUserAvatar(context: Context, avatarData: String) {
-        val currentUserKey = getUsername(context).trim().lowercase()
+        val currentUserKey = getUsername(context).trim().lowercase(Locale.ROOT)
         if (currentUserKey.isNotEmpty()) {
             getPrefs(context).edit {
                 putString("saved_avatar_$currentUserKey", avatarData)
@@ -139,26 +143,19 @@ object UserSession {
     }
 
     fun getUserAvatar(context: Context): String? {
-        val currentUserKey = getUsername(context).trim().lowercase()
+        val currentUserKey = getUsername(context).trim().lowercase(Locale.ROOT)
         if (currentUserKey.isEmpty()) return null
         return getPrefs(context).getString("saved_avatar_$currentUserKey", null)
     }
 
-    fun hashPassword(password: String): String {
-        val bytes = java.security.MessageDigest.getInstance("SHA-256").digest(password.toByteArray())
-        return bytes.joinToString("") { "%02x".format(it) }
-    }
-
-    const val MAX_DAILY_REPORTS = 4
-
     private fun getTodayDateKey(): String {
-        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-        return sdf.format(java.util.Date())
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        return sdf.format(Date())
     }
 
     fun getDailyReportCount(context: Context): Int {
         val prefs = getPrefs(context)
-        val userKey = getUsername(context).lowercase(java.util.Locale.ROOT).trim()
+        val userKey = getUsername(context).lowercase(Locale.ROOT).trim()
         val today = getTodayDateKey()
         val savedDate = prefs.getString("report_date_$userKey", "") ?: ""
 
@@ -179,7 +176,7 @@ object UserSession {
 
     fun incrementDailyReportCount(context: Context): Int {
         val prefs = getPrefs(context)
-        val userKey = getUsername(context).lowercase(java.util.Locale.ROOT).trim()
+        val userKey = getUsername(context).lowercase(Locale.ROOT).trim()
         val today = getTodayDateKey()
         val currentUsed = getDailyReportCount(context)
         val newUsed = currentUsed + 1
@@ -190,4 +187,37 @@ object UserSession {
         }
         return (MAX_DAILY_REPORTS - newUsed).coerceAtLeast(0)
     }
+
+    fun isValidContactNumber(contact: String): Boolean {
+        return getContactValidationError(contact) == null
+    }
+
+    fun getContactValidationError(contact: String): String? {
+        val trimmed = contact.trim()
+        if (trimmed.isEmpty()) {
+            return "Contact number is required."
+        }
+        val clean = trimmed.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        if (!clean.startsWith("+63") && !clean.startsWith("09")) {
+            return "Contact number must start with +63 or 09."
+        }
+        if (clean.startsWith("09")) {
+            if (clean.length != 11) {
+                return "Contact number starting with 09 must have exactly 11 digits (e.g. 09123456789)."
+            }
+            if (!clean.all { it.isDigit() }) {
+                return "Contact number must contain only numbers."
+            }
+        } else if (clean.startsWith("+63")) {
+            val rest = clean.substring(3)
+            if (rest.isEmpty() || !rest.all { it.isDigit() }) {
+                return "Contact number must contain only numbers after +63."
+            }
+            if (rest.length != 10 && rest.length != 11) {
+                return "Contact number starting with +63 must be followed by a valid number (e.g. +639123456789 or 09123456789)."
+            }
+        }
+        return null
+    }
 }
+

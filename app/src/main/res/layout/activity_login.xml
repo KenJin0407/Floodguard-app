@@ -1,38 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:background="@color/midnight_blue"
-    android:padding="24dp"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/text_primary"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="24dp">
 
     <!-- Logo -->
     <ImageView
-        android:src="@drawable/fg_logo"
         android:layout_width="120dp"
         android:layout_height="120dp"
-        android:contentDescription="FloodGuard Logo" />
+        android:contentDescription="FloodGuard Logo"
+        android:src="@drawable/fg_logo" />
 
     <!-- Title -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
         android:text="FLOODGUARD"
-        android:textSize="24sp"
-        android:textStyle="bold"
         android:textColor="@android:color/white"
-        android:layout_marginTop="16dp" />
+        android:textSize="24sp"
+        android:textStyle="bold" />
 
     <!-- Username -->
     <EditText
         android:id="@+id/usernameField"
-        android:hint="Username"
-        android:background="@drawable/edittext_bg"
-        android:padding="12dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp" />
+        android:layout_marginTop="24dp"
+        android:background="@color/text_secondary"
+        android:hint="Username"
+        android:padding="12dp" />
 
     <!-- Password Field with Toggle Eye -->
     <RelativeLayout
@@ -42,28 +42,28 @@
 
         <EditText
             android:id="@+id/passwordField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/text_secondary"
             android:hint="Password"
             android:inputType="textPassword"
-            android:background="@drawable/edittext_bg"
             android:paddingStart="12dp"
             android:paddingTop="12dp"
-            android:paddingBottom="12dp"
             android:paddingEnd="46dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:paddingBottom="12dp" />
 
         <ImageView
             android:id="@+id/togglePasswordVisibility"
             android:layout_width="26dp"
             android:layout_height="26dp"
-            android:src="@drawable/ic_visibility_off"
-            android:contentDescription="Toggle Password Visibility"
             android:layout_alignParentEnd="true"
             android:layout_centerVertical="true"
             android:layout_marginEnd="12dp"
-            android:padding="2dp"
             android:clickable="true"
-            android:focusable="true" />
+            android:contentDescription="Toggle Password Visibility"
+            android:focusable="true"
+            android:padding="2dp"
+            android:src="@drawable/ic_visibility_off" />
     </RelativeLayout>
 
     <!-- Forgot Password -->
@@ -71,30 +71,31 @@
         android:id="@+id/forgotPasswordLink"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Forgot password?"
-        android:textColor="@color/light_blue_200"
+        android:layout_marginTop="8dp"
+        android:background="?android:attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true"
         android:padding="4dp"
-        android:layout_marginTop="8dp" />
+        android:text="Forgot password?"
+        android:textColor="@color/light_blue_200" />
 
     <!-- Sign In Button -->
     <Button
         android:id="@+id/signInButton"
-        android:text="SIGN IN"
-        android:backgroundTint="@android:color/white"
-        android:textColor="@android:color/black"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp" />
+        android:layout_marginTop="20dp"
+        android:backgroundTint="@android:color/white"
+        android:text="SIGN IN"
+        android:textColor="@android:color/black" />
 
     <!-- Create Account -->
     <LinearLayout
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_marginTop="16dp"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="center"
+        android:orientation="horizontal">
 
         <TextView
             android:layout_width="wrap_content"

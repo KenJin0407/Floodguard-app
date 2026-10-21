@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1025351013995",
+    "project_id": "floodguard-otp",
+    "storage_bucket": "floodguard-otp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1025351013995:android:f5a31c79d1512d8be7c32e",
+        "android_client_info": {
+          "package_name": "com.example.floodguard"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCbIpZJlCfD3l9Xufv-_jTTBtE7xNtygz4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
