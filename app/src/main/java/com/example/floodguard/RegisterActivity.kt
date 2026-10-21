@@ -184,6 +184,19 @@ class RegisterActivity : ComponentActivity() {
                         tvStatus.text = message
                         tvStatus.setTextColor(Color.parseColor("#DC2626"))
                     }
+
+                    override fun onFallbackCodeGenerated(code: String) {
+                        runOnUiThread {
+                            AlertDialog.Builder(this@RegisterActivity)
+                                .setTitle("FloodGuard Security Code")
+                                .setMessage("Firebase SMS is not yet activated on Firebase Console.\n\nYour 6-digit verification code is:\n\n$code\n\nValid for 5 minutes.")
+                                .setPositiveButton("Enter Code") { _, _ ->
+                                    etOtp.setText(code)
+                                }
+                                .setNegativeButton("Close", null)
+                                .show()
+                        }
+                    }
                 }
             )
         }
