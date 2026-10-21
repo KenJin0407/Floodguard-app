@@ -2,6 +2,7 @@ package com.example.floodguard
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -63,6 +64,7 @@ class ReportFloodActivity : ComponentActivity() {
     private lateinit var btnLocationDropdown: TextView
     private lateinit var locationCoordsText: TextView
     private lateinit var notesInput: EditText
+    private lateinit var tvRemainingReports: TextView
     private lateinit var submitReportButton: Button
 
     private lateinit var btnAnkleDeep: Button
@@ -157,6 +159,7 @@ class ReportFloodActivity : ComponentActivity() {
         setupSeverityButtons()
         setupPhotoPicker()
         requestAndAutoDetectDeviceLocation()
+        updateRemainingReportsUI()
 
         submitReportButton.setOnClickListener {
             submitReport()
@@ -189,6 +192,7 @@ class ReportFloodActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         FloatingAlertManager.onActivityResumed(this)
+        updateRemainingReportsUI()
     }
 
     override fun onPause() {
@@ -207,12 +211,23 @@ class ReportFloodActivity : ComponentActivity() {
         btnLocationDropdown = findViewById(R.id.btnLocationDropdown)
         locationCoordsText = findViewById(R.id.locationCoordsText)
         notesInput = findViewById(R.id.notesInput)
+        tvRemainingReports = findViewById(R.id.tvRemainingReports)
         submitReportButton = findViewById(R.id.submitReportButton)
 
         btnAnkleDeep = findViewById(R.id.btnAnkleDeep)
         btnKneeDeep = findViewById(R.id.btnKneeDeep)
         btnWaistDeep = findViewById(R.id.btnWaistDeep)
         btnImpassable = findViewById(R.id.btnImpassable)
+    }
+
+    private fun updateRemainingReportsUI() {
+        val remaining = UserSession.getRemainingReportsToday(this)
+        tvRemainingReports.text = "Natitirang Report Ngayong Araw: $remaining / ${UserSession.MAX_DAILY_REPORTS}"
+        if (remaining <= 0) {
+            tvRemainingReports.setTextColor(resources.getColor(android.R.color.holo_red_dark, theme))
+        } else {
+            tvRemainingReports.setTextColor(Color.parseColor("#0277BD"))
+        }
     }
 
     @SuppressLint("SetTextI18n")
@@ -547,7 +562,50 @@ class ReportFloodActivity : ComponentActivity() {
         }
     }
 
+    private fun isGibberishText(text: String): Boolean {
+        val cleaned = text.trim()
+        if (cleaned.length < 3) return true
+        if (Regex("^(.)\\1{3,}$").matches(cleaned)) return true
+        val lettersOnly = cleaned.filter { it.isLetter() }
+        if (lettersOnly.isEmpty()) return true
+        val vowels = lettersOnly.count { it.lowercaseChar() in listOf('a', 'e', 'i', 'o', 'u') }
+        val vowelRatio = vowels.toDouble() / lettersOnly.length
+        if (lettersOnly.length >= 6 && (vowelRatio < 0.12 || vowelRatio > 0.85)) {
+            return true
+        }
+        return false
+    }
+
+    private fun validateReportContent(notes: String, location: String): String? {
+        val combined = "$location $notes"
+        val inappropriateWords = listOf(
+            "tangina", "gago", "puta", "tarantado", "ulol", "bobo", "inutil",
+            "puke", "kantot", "tite", "kupal", "tae", "leche", "shit", "fuck",
+            "bitch", "asshole", "piss", "damn", "bastard"
+        )
+        for (word in inappropriateWords) {
+            val pattern = Regex("\\b${Regex.escape(word)}\\b", RegexOption.IGNORE_CASE)
+            if (pattern.containsMatchIn(combined)) {
+                return "Hindi naaangkop ang salitang ginamit sa iyong report. Paki-ayos at maging magalang upang makatulong sa komunidad."
+            }
+        }
+        if (notes.isNotBlank() && notes.length >= 4 && isGibberishText(notes)) {
+            return "Mukhang walang kabuluhan o hindi maayos ang nilagay na impormasyon sa report. Pakilagay ng totoong deskripsyon ng baha."
+        }
+        return null
+    }
+
     private fun submitReport() {
+        val remaining = UserSession.getRemainingReportsToday(this)
+        if (remaining <= 0) {
+            AlertDialog.Builder(this)
+                .setTitle("Limit Reached")
+                .setMessage("Naabot mo na ang limitasyon na 4 na report para sa araw na ito. Mag-rereset ang iyong limit bukas.")
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
+
         val rawLocation = locationInput.text.toString()
             .replace("Auto Detected - ", "")
             .replace("Detecting device location...", "")
@@ -558,6 +616,16 @@ class ReportFloodActivity : ComponentActivity() {
             rawLocation
         }
         val notes = notesInput.text.toString().trim()
+
+        val validationError = validateReportContent(notes, loc)
+        if (validationError != null) {
+            AlertDialog.Builder(this)
+                .setTitle("Hindi Naaangkop ang Report")
+                .setMessage(validationError)
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
 
         val (statusText, level) = when (selectedSeverity) {
             "Impassable", "Waist-Deep" -> Pair("Not Passable", SeverityLevel.NOT_PASSABLE)
@@ -595,6 +663,8 @@ class ReportFloodActivity : ComponentActivity() {
             reporterName = UserSession.getUserName(this),
         )
 
+        UserSession.incrementDailyReportCount(this)
+        updateRemainingReportsUI()
         submitReportButton.isEnabled = false
         ReportRepository.addReport(applicationContext, newReport) { result ->
             runOnUiThread {

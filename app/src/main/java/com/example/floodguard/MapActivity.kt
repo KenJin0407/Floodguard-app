@@ -16,6 +16,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
@@ -50,6 +51,7 @@ class MapActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         FloatingAlertManager.onActivityResumed(this)
+        updateMapRadius()
     }
 
     override fun onPause() {
@@ -110,6 +112,11 @@ class MapActivity : ComponentActivity() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                 return false
             }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                updateMapRadius()
+            }
         }
 
         val htmlContent = """
@@ -149,42 +156,139 @@ class MapActivity : ComponentActivity() {
                     var activeMarker = L.marker([14.6958, 121.1207]).addTo(map)
                         .bindPopup("<b>San Mateo Town Center</b><br>Google Maps Traffic Navigation");
 
-                    // Pre defined road polylines for San Mateo roads
-                    var sanMateoRoads = {
-                        "ampid": [[14.6850, 121.1100], [14.6885, 121.1120], [14.6920, 121.1180]],
-                        "dulong": [[14.7080, 121.1220], [14.7120, 121.1280], [14.7180, 121.1310]],
-                        "banaba": [[14.6700, 121.1020], [14.6750, 121.1080], [14.6780, 121.1120]],
-                        "gen. luna": [[14.6750, 121.1080], [14.6885, 121.1120], [14.6958, 121.1207], [14.7120, 121.1280]],
-                        "maly": [[14.7180, 121.1310], [14.7200, 121.1350], [14.7250, 121.1400]],
-                        "sta ana": [[14.6900, 121.1150], [14.6920, 121.1180], [14.6950, 121.1220]],
-                        "santa ana": [[14.6900, 121.1150], [14.6920, 121.1180], [14.6950, 121.1220]]
+                    var radiusLayer = L.layerGroup().addTo(map);
+                    var flompyLayer = L.layerGroup().addTo(map);
+
+                    window.renderFloodRadius = function(reports) {
+                        if (!reports) return;
+                        radiusLayer.clearLayers();
+                        var now = Date.now();
+                        var TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+                        var clusters = {};
+                        for (var i = 0; i < reports.length; i++) {
+                            var r = reports[i];
+                            if (!r.lat || !r.lon) continue;
+                            var key = r.lat.toFixed(4) + "_" + r.lon.toFixed(4);
+                            if (!clusters[key]) {
+                                clusters[key] = {
+                                    lat: r.lat,
+                                    lon: r.lon,
+                                    location: r.location || "San Mateo",
+                                    allReports: [],
+                                    activeReports: []
+                                };
+                            }
+                            clusters[key].allReports.push(r);
+                            var repTime = r.timestamp || now;
+                            var age = now - repTime;
+                            var within24 = (r.isWithin24Hours !== undefined) ? r.isWithin24Hours : (age <= TWENTY_FOUR_HOURS);
+                            if (within24) {
+                                clusters[key].activeReports.push(r);
+                            }
+                        }
+
+                        for (var k in clusters) {
+                            var c = clusters[k];
+                            var totalCount = c.allReports.length;
+                            var activeCount = c.activeReports.length;
+
+                            // Always show a marker pin so the report itself never disappears from the map
+                            var statusNotice = activeCount > 0 
+                                ? "<span style='color:#d32f2f; font-weight:bold;'>⚠️ Active Flood Danger Radius (24h)</span>" 
+                                : "<span style='color:#757575;'>ℹ️ Danger Radius Expired (&gt;24h)<br><small>Report remains recorded in database</small></span>";
+                            
+                            var markerPopup = "<b>📍 " + c.location + "</b><br>" +
+                                "<b>Kabuuang Reports:</b> " + totalCount + "<br>" +
+                                statusNotice;
+
+                            L.marker([c.lat, c.lon], {
+                                opacity: activeCount > 0 ? 1.0 : 0.65
+                            }).addTo(radiusLayer).bindPopup(markerPopup);
+
+                            // The DANGER RADIUS is strictly drawn ONLY if there are active reports within the 24-hour window!
+                            if (activeCount > 0) {
+                                var highestSeverity = "Cleared";
+                                var latestNote = "";
+                                for (var j = 0; j < c.activeReports.length; j++) {
+                                    var rep = c.activeReports[j];
+                                    var s = rep.severity || "";
+                                    if (s.indexOf("Impassable") >= 0 || s.indexOf("Chest") >= 0) {
+                                        highestSeverity = "Impassable";
+                                    } else if (highestSeverity !== "Impassable" && (s.indexOf("Waist") >= 0 || s.indexOf("Not Passable") >= 0)) {
+                                        highestSeverity = "Waist-Deep";
+                                    } else if (highestSeverity !== "Impassable" && highestSeverity !== "Waist-Deep" && s.indexOf("Knee") >= 0) {
+                                        highestSeverity = "Knee-Deep";
+                                    } else if (highestSeverity === "Cleared" && (s.indexOf("Ankle") >= 0 || s.indexOf("Passable") >= 0)) {
+                                        highestSeverity = "Ankle-Deep";
+                                    }
+                                    if (rep.notes) latestNote = rep.notes;
+                                }
+
+                                var color = '#388E3C';
+                                var radius = 120 + (activeCount * 25);
+                                var opacity = 0.35;
+
+                                if (highestSeverity === "Impassable") {
+                                    color = '#8B0000';
+                                    radius = 260 + (activeCount * 40);
+                                    opacity = 0.55;
+                                } else if (highestSeverity === "Waist-Deep") {
+                                    color = '#D32F2F';
+                                    radius = 200 + (activeCount * 30);
+                                    opacity = 0.45;
+                                } else if (highestSeverity === "Knee-Deep") {
+                                    color = '#FFA000';
+                                    radius = 160 + (activeCount * 25);
+                                    opacity = 0.40;
+                                }
+
+                                var circle = L.circle([c.lat, c.lon], {
+                                    color: color,
+                                    fillColor: color,
+                                    fillOpacity: opacity,
+                                    radius: radius,
+                                    weight: 2
+                                }).addTo(radiusLayer);
+
+                                var popupContent = "<b>🚨 " + c.location + "</b><br>" +
+                                    "<b>Pinakamataas na Lebel:</b> " + highestSeverity + "<br>" +
+                                    "<b>Aktibong Report (&le;24h):</b> " + activeCount + " ng " + totalCount + "<br>" +
+                                    "<small>" + (latestNote || "Aktibong alert zone (Mawawala ang radius matapos ang 24 oras)") + "</small>";
+                                circle.bindPopup(popupContent);
+                            }
+                        }
                     };
 
-                    function highlightRoad(coords, title, severity, notes) {
-                        var color = '#e74c3c'; // Thick Red for flood alert
-                        if (severity && (severity.indexOf('Ankle') >= 0 || severity.indexOf('Passable') >= 0)) {
-                            color = '#f39c12'; // Orange
+                    window.renderFlompyGeoJson = function(geojsonData) {
+                        if (!geojsonData) return;
+                        flompyLayer.clearLayers();
+                        try {
+                            var geojson = typeof geojsonData === 'string' ? JSON.parse(geojsonData) : geojsonData;
+                            L.geoJSON(geojson, {
+                                style: function(feature) {
+                                    var color = feature.properties && feature.properties.color ? feature.properties.color : '#e74c3c';
+                                    var opacity = feature.properties && feature.properties.fill_opacity ? feature.properties.fill_opacity : 0.4;
+                                    return {
+                                        color: color,
+                                        fillColor: color,
+                                        fillOpacity: opacity,
+                                        weight: 3
+                                    };
+                                },
+                                onEachFeature: function(feature, layer) {
+                                    if (feature.properties) {
+                                        var p = feature.properties;
+                                        var title = p.location_name || p.name || "Flood Risk Area";
+                                        var depth = p.depth_class || p.severity || "Risk Zone";
+                                        var note = p.description || p.notes || "FLOMPY hydrological modeled zone";
+                                        layer.bindPopup("<b>🌊 FLOMPY Hazard Map: " + title + "</b><br><b>Lebel:</b> " + depth + "<br><small>" + note + "</small>");
+                                    }
+                                }
+                            }).addTo(flompyLayer);
+                        } catch(err) {
+                            console.error("FLOMPY GeoJSON error:", err);
                         }
-                        
-                        var polyline = L.polyline(coords, {
-                            color: color,
-                            weight: 8,
-                            opacity: 0.9,
-                            lineCap: 'round'
-                        }).addTo(map);
-
-                        polyline.bindPopup(
-                            "<b>🚨 FLOOD ALERT: " + title + "</b><br>" +
-                            "<b>Severity:</b> " + severity + "<br>" +
-                            "<small>Notes: " + (notes || "Flood reported on road segment") + "</small>"
-                        );
-                    }
-
-                    // Directly render active flood road polylines on San Mateo map
-                    highlightRoad(sanMateoRoads["ampid"], "Ampid 1 & 2 Main Road", "Waist-Deep (Not Passable)", "Water level waist-deep near riverbank");
-                    highlightRoad(sanMateoRoads["dulong"], "Dulong Bayan Road", "Chest-Deep (Critical)", "Road closed due to high water");
-                    highlightRoad(sanMateoRoads["banaba"], "Banaba Riverbank Road", "Waist-Deep (Not Passable)", "River overflowed onto street");
-                    highlightRoad(sanMateoRoads["gen. luna"], "Gen. Luna Ave (San Mateo Main Road)", "Knee-Deep (Heavy Vehicles Only)", "Slow-moving traffic due to gutter flood");
+                    };
 
                     function setLocation(lat, lon, title) {
                         map.setView([lat, lon], 15);
@@ -201,6 +305,47 @@ class MapActivity : ComponentActivity() {
         """.trimIndent()
 
         fullMapView.loadDataWithBaseURL("http://localhost", htmlContent, "text/html", "UTF-8", null)
+    }
+
+    private fun updateMapRadius() {
+        thread {
+            try {
+                val reports = ReportRepository.loadReports(this)
+                val jsonArray = JSONArray()
+                val now = System.currentTimeMillis()
+                val twentyFourHoursMillis = 24 * 60 * 60 * 1000L
+                for (r in reports) {
+                    val obj = JSONObject()
+                    obj.put("location", r.location)
+                    obj.put("severity", r.severity)
+                    obj.put("notes", r.notes)
+                    obj.put("lat", r.lat)
+                    obj.put("lon", r.lon)
+                    obj.put("timestamp", r.timestamp)
+                    obj.put("isWithin24Hours", (now - r.timestamp) <= twentyFourHoursMillis)
+                    jsonArray.put(obj)
+                }
+
+                runOnUiThread {
+                    fullMapView.evaluateJavascript(
+                        "if (window.renderFloodRadius) { window.renderFloodRadius($jsonArray); }",
+                        null
+                    )
+                }
+
+                val geoJson = FloodGuardApiService.fetchFloodGeoJsonFromBackend()
+                if (geoJson != null && geoJson.isNotBlank()) {
+                    runOnUiThread {
+                        fullMapView.evaluateJavascript(
+                            "if (window.renderFlompyGeoJson) { window.renderFlompyGeoJson($geoJson); }",
+                            null
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     private fun recenterMap(lat: Double, lon: Double, title: String) {

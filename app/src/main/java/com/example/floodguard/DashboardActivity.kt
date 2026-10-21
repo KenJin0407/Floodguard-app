@@ -131,6 +131,7 @@ class DashboardActivity : ComponentActivity() {
                 populateCommunityReports(searchLocationInput.text.toString().trim())
             }
         }
+        updateMapRadius(allReports)
 
         val reportsList = if (searchQuery.isBlank()) {
             allReports
@@ -340,6 +341,11 @@ class DashboardActivity : ComponentActivity() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                 return false
             }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                updateMapRadius(ReportRepository.loadReports(this@DashboardActivity))
+            }
         }
 
         val htmlContent = """
@@ -381,6 +387,140 @@ class DashboardActivity : ComponentActivity() {
                     var activeMarker = L.marker([lat, lon]).addTo(map);
                     activeMarker.bindPopup("<b>San Mateo, Rizal</b><br>Google Maps Traffic Navigation").openPopup();
 
+                    var radiusLayer = L.layerGroup().addTo(map);
+                    var flompyLayer = L.layerGroup().addTo(map);
+
+                    window.renderFloodRadius = function(reports) {
+                        if (!reports) return;
+                        radiusLayer.clearLayers();
+                        var now = Date.now();
+                        var TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+                        var clusters = {};
+                        for (var i = 0; i < reports.length; i++) {
+                            var r = reports[i];
+                            if (!r.lat || !r.lon) continue;
+                            var key = r.lat.toFixed(4) + "_" + r.lon.toFixed(4);
+                            if (!clusters[key]) {
+                                clusters[key] = {
+                                    lat: r.lat,
+                                    lon: r.lon,
+                                    location: r.location || "San Mateo",
+                                    allReports: [],
+                                    activeReports: []
+                                };
+                            }
+                            clusters[key].allReports.push(r);
+                            var repTime = r.timestamp || now;
+                            var age = now - repTime;
+                            var within24 = (r.isWithin24Hours !== undefined) ? r.isWithin24Hours : (age <= TWENTY_FOUR_HOURS);
+                            if (within24) {
+                                clusters[key].activeReports.push(r);
+                            }
+                        }
+
+                        for (var k in clusters) {
+                            var c = clusters[k];
+                            var totalCount = c.allReports.length;
+                            var activeCount = c.activeReports.length;
+
+                            // Always show a marker pin so the report itself never disappears from the map
+                            var statusNotice = activeCount > 0 
+                                ? "<span style='color:#d32f2f; font-weight:bold;'>⚠️ Active Flood Danger Radius (24h)</span>" 
+                                : "<span style='color:#757575;'>ℹ️ Danger Radius Expired (&gt;24h)<br><small>Report remains recorded in database</small></span>";
+                            
+                            var markerPopup = "<b>📍 " + c.location + "</b><br>" +
+                                "<b>Kabuuang Reports:</b> " + totalCount + "<br>" +
+                                statusNotice;
+
+                            L.marker([c.lat, c.lon], {
+                                opacity: activeCount > 0 ? 1.0 : 0.65
+                            }).addTo(radiusLayer).bindPopup(markerPopup);
+
+                            // The DANGER RADIUS is strictly drawn ONLY if there are active reports within the 24-hour window!
+                            if (activeCount > 0) {
+                                var highestSeverity = "Cleared";
+                                var latestNote = "";
+                                for (var j = 0; j < c.activeReports.length; j++) {
+                                    var rep = c.activeReports[j];
+                                    var s = rep.severity || "";
+                                    if (s.indexOf("Impassable") >= 0 || s.indexOf("Chest") >= 0) {
+                                        highestSeverity = "Impassable";
+                                    } else if (highestSeverity !== "Impassable" && (s.indexOf("Waist") >= 0 || s.indexOf("Not Passable") >= 0)) {
+                                        highestSeverity = "Waist-Deep";
+                                    } else if (highestSeverity !== "Impassable" && highestSeverity !== "Waist-Deep" && s.indexOf("Knee") >= 0) {
+                                        highestSeverity = "Knee-Deep";
+                                    } else if (highestSeverity === "Cleared" && (s.indexOf("Ankle") >= 0 || s.indexOf("Passable") >= 0)) {
+                                        highestSeverity = "Ankle-Deep";
+                                    }
+                                    if (rep.notes) latestNote = rep.notes;
+                                }
+
+                                var color = '#388E3C';
+                                var radius = 120 + (activeCount * 25);
+                                var opacity = 0.35;
+
+                                if (highestSeverity === "Impassable") {
+                                    color = '#8B0000';
+                                    radius = 260 + (activeCount * 40);
+                                    opacity = 0.55;
+                                } else if (highestSeverity === "Waist-Deep") {
+                                    color = '#D32F2F';
+                                    radius = 200 + (activeCount * 30);
+                                    opacity = 0.45;
+                                } else if (highestSeverity === "Knee-Deep") {
+                                    color = '#FFA000';
+                                    radius = 160 + (activeCount * 25);
+                                    opacity = 0.40;
+                                }
+
+                                var circle = L.circle([c.lat, c.lon], {
+                                    color: color,
+                                    fillColor: color,
+                                    fillOpacity: opacity,
+                                    radius: radius,
+                                    weight: 2
+                                }).addTo(radiusLayer);
+
+                                var popupContent = "<b>🚨 " + c.location + "</b><br>" +
+                                    "<b>Pinakamataas na Lebel:</b> " + highestSeverity + "<br>" +
+                                    "<b>Aktibong Report (&le;24h):</b> " + activeCount + " ng " + totalCount + "<br>" +
+                                    "<small>" + (latestNote || "Aktibong alert zone (Mawawala ang radius matapos ang 24 oras)") + "</small>";
+                                circle.bindPopup(popupContent);
+                            }
+                        }
+                    };
+
+                    window.renderFlompyGeoJson = function(geojsonData) {
+                        if (!geojsonData) return;
+                        flompyLayer.clearLayers();
+                        try {
+                            var geojson = typeof geojsonData === 'string' ? JSON.parse(geojsonData) : geojsonData;
+                            L.geoJSON(geojson, {
+                                style: function(feature) {
+                                    var color = feature.properties && feature.properties.color ? feature.properties.color : '#e74c3c';
+                                    var opacity = feature.properties && feature.properties.fill_opacity ? feature.properties.fill_opacity : 0.4;
+                                    return {
+                                        color: color,
+                                        fillColor: color,
+                                        fillOpacity: opacity,
+                                        weight: 3
+                                    };
+                                },
+                                onEachFeature: function(feature, layer) {
+                                    if (feature.properties) {
+                                        var p = feature.properties;
+                                        var title = p.location_name || p.name || "Flood Risk Area";
+                                        var depth = p.depth_class || p.severity || "Risk Zone";
+                                        var note = p.description || p.notes || "FLOMPY hydrological modeled zone";
+                                        layer.bindPopup("<b>🌊 FLOMPY Hazard Map: " + title + "</b><br><b>Lebel:</b> " + depth + "<br><small>" + note + "</small>");
+                                    }
+                                }
+                            }).addTo(flompyLayer);
+                        } catch(err) {
+                            console.error("FLOMPY GeoJSON error:", err);
+                        }
+                    };
+
                     function locateArea(newLat, newLon, title) {
                         map.setView([newLat, newLon], 15);
                         if (activeMarker) {
@@ -396,6 +536,46 @@ class DashboardActivity : ComponentActivity() {
         """.trimIndent()
 
         mapWebView.loadDataWithBaseURL("https://basemaps.cartocdn.com", htmlContent, "text/html", "UTF-8", null)
+    }
+
+    private fun updateMapRadius(reports: List<FloodReport>) {
+        thread {
+            try {
+                val jsonArray = JSONArray()
+                val now = System.currentTimeMillis()
+                val twentyFourHoursMillis = 24 * 60 * 60 * 1000L
+                for (r in reports) {
+                    val obj = JSONObject()
+                    obj.put("location", r.location)
+                    obj.put("severity", r.severity)
+                    obj.put("notes", r.notes)
+                    obj.put("lat", r.lat)
+                    obj.put("lon", r.lon)
+                    obj.put("timestamp", r.timestamp)
+                    obj.put("isWithin24Hours", (now - r.timestamp) <= twentyFourHoursMillis)
+                    jsonArray.put(obj)
+                }
+
+                runOnUiThread {
+                    mapWebView.evaluateJavascript(
+                        "if (window.renderFloodRadius) { window.renderFloodRadius($jsonArray); }",
+                        null
+                    )
+                }
+
+                val geoJson = FloodGuardApiService.fetchFloodGeoJsonFromBackend()
+                if (geoJson != null && geoJson.isNotBlank()) {
+                    runOnUiThread {
+                        mapWebView.evaluateJavascript(
+                            "if (window.renderFlompyGeoJson) { window.renderFlompyGeoJson($geoJson); }",
+                            null
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     private fun setupBottomNavigation() {

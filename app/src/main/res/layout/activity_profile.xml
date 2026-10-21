@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/app_bg">
@@ -249,22 +250,44 @@
                         android:textColor="#94A3B8"
                         android:textSize="14sp" />
 
-                    <EditText
-                        android:id="@+id/profileContactInput"
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
-                        android:background="@null"
-                        android:text="+63 915 245 6879"
-                        android:textColor="@color/text_primary"
-                        android:textSize="15sp"
-                        android:textStyle="bold"
-                        android:enabled="false"
-                        android:focusable="false"
-                        android:focusableInTouchMode="false"
-                        android:clickable="false"
-                        android:cursorVisible="false"
-                        android:inputType="none" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <EditText
+                            android:id="@+id/profileContactInput"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@null"
+                            android:text="+63 915 245 6879"
+                            android:textColor="@color/text_primary"
+                            android:textSize="15sp"
+                            android:textStyle="bold"
+                            android:enabled="false"
+                            android:focusable="false"
+                            android:focusableInTouchMode="false"
+                            android:clickable="false"
+                            android:cursorVisible="false"
+                            android:inputType="none" />
+
+                        <TextView
+                            android:id="@+id/tvPhoneVerifiedBadge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:background="@drawable/badge_verified_green"
+                            android:paddingStart="6dp"
+                            android:paddingTop="2dp"
+                            android:paddingEnd="6dp"
+                            android:paddingBottom="2dp"
+                            android:text="✓ Verified"
+                            android:textColor="#FFFFFF"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
                 </RelativeLayout>
 
             </LinearLayout>
@@ -299,7 +322,7 @@
                     android:background="@drawable/icon_badge_bg"
                     android:padding="8dp"
                     android:src="@drawable/ic_profile"
-                    android:tint="#FFA500"
+                    app:tint="#FFA500"
                     android:contentDescription="Edit Profile Icon" />
 
                 <LinearLayout

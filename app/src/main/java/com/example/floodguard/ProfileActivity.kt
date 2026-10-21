@@ -117,6 +117,12 @@ class ProfileActivity : ComponentActivity() {
         profileGenderInput.setText(UserSession.getUserGender(this))
         profileContactInput.setText(UserSession.getUserContact(this))
 
+        val tvBadge = findViewById<TextView>(R.id.tvPhoneVerifiedBadge)
+        if (tvBadge != null) {
+            val isVerified = UserSession.isPhoneVerified(this)
+            tvBadge.visibility = if (isVerified) View.VISIBLE else View.GONE
+        }
+
         val savedAvatar = UserSession.getUserAvatar(this)
         val bitmap = ReportPhotoHelper.loadBitmap(this, savedAvatar)
         if (bitmap != null) {
@@ -422,19 +428,27 @@ class ProfileActivity : ComponentActivity() {
 
             if (newName.isEmpty() || newContact.isEmpty()) {
                 Toast.makeText(this, "Name and contact cannot be empty", Toast.LENGTH_SHORT).show()
-            } else {
+                return@setOnClickListener
+            }
+
+            val (isValidPhone, validPhoneMsg) = PhilippineNumberValidator.validate(newContact)
+            if (!isValidPhone) {
+                Toast.makeText(this, validPhoneMsg, Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
+            val standardizedPhone = validPhoneMsg
                 val username = UserSession.getUsername(this)
                 profileNameInput.setText(newName)
                 profileGenderInput.setText(selectedGender)
-                profileContactInput.setText(newContact)
+                profileContactInput.setText(standardizedPhone)
 
-                UserSession.updateProfile(this, newName, selectedGender, newContact)
-                FloodGuardDatabase(this).updateUserProfile(username, newName, selectedGender, newContact)
-                FloodGuardApiService.updateUserProfileInBackend(username, newName, selectedGender, newContact)
+                UserSession.updateProfile(this, newName, selectedGender, standardizedPhone)
+                FloodGuardDatabase(this).updateUserProfile(username, newName, selectedGender, standardizedPhone)
+                FloodGuardApiService.updateUserProfileInBackend(username, newName, selectedGender, standardizedPhone)
                 populateProfileReports()
                 Toast.makeText(this, "Profile information updated successfully!", Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
-            }
         }
 
         dialog.show()

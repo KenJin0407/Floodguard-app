@@ -11,7 +11,15 @@ import kotlin.concurrent.thread
 
 object FloodGuardApiService {
 
-    private val HOST_URLS = listOf(BuildConfig.API_BASE_URL)
+    private val HOST_URLS = listOf(
+        BuildConfig.API_BASE_URL,
+        "http://192.168.100.184:3000/api",
+        "http://192.168.254.175:3000/api",
+        "http://10.0.2.2:3000/api",
+        "http://127.0.0.1:3000/api",
+        "http://192.168.254.175:8000/api",
+        "http://10.0.2.2:8000/api",
+    ).distinct()
 
     fun syncReportsFromBackend(onSuccess: (List<FloodReport>) -> Unit) {
         thread {
@@ -443,6 +451,231 @@ object FloodGuardApiService {
                     Log.w("FloodGuardApi", "Sync broadcasts failed on $baseUrl: ${e.message}")
                 }
             }
+        }
+    }
+
+    fun fetchFloodGeoJsonFromBackend(): String? {
+        for (baseUrl in HOST_URLS) {
+            try {
+                val cleanBase = baseUrl.removeSuffix("/api")
+                val url = URL("$cleanBase/api/mapping/flood-geojson")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.connectTimeout = 4000
+                conn.readTimeout = 4000
+                if (conn.responseCode == 200) {
+                    val reader = BufferedReader(InputStreamReader(conn.inputStream))
+                    val response = StringBuilder()
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        response.append(line)
+                    }
+                    reader.close()
+                    conn.disconnect()
+                    return response.toString()
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.w("FloodGuardApi", "fetchFloodGeoJson failed on $baseUrl: ${e.message}")
+            }
+        }
+        return null
+    }
+
+    fun sendOtpToBackend(mobile: String, onResult: (Boolean, String?, String?) -> Unit) {
+        thread {
+            for (baseUrl in HOST_URLS) {
+                try {
+                    val url = URL("$baseUrl/auth/send-otp")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.connectTimeout = 5000
+                    conn.readTimeout = 5000
+                    conn.doOutput = true
+
+                    val payload = JSONObject().apply {
+                        put("mobile", mobile)
+                        put("purpose", "registration")
+                    }
+
+                    OutputStreamWriter(conn.outputStream).use { writer ->
+                        writer.write(payload.toString())
+                        writer.flush()
+                    }
+
+                    val code = conn.responseCode
+                    val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                    val responseStr = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    conn.disconnect()
+
+                    if (code in 200..299) {
+                        val json = JSONObject(responseStr)
+                        val demoCode = if (json.has("demoOtpCode") && !json.isNull("demoOtpCode")) json.optString("demoOtpCode") else null
+                        val msg = json.optString("message", "Verification code sent")
+                        onResult(true, demoCode, msg)
+                        return@thread
+                    } else {
+                        val errDetail = try {
+                            JSONObject(responseStr).optString("detail", "Failed to send code")
+                        } catch (_: Exception) {
+                            "Failed to send verification code"
+                        }
+                        onResult(false, null, errDetail)
+                        return@thread
+                    }
+                } catch (e: Exception) {
+                    Log.w("FloodGuardApi", "sendOtp failed on $baseUrl: ${e.message}")
+                }
+            }
+            onResult(false, null, "Could not connect to server. Please check your internet connection.")
+        }
+    }
+
+    fun findAccountInBackend(
+        identifier: String,
+        onResult: (success: Boolean, username: String?, mobile: String?, maskedMobile: String?) -> Unit
+    ) {
+        thread {
+            for (baseUrl in HOST_URLS) {
+                try {
+                    val url = URL("$baseUrl/auth/find-account")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.connectTimeout = 5000
+                    conn.readTimeout = 5000
+                    conn.doOutput = true
+
+                    val payload = JSONObject().apply {
+                        put("identifier", identifier)
+                    }
+
+                    OutputStreamWriter(conn.outputStream).use { writer ->
+                        writer.write(payload.toString())
+                        writer.flush()
+                    }
+
+                    val responseCode = conn.responseCode
+                    val stream = if (responseCode in 200..299) conn.inputStream else conn.errorStream
+                    val responseStr = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    conn.disconnect()
+
+                    if (responseCode in 200..299) {
+                        val json = JSONObject(responseStr)
+                        val uname = json.optString("username", "")
+                        val mob = json.optString("mobile", "")
+                        val masked = json.optString("maskedMobile", mob)
+                        onResult(true, uname, mob, masked)
+                        return@thread
+                    }
+                } catch (e: Exception) {
+                    Log.w("FloodGuardApi", "findAccount failed on $baseUrl: ${e.message}")
+                }
+            }
+            onResult(false, null, null, null)
+        }
+    }
+
+    fun resetPasswordInBackend(
+        identifier: String,
+        newPassword: String,
+        onResult: (success: Boolean, message: String) -> Unit
+    ) {
+        thread {
+            for (baseUrl in HOST_URLS) {
+                try {
+                    val url = URL("$baseUrl/auth/reset-password")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.connectTimeout = 5000
+                    conn.readTimeout = 5000
+                    conn.doOutput = true
+
+                    val payload = JSONObject().apply {
+                        put("identifier", identifier)
+                        put("newPassword", newPassword)
+                    }
+
+                    OutputStreamWriter(conn.outputStream).use { writer ->
+                        writer.write(payload.toString())
+                        writer.flush()
+                    }
+
+                    val responseCode = conn.responseCode
+                    val stream = if (responseCode in 200..299) conn.inputStream else conn.errorStream
+                    val responseStr = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    conn.disconnect()
+
+                    if (responseCode in 200..299) {
+                        val json = JSONObject(responseStr)
+                        val msg = json.optString("message", "Password reset successfully")
+                        onResult(true, msg)
+                        return@thread
+                    } else {
+                        val errDetail = try {
+                            JSONObject(responseStr).optString("detail", "Failed to reset password")
+                        } catch (_: Exception) {
+                            "Failed to reset password on server"
+                        }
+                        onResult(false, errDetail)
+                        return@thread
+                    }
+                } catch (e: Exception) {
+                    Log.w("FloodGuardApi", "resetPassword failed on $baseUrl: ${e.message}")
+                }
+            }
+            onResult(false, "Could not reach server to reset password.")
+        }
+    }
+
+    fun verifyOtpInBackend(mobile: String, code: String, onResult: (Boolean, String) -> Unit) {
+        thread {
+            for (baseUrl in HOST_URLS) {
+                try {
+                    val url = URL("$baseUrl/auth/verify-otp")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.connectTimeout = 5000
+                    conn.readTimeout = 5000
+                    conn.doOutput = true
+
+                    val payload = JSONObject().apply {
+                        put("mobile", mobile)
+                        put("code", code)
+                    }
+
+                    OutputStreamWriter(conn.outputStream).use { writer ->
+                        writer.write(payload.toString())
+                        writer.flush()
+                    }
+
+                    val responseCode = conn.responseCode
+                    val stream = if (responseCode in 200..299) conn.inputStream else conn.errorStream
+                    val responseStr = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    conn.disconnect()
+
+                    if (responseCode in 200..299) {
+                        val json = JSONObject(responseStr)
+                        val msg = json.optString("message", "Verified successfully")
+                        onResult(true, msg)
+                        return@thread
+                    } else {
+                        val errDetail = try {
+                            JSONObject(responseStr).optString("detail", "Verification failed")
+                        } catch (_: Exception) {
+                            "Incorrect or expired verification code."
+                        }
+                        onResult(false, errDetail)
+                        return@thread
+                    }
+                } catch (e: Exception) {
+                    Log.w("FloodGuardApi", "verifyOtp failed on $baseUrl: ${e.message}")
+                }
+            }
+            onResult(false, "Could not reach server to verify code.")
         }
     }
 

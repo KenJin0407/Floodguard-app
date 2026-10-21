@@ -196,7 +196,7 @@ object ReportPhotoHelper {
             updatingSliderFromPinch = true
             val progress = ((currentZoom - 1.0f) / 3.0f * 100f).roundToInt().coerceIn(0, 100)
             zoomSeekBar.progress = progress
-            zoomValueText.text = String.format("%.1fx", currentZoom)
+            zoomValueText.text = String.format(java.util.Locale.US, "%.1fx", currentZoom)
             updatingSliderFromPinch = false
         }.apply {
             layoutParams = LinearLayout.LayoutParams(cropViewSizePx, cropViewSizePx).apply {
@@ -263,7 +263,7 @@ object ReportPhotoHelper {
                     if (!updatingSliderFromPinch) {
                         val zoom = 1.0f + (progress / 100f) * 3.0f
                         cropView.setZoomFactor(zoom)
-                        zoomValueText.text = String.format("%.1fx", zoom)
+                        zoomValueText.text = String.format(java.util.Locale.US, "%.1fx", zoom)
                     }
                 }
 
