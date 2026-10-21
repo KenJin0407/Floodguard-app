@@ -88,11 +88,11 @@ class AlertsActivity : ComponentActivity() {
         val allReports = ReportRepository.loadReports(this) {
             runOnUiThread { populateAlerts() }
         }.toList()
-        val reportsList = allReports.filter { !it.isAuthoredBy(currentUsername, currentFullName) }
+        val reportsList = allReports
 
         if (reportsList.isEmpty()) {
             val emptyText = TextView(this).apply {
-                text = "No community flood alerts from other users at this moment."
+                text = "No community flood alerts at this moment."
                 setTextColor(resources.getColor(android.R.color.darker_gray, theme))
                 textSize = 13f
                 setPadding(12, 12, 12, 12)

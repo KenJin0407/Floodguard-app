@@ -206,10 +206,7 @@ object ReportRepository {
     }
 
     fun loadCommunityReports(context: Context, onSynced: (() -> Unit)? = null): List<FloodReport> {
-        val currentUsername = UserSession.getUsername(context)
-        val currentFullName = UserSession.getUserName(context)
-        val allReports = loadReports(context, onSynced)
-        return allReports.filter { !it.isAuthoredBy(currentUsername, currentFullName) }
+        return loadReports(context, onSynced)
     }
 
     fun addReport(

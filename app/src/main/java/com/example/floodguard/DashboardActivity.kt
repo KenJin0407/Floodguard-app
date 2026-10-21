@@ -146,7 +146,7 @@ class DashboardActivity : ComponentActivity() {
 
         if (reportsList.isEmpty()) {
             val emptyText = TextView(this).apply {
-                text = if (searchQuery.isBlank()) "No community flood reports from other users at this moment." else "No flood reports found for \"$searchQuery\"."
+                text = if (searchQuery.isBlank()) "No community flood reports at this moment." else "No flood reports found for \"$searchQuery\"."
                 setTextColor(resources.getColor(android.R.color.darker_gray, theme))
                 textSize = 13f
                 setPadding(12, 12, 12, 12)
