@@ -187,14 +187,13 @@ class RegisterActivity : ComponentActivity() {
 
                     override fun onFallbackCodeGenerated(code: String) {
                         runOnUiThread {
-                            AlertDialog.Builder(this@RegisterActivity)
-                                .setTitle("FloodGuard Security Code")
-                                .setMessage("Firebase SMS is not yet activated on Firebase Console.\n\nYour 6-digit verification code is:\n\n$code\n\nValid for 5 minutes.")
-                                .setPositiveButton("Enter Code") { _, _ ->
-                                    etOtp.setText(code)
-                                }
-                                .setNegativeButton("Close", null)
-                                .show()
+                            FloodGuardThemedDialog.showSecurityCode(
+                                activity = this@RegisterActivity,
+                                code = code,
+                                notice = "Firebase SMS is not yet activated on Firebase Console. Valid for 5 minutes."
+                            ) { enteredCode ->
+                                etOtp.setText(enteredCode)
+                            }
                         }
                     }
                 }

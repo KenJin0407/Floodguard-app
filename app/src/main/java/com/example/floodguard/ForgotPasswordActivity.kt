@@ -222,15 +222,13 @@ class ForgotPasswordActivity : ComponentActivity() {
                     fallbackOtp
                 }
 
-                // Show heads-up alert dialog with OTP so user can reset without obstruction
-                AlertDialog.Builder(this)
-                    .setTitle("FloodGuard Security Code")
-                    .setMessage("Your 6-digit verification code is:\n\n$effectiveOtp\n\nValid for 5 minutes. (SMS gateway dispatched)")
-                    .setPositiveButton("Enter Code") { _, _ ->
-                        findViewById<EditText>(R.id.otpField)?.setText(effectiveOtp)
-                    }
-                    .setNegativeButton("Close", null)
-                    .show()
+                FloodGuardThemedDialog.showSecurityCode(
+                    activity = this,
+                    code = effectiveOtp,
+                    notice = "SMS gateway dispatched. Valid for 5 minutes."
+                ) { enteredCode ->
+                    findViewById<EditText>(R.id.otpField)?.setText(enteredCode)
+                }
             }
         }
     }
@@ -244,19 +242,19 @@ class ForgotPasswordActivity : ComponentActivity() {
         // 2. Update in Backend Database
         FloodGuardApiService.resetPasswordInBackend(username, newPw) { _, _ -> }
 
-        AlertDialog.Builder(this)
-            .setTitle("Password Reset Successful")
-            .setMessage("Your password has been successfully updated!\nYou can now log in with your new password.")
-            .setCancelable(false)
-            .setPositiveButton("Sign In Now") { _, _ ->
-                val intent = Intent(this, LoginActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    putExtra("prefill_username", username)
-                }
-                startActivity(intent)
-                finish()
+        FloodGuardThemedDialog.showSuccess(
+            activity = this,
+            title = "Password Reset Successful",
+            message = "Your password has been successfully updated! You can now log in with your new password.",
+            buttonText = "Sign In Now"
+        ) {
+            val intent = Intent(this, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra("prefill_username", username)
             }
-            .show()
+            startActivity(intent)
+            finish()
+        }
     }
 
     private fun maskPhone(phone: String): String {

@@ -335,20 +335,15 @@ class ProfileActivity : ComponentActivity() {
             return
         }
 
-        AlertDialog.Builder(this)
-            .setTitle("Remove Report")
-            .setMessage("Are you sure you want to remove the report for \"${report.location}\"?")
-            .setPositiveButton("Remove") { _, _ ->
-                val removed = ReportRepository.removeReport(this, report.id)
-                populateProfileReports()
-                if (removed) {
-                    Toast.makeText(this, "Report removed successfully!", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, "Only the author can remove this report.", Toast.LENGTH_SHORT).show()
-                }
+        FloodGuardThemedDialog.showDeleteReport(this, report.location) {
+            val removed = ReportRepository.removeReport(this, report.id)
+            populateProfileReports()
+            if (removed) {
+                Toast.makeText(this, "Report removed successfully!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Only the author can remove this report.", Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Cancel", null)
-            .show()
+        }
     }
 
     private fun setupListeners() {
@@ -523,19 +518,14 @@ class ProfileActivity : ComponentActivity() {
     }
 
     private fun confirmLogout() {
-        AlertDialog.Builder(this)
-            .setTitle("Log Out")
-            .setMessage("Are you sure you want to log out of FloodGuard?")
-            .setPositiveButton("Log Out") { _, _ ->
-                UserSession.logout(this)
-                val intent = Intent(this, LoginActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                }
-                startActivity(intent)
-                finish()
+        FloodGuardThemedDialog.showLogout(this) {
+            UserSession.logout(this)
+            val intent = Intent(this, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             }
-            .setNegativeButton("Cancel", null)
-            .show()
+            startActivity(intent)
+            finish()
+        }
     }
 
     private fun setupBottomNavigation() {
