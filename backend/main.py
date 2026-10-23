@@ -331,6 +331,12 @@ def register_user(user: UserRegister, db: Session = Depends(get_db)):
             status_code=400,
             detail="Contact number must start with +63 or 09 and consist of 11 digits (e.g. 09123456789 or +639123456789)"
         )
+    if user.password and len(user.password) < 6 and len(user.password) != 64:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 6 characters long."
+        )
+
     # Check if mobile number is already registered to another user
     clean_target = normalize_ph_mobile(user.mobile)
     if clean_target:

@@ -16,6 +16,8 @@ import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import android.widget.Spinner
 import android.widget.TextView
+import android.text.method.HideReturnsTransformationMethod
+import android.text.method.PasswordTransformationMethod
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -456,10 +458,52 @@ class ProfileActivity : ComponentActivity() {
     private fun showChangePasswordDialog() {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_change_password, null)
         val currentPass = dialogView.findViewById<EditText>(R.id.dialogCurrentPassInput)
+        val toggleCurrentPass = dialogView.findViewById<ImageView>(R.id.toggleCurrentPassVisibility)
         val newPass = dialogView.findViewById<EditText>(R.id.dialogNewPassInput)
+        val toggleNewPass = dialogView.findViewById<ImageView>(R.id.toggleNewPassVisibility)
         val confirmPass = dialogView.findViewById<EditText>(R.id.dialogConfirmPassInput)
+        val toggleConfirmPass = dialogView.findViewById<ImageView>(R.id.toggleConfirmPassVisibility)
         val btnCancel = dialogView.findViewById<Button>(R.id.btnPasswordCancel)
         val btnSave = dialogView.findViewById<Button>(R.id.btnPasswordSave)
+
+        var isCurrentPassVisible = false
+        toggleCurrentPass?.setOnClickListener {
+            isCurrentPassVisible = !isCurrentPassVisible
+            if (isCurrentPassVisible) {
+                currentPass.transformationMethod = HideReturnsTransformationMethod.getInstance()
+                toggleCurrentPass.setImageResource(R.drawable.ic_visibility)
+            } else {
+                currentPass.transformationMethod = PasswordTransformationMethod.getInstance()
+                toggleCurrentPass.setImageResource(R.drawable.ic_visibility_off)
+            }
+            currentPass.setSelection(currentPass.text.length)
+        }
+
+        var isNewPassVisible = false
+        toggleNewPass?.setOnClickListener {
+            isNewPassVisible = !isNewPassVisible
+            if (isNewPassVisible) {
+                newPass.transformationMethod = HideReturnsTransformationMethod.getInstance()
+                toggleNewPass.setImageResource(R.drawable.ic_visibility)
+            } else {
+                newPass.transformationMethod = PasswordTransformationMethod.getInstance()
+                toggleNewPass.setImageResource(R.drawable.ic_visibility_off)
+            }
+            newPass.setSelection(newPass.text.length)
+        }
+
+        var isConfirmPassVisible = false
+        toggleConfirmPass?.setOnClickListener {
+            isConfirmPassVisible = !isConfirmPassVisible
+            if (isConfirmPassVisible) {
+                confirmPass.transformationMethod = HideReturnsTransformationMethod.getInstance()
+                toggleConfirmPass.setImageResource(R.drawable.ic_visibility)
+            } else {
+                confirmPass.transformationMethod = PasswordTransformationMethod.getInstance()
+                toggleConfirmPass.setImageResource(R.drawable.ic_visibility_off)
+            }
+            confirmPass.setSelection(confirmPass.text.length)
+        }
 
         val dialog = AlertDialog.Builder(this)
             .setView(dialogView)

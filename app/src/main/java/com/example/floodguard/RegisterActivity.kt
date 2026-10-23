@@ -101,6 +101,12 @@ class RegisterActivity : ComponentActivity() {
                 Toast.makeText(this, contactError, Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
+            if (password.length < 6) {
+                regPasswordField?.error = "Password must be at least 6 characters long."
+                regPasswordField?.requestFocus()
+                Toast.makeText(this, "⚠️ Password must be at least 6 characters long.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
             if (password != confirmPassword) {
                 Toast.makeText(this, "Passwords do not match", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
