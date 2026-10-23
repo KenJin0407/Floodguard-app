@@ -1,3 +1,11 @@
+import sys
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 """
 FloodGuard REST API Backend Service
 Provides endpoints for user authentication, flood report synchronization,
@@ -5,7 +13,7 @@ Gemini AI image validation, Open-Meteo weather forecasts, and satellite GeoJSON 
 """
 
 from fastapi import FastAPI, HTTPException, Depends
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, DateTime, Float, func
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, DateTime, Float, func, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
@@ -72,7 +80,7 @@ def verify_flood_photo_with_gemini(photo_uri: str) -> dict:
     }
 
     for model in GEMINI_MODELS:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent[OK]key={GEMINI_API_KEY}"
         try:
             r = httpx.post(url, json=payload, timeout=20.0)
             if r.status_code == 200:
@@ -100,10 +108,23 @@ def verify_flood_photo_with_gemini(photo_uri: str) -> dict:
 app = FastAPI(title="FloodGuard Backend", version="2.0.0")
 
 # SQLite Database setup
-SQLALCHEMY_DATABASE_URL = "sqlite:///./floodguard.db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILE = os.path.join(BASE_DIR, "floodguard.db")
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_FILE}"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+# Startup migration to ensure old index constraints are safely cleared
+def run_db_migrations():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("DROP INDEX IF EXISTS ix_users_email"))
+            conn.commit()
+    except Exception as e:
+        print(f"Database migration note: {e}")
+
+run_db_migrations()
 
 # --- DATABASE MODELS ---
 class User(Base):
@@ -135,6 +156,7 @@ class FloodReport(Base):
     lat = Column(Float, default=14.6958)
     lon = Column(Float, default=121.1207)
     reporterUsername = Column(String, default="anonymous")
+    reporterName = Column(String, default="")
 
 Base.metadata.create_all(engine)
 
@@ -174,6 +196,8 @@ class FloodReportCreate(BaseModel):
     lat: Optional[float] = 14.6958
     lon: Optional[float] = 121.1207
     username: Optional[str] = "anonymous"
+    authorUsername: Optional[str] = None
+    reporterName: Optional[str] = None
 
 MAX_DAILY_REPORTS = 4
 daily_user_reports = {}  # key: "username:YYYY-MM-DD" -> count
@@ -273,7 +297,44 @@ def validate_contact_number(mobile: str) -> bool:
         return (len(rest) in (10, 11)) and rest.isdigit()
     return False
 
+def normalize_ph_mobile(raw: Optional[str]) -> str:
+    if not raw:
+        return ""
+    digits = "".join(ch for ch in str(raw) if ch.isdigit())
+    if digits.startswith("63") and len(digits) == 12:
+        return "0" + digits[2:]
+    if digits.startswith("9") and len(digits) == 10:
+        return "0" + digits
+    return digits
+
+@app.get("/api/auth/check-availability")
+@app.get("/auth/check-availability")
+def check_availability(mobile: Optional[str] = None, username: Optional[str] = None, db: Session = Depends(get_db)):
+    if mobile:
+        clean_target = normalize_ph_mobile(mobile)
+        if clean_target:
+            all_users = db.query(User).all()
+            for u in all_users:
+                if u.mobile and normalize_ph_mobile(u.mobile) == clean_target:
+                    return {
+                        "available": False,
+                        "field": "mobile",
+                        "message": "This mobile number is already registered to another account. Please use a different number or log in."
+                    }
+    if username:
+        clean_user = username.strip().lower()
+        all_users = db.query(User).all()
+        for u in all_users:
+            if u.username and u.username.strip().lower() == clean_user:
+                return {
+                    "available": False,
+                    "field": "username",
+                    "message": f"Username '{username}' is already taken. Please choose another username."
+                }
+    return {"available": True, "message": "Available"}
+
 @app.post("/api/auth/register")
+@app.post("/auth/register")
 def register_user(user: UserRegister, db: Session = Depends(get_db)):
     print(f"📥 Registration Request: username='{user.username}', mobile='{user.mobile}'")
     if user.mobile and not validate_contact_number(user.mobile):
@@ -281,7 +342,25 @@ def register_user(user: UserRegister, db: Session = Depends(get_db)):
             status_code=400,
             detail="Contact number must start with +63 or 09 and consist of 11 digits (e.g. 09123456789 or +639123456789)"
         )
-    existing = db.query(User).filter(User.username == user.username).first()
+    if user.password and len(user.password) < 6 and len(user.password) != 64:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 6 characters long."
+        )
+
+    # Check if mobile number is already registered to another user
+    clean_target = normalize_ph_mobile(user.mobile)
+    if clean_target:
+        all_users = db.query(User).all()
+        for u in all_users:
+            if u.mobile and normalize_ph_mobile(u.mobile) == clean_target:
+                if u.username.strip().lower() != user.username.strip().lower():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="This mobile number is already registered to another user account. Please use a different number or log in."
+                    )
+
+    existing = db.query(User).filter(func.lower(User.username) == user.username.strip().lower()).first()
     if existing:
         print(f"⚠️ User '{user.username}' already exists in SQLite database!")
         return {"success": True, "message": "User already registered", "user": user.dict()}
@@ -298,16 +377,53 @@ def register_user(user: UserRegister, db: Session = Depends(get_db)):
     print(f"✅ User '{user.username}' successfully saved to SQLite database (id={new_user.id})!")
     return {"success": True, "message": "User registered successfully", "user": user_data}
 
-@app.post("/api/auth/login")
-def login_user(credentials: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == credentials.username).first()
+class AccountFindRequest(BaseModel):
+    identifier: str
+
+@app.post("/api/auth/find-account")
+@app.post("/auth/find-account")
+def find_account(req: AccountFindRequest, db: Session = Depends(get_db)):
+    clean_id = req.identifier.strip().lower()
+    user = db.query(User).filter(func.lower(User.username) == clean_id).first()
     if not user:
+        clean_target = normalize_ph_mobile(req.identifier)
+        if clean_target:
+            for u in db.query(User).all():
+                if u.mobile and normalize_ph_mobile(u.mobile) == clean_target:
+                    user = u
+                    break
+
+    if not user:
+        return {"found": False, "username": "", "mobile": "", "maskedMobile": ""}
+
+    mob = user.mobile or ""
+    masked = mob
+    if len(mob) >= 8:
+        masked = mob[:4] + "***" + mob[-4:]
+
+    return {
+        "found": True,
+        "username": user.username,
+        "mobile": mob,
+        "maskedMobile": masked
+    }
+
+@app.post("/api/auth/login")
+@app.post("/auth/login")
+def login_user(credentials: UserLogin, db: Session = Depends(get_db)):
+    clean_username = credentials.username.strip().lower()
+    print(f"🔑 Login Attempt: username='{credentials.username}' (clean='{clean_username}')")
+    user = db.query(User).filter(func.lower(User.username) == clean_username).first()
+    if not user:
+        print(f"❌ User '{clean_username}' NOT FOUND in backend database!")
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     hashed_attempt = hash_password(credentials.password)
     # Support both hashed and legacy plain-text match
     if user.password != credentials.password and user.password != hashed_attempt:
+        print(f"❌ Password mismatch for user '{user.username}'!")
         raise HTTPException(status_code=401, detail="Invalid username or password")
+    print(f"✅ Login successful for '{user.username}'!")
 
     # If it was plain text, upgrade to hash
     if user.password == credentials.password and user.password != hashed_attempt:
@@ -324,10 +440,22 @@ def login_user(credentials: UserLogin, db: Session = Depends(get_db)):
     return {"success": True, "message": "Login successful", "user": user_dict}
 
 @app.put("/api/auth/profile")
+@app.put("/auth/profile")
 def update_profile(profile: UserProfileUpdate, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == profile.username).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    if profile.mobile:
+        clean_target = normalize_ph_mobile(profile.mobile)
+        if clean_target:
+            all_users = db.query(User).all()
+            for u in all_users:
+                if u.id != user.id and u.mobile and normalize_ph_mobile(u.mobile) == clean_target:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="This mobile number is already registered to another user account."
+                    )
     if profile.mobile and not validate_contact_number(profile.mobile):
         raise HTTPException(
             status_code=400,
@@ -398,7 +526,9 @@ def get_all_reports(db: Session = Depends(get_db)):
             "photoUri": r.photoUri,
             "lat": r.lat,
             "lon": r.lon,
-            "reporterUsername": getattr(r, "reporterUsername", "") or ""
+            "reporterUsername": getattr(r, "reporterUsername", "") or "",
+            "authorUsername": getattr(r, "reporterUsername", "") or "",
+            "reporterName": getattr(r, "reporterName", "") or getattr(r, "reporterUsername", "") or ""
         })
     return {"reports": report_list}
 
@@ -442,7 +572,8 @@ def create_report(report: FloodReportCreate, db: Session = Depends(get_db)):
 
     report_id = report.id or str(uuid.uuid4())
     timestamp = report.timestamp or int(datetime.now().timestamp() * 1000)
-    reporter = (report.username or "anonymous").strip()
+    reporter = (report.authorUsername or report.username or "anonymous").strip()
+    disp_name = (report.reporterName or reporter).strip()
     
     existing = db.query(FloodReport).filter(FloodReport.id == report_id).first()
     if existing:
@@ -470,7 +601,8 @@ def create_report(report: FloodReportCreate, db: Session = Depends(get_db)):
         photoUri=report.photoUri,
         lat=report.lat or 14.6958,
         lon=report.lon or 121.1207,
-        reporterUsername=reporter
+        reporterUsername=reporter,
+        reporterName=disp_name
     )
     db.add(db_report)
     db.commit()
@@ -517,7 +649,7 @@ def delete_report(report_id: str, db: Session = Depends(get_db)):
 @app.get("/weather/")
 def get_weather():
     try:
-        response = httpx.get("https://api.open-meteo.com/v1/forecast?latitude=14.6958&longitude=121.1207&current=temperature_2m,precipitation")
+        response = httpx.get("https://api.open-meteo.com/v1/forecast[OK]latitude=14.6958&longitude=121.1207&current=temperature_2m,precipitation")
         data = response.json()
         return {
             "temperature": data["current"]["temperature_2m"],
@@ -542,10 +674,12 @@ def get_severity_style(severity_str: str):
 def get_flood_geojson(db: Session = Depends(get_db)):
     """
     Returns FLOMPY-compatible GeoJSON features dynamically generated from active
-    flood reports in San Mateo, Rizal.
+    flood reports in San Mateo, Rizal within the last 24 hours.
     Color is based on flood severity; opacity/thickness scales with report count.
     """
-    reports = db.query(FloodReport).order_by(FloodReport.timestamp.asc()).all()
+    now_ms = int(datetime.now().timestamp() * 1000)
+    day_ago = now_ms - (24 * 60 * 60 * 1000)
+    reports = db.query(FloodReport).filter(FloodReport.timestamp >= day_ago).order_by(FloodReport.timestamp.asc()).all()
     if not reports:
         return {
             "type": "FeatureCollection",
@@ -607,3 +741,42 @@ def get_flood_geojson(db: Session = Depends(get_db)):
         "type": "FeatureCollection",
         "features": features
     }
+
+
+# EMERGENCY BROADCASTS ROUTES (For Floating Alert & Emergency SMS Sync)
+@app.get("/api/broadcasts")
+@app.get("/broadcasts")
+def get_active_broadcasts(db: Session = Depends(get_db)):
+    now_ms = int(datetime.now().timestamp() * 1000)
+    day_ago = now_ms - (24 * 60 * 60 * 1000)
+    
+    severe_reports = db.query(FloodReport).filter(
+        FloodReport.timestamp >= day_ago,
+        (FloodReport.severity.ilike("%impassable%") | FloodReport.severity.ilike("%waist%") | FloodReport.severityLevel.ilike("%not_passable%"))
+    ).order_by(FloodReport.timestamp.desc()).all()
+    
+    broadcasts = []
+    for r in severe_reports:
+        broadcasts.append({
+            "id": f"bcast_{r.id}",
+            "location": r.location,
+            "severity": r.severity,
+            "notes": r.notes or "Severe flood alert broadcast",
+            "reporterName": getattr(r, "reporterName", "") or getattr(r, "reporterUsername", "") or "FloodGuard Alert",
+            "timestamp": r.timestamp,
+            "statusText": r.statusText or "Active Warning",
+            "similarReportCount": 2,
+            "lat": r.lat or 14.6958,
+            "lon": r.lon or 121.1207,
+            "radiusKm": 5.0,
+            "smsMessage": f"[FloodGuard Emergency] Flood reported in {r.location}: {r.severity}. Caution advised.",
+            "smsProvider": "FloodGuard Municipal Network",
+            "smsRecipientsCount": 1,
+            "recipientPhones": []
+        })
+    return {"broadcasts": broadcasts}
+
+@app.post("/api/broadcasts")
+@app.post("/broadcasts")
+def create_broadcast(payload: dict):
+    return {"success": True, "message": "Broadcast received"}

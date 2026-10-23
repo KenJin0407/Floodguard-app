@@ -93,24 +93,89 @@ class RegisterActivity : ComponentActivity() {
 
             if (fullName.isEmpty() || mobile.isEmpty() || username.isEmpty() || password.isEmpty()) {
                 Toast.makeText(this, "Please fill in all required fields", Toast.LENGTH_SHORT).show()
-            } else if (contactError != null) {
+                return@setOnClickListener
+            }
+            if (contactError != null) {
                 mobileField?.error = contactError
                 mobileField?.requestFocus()
                 Toast.makeText(this, contactError, Toast.LENGTH_LONG).show()
-            } else if (password != confirmPassword) {
+                return@setOnClickListener
+            }
+            if (password.length < 6) {
+                regPasswordField?.error = "Password must be at least 6 characters long."
+                regPasswordField?.requestFocus()
+                Toast.makeText(this, "⚠️ Password must be at least 6 characters long.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (password != confirmPassword) {
                 Toast.makeText(this, "Passwords do not match", Toast.LENGTH_SHORT).show()
-            } else {
-                val hashedPassword = UserSession.hashPassword(password)
-                val newUser = UserEntity(
-                    fullName = fullName,
-                    gender = selectedGender,
-                    mobile = mobile,
-                    username = username,
-                    password = hashedPassword
-                )
+                return@setOnClickListener
+            }
 
-                // Trigger OTP Verification for mobile number
-                showOtpVerificationDialog(newUser)
+            // 1. Check local SQLite database for existing mobile number
+            val db = FloodGuardDatabase.getInstance(this)
+            val existingByMobile = db.getUserByMobile(mobile)
+            if (existingByMobile != null) {
+                mobileField?.error = "This mobile number is already registered to another account."
+                mobileField?.requestFocus()
+                Toast.makeText(
+                    this,
+                    "⚠️ This mobile number is already registered to an existing account. Please use a different number or log in.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@setOnClickListener
+            }
+
+            // 2. Check local SQLite database for existing username
+            val existingByUsername = db.getUserByUsername(username)
+            if (existingByUsername != null) {
+                regUsernameField?.error = "This username is already taken."
+                regUsernameField?.requestFocus()
+                Toast.makeText(
+                    this,
+                    "⚠️ Username '$username' is already taken. Please choose another username.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@setOnClickListener
+            }
+
+            // 3. Verify availability with backend before sending SMS OTP
+            registerButton.isEnabled = false
+            registerButton.text = "Checking Availability..."
+
+            FloodGuardApiService.checkAccountAvailability(mobile, username) { isAvailable, conflictField, errorMsg ->
+                runOnUiThread {
+                    registerButton.isEnabled = true
+                    registerButton.text = "REGISTER"
+
+                    if (!isAvailable) {
+                        if (conflictField == "mobile") {
+                            mobileField?.error = errorMsg ?: "This mobile number is already registered."
+                            mobileField?.requestFocus()
+                        } else if (conflictField == "username") {
+                            regUsernameField?.error = errorMsg ?: "This username is already taken."
+                            regUsernameField?.requestFocus()
+                        }
+                        Toast.makeText(
+                            this@RegisterActivity,
+                            errorMsg ?: "Account details already taken.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        return@runOnUiThread
+                    }
+
+                    val hashedPassword = UserSession.hashPassword(password)
+                    val newUser = UserEntity(
+                        fullName = fullName,
+                        gender = selectedGender,
+                        mobile = mobile,
+                        username = username,
+                        password = hashedPassword
+                    )
+
+                    // Trigger OTP Verification for mobile number
+                    showOtpVerificationDialog(newUser)
+                }
             }
         }
 
@@ -183,6 +248,18 @@ class RegisterActivity : ComponentActivity() {
                     override fun onError(message: String) {
                         tvStatus.text = message
                         tvStatus.setTextColor(Color.parseColor("#DC2626"))
+                    }
+
+                    override fun onFallbackCodeGenerated(code: String) {
+                        runOnUiThread {
+                            FloodGuardThemedDialog.showSecurityCode(
+                                activity = this@RegisterActivity,
+                                code = code,
+                                notice = "Firebase SMS is not yet activated on Firebase Console. Valid for 5 minutes."
+                            ) { enteredCode ->
+                                etOtp.setText(enteredCode)
+                            }
+                        }
                     }
                 }
             )

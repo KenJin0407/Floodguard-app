@@ -31,10 +31,15 @@ class AlertsActivity : ComponentActivity() {
         setupBottomNavigation()
     }
 
+    private var isFirstResume = true
+
     override fun onResume() {
         super.onResume()
         FloatingAlertManager.onActivityResumed(this)
-        populateAlerts()
+        if (!isFirstResume) {
+            populateAlerts()
+        }
+        isFirstResume = false
     }
 
     override fun onPause() {
@@ -82,12 +87,15 @@ class AlertsActivity : ComponentActivity() {
 
         val allReports = ReportRepository.loadReports(this) {
             runOnUiThread { populateAlerts() }
-        }
-        val reportsList = allReports.filter { !it.isAuthoredBy(currentUsername, currentFullName) }
+        }.toList()
+        val reportsList = allReports
+
+        val count = reportsList.size
+        findViewById<TextView>(R.id.tvAlertsHeaderTitle)?.text = "Submitted Flood Alerts ($count)"
 
         if (reportsList.isEmpty()) {
             val emptyText = TextView(this).apply {
-                text = "No community flood alerts from other users at this moment."
+                text = "No community flood alerts at this moment."
                 setTextColor(resources.getColor(android.R.color.darker_gray, theme))
                 textSize = 13f
                 setPadding(12, 12, 12, 12)

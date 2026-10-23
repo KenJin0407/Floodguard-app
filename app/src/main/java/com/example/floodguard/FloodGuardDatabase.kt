@@ -159,6 +159,59 @@ class FloodGuardDatabase(context: Context) :
         }
     }
 
+    fun getUserByMobile(mobile: String): UserEntity? {
+        val targetStd = PhilippineNumberValidator.standardize(mobile)
+        val targetDigits = mobile.filter { it.isDigit() }
+        val db = readableDatabase
+        val cursor = db.rawQuery("SELECT * FROM $TABLE_USERS", null)
+        var user: UserEntity? = null
+        try {
+            while (cursor.moveToNext()) {
+                val userMobile = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MOBILE)) ?: ""
+                val userStd = PhilippineNumberValidator.standardize(userMobile)
+                val userDigits = userMobile.filter { it.isDigit() }
+
+                val isMatch = when {
+                    !targetStd.isNullOrBlank() && !userStd.isNullOrBlank() -> targetStd == userStd
+                    targetDigits.length >= 10 && userDigits.length >= 10 -> targetDigits.takeLast(10) == userDigits.takeLast(10)
+                    else -> userMobile.replace(" ", "").replace("-", "").equals(mobile.replace(" ", "").replace("-", ""), ignoreCase = true)
+                }
+
+                if (isMatch) {
+                    user = UserEntity(
+                        id = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USER_ID)),
+                        fullName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FULL_NAME)),
+                        gender = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_GENDER)),
+                        mobile = userMobile,
+                        username = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USERNAME)),
+                        password = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD))
+                    )
+                    break
+                }
+            }
+        } finally {
+            cursor.close()
+        }
+        return user
+    }
+
+    fun isMobileRegistered(mobile: String): Boolean {
+        return getUserByMobile(mobile) != null
+    }
+
+    fun isUsernameTaken(username: String): Boolean {
+        return getUserByUsername(username) != null
+    }
+
+    fun updateUserPassword(username: String, newPasswordHash: String): Boolean {
+        val db = writableDatabase
+        val values = ContentValues().apply {
+            put(COLUMN_PASSWORD, newPasswordHash)
+        }
+        val rows = db.update(TABLE_USERS, values, "$COLUMN_USERNAME = ?", arrayOf(username))
+        return rows > 0
+    }
+
     private fun ensureReportColumns(db: SQLiteDatabase) {
         val existingColumns = mutableSetOf<String>()
         try {

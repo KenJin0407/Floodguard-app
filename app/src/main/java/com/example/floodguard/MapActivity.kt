@@ -180,10 +180,15 @@ class MapActivity : ComponentActivity() {
                         radiusLayer.clearLayers();
                         if (!reports || reports.length === 0) return;
 
+                        var now = Date.now();
+                        var maxAgeMs = 24 * 60 * 60 * 1000;
                         var grouped = {};
                         for (var i = 0; i < reports.length; i++) {
                             var r = reports[i];
                             if (!r.lat || !r.lon) continue;
+                            if (r.timestamp && (now - r.timestamp > maxAgeMs)) {
+                                continue; // Auto-expire flood radius after 24 hours
+                            }
                             var key = r.lat.toFixed(4) + "," + r.lon.toFixed(4);
                             var style = getSeverityStyle(r.waterDepth);
 
@@ -227,6 +232,7 @@ class MapActivity : ComponentActivity() {
                                 "<b>🚨 " + g.location + "</b><br>" +
                                 "<b>Severity:</b> " + g.waterDepth + "<br>" +
                                 "<b>Reports:</b> " + g.count + " report(s)<br>" +
+                                "<span style='color:#0284C7;font-size:11px;font-weight:600;'>● Active Flood Zone (Last 24h)</span><br>" +
                                 "<small>" + (g.notes || "") + "</small>"
                             );
                         }
@@ -280,8 +286,14 @@ class MapActivity : ComponentActivity() {
         val reports = ReportRepository.loadReports(this) {
             runOnUiThread { updateMapRadius() }
         }
+        val activeWindowMs = 24 * 60 * 60 * 1000L
+        val now = System.currentTimeMillis()
+        val activeReports = reports.filter { r ->
+            val age = now - r.timestamp
+            age in -120_000L..activeWindowMs
+        }
         val jsonArray = JSONArray()
-        for (r in reports) {
+        for (r in activeReports) {
             val obj = JSONObject().apply {
                 put("location", r.location)
                 put("waterDepth", r.severity)
@@ -289,6 +301,7 @@ class MapActivity : ComponentActivity() {
                 put("notes", r.notes)
                 put("lat", r.lat)
                 put("lon", r.lon)
+                put("timestamp", r.timestamp)
             }
             jsonArray.put(obj)
         }

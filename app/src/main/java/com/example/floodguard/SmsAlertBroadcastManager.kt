@@ -130,7 +130,8 @@ object SmsAlertBroadcastManager {
 
     fun findSimilarActiveReports(targetReport: FloodReport, allReports: List<FloodReport>): List<FloodReport> {
         if (targetReport.severityLevel == SeverityLevel.CLEARED) return emptyList()
-        return allReports.filter { candidate ->
+        val snapshot = allReports.toList()
+        return snapshot.filter { candidate ->
             candidate.severityLevel != SeverityLevel.CLEARED && areReportsSimilar(targetReport, candidate)
         }
     }
@@ -229,7 +230,13 @@ object SmsAlertBroadcastManager {
                 sendSmsViaFreeApi(phone, smsMessage)
             }
             onBroadcastTriggered?.invoke(broadcast)
-            FloatingAlertManager.deliverBroadcastIfNearby(context, broadcast, forcePopUp = true)
+            val currentUsername = UserSession.getUsername(context)
+            val currentFullName = UserSession.getUserName(context)
+            if (!broadcast.isAuthoredBy(currentUsername, currentFullName)) {
+                FloatingAlertManager.deliverBroadcastIfNearby(context, broadcast, forcePopUp = false)
+            } else {
+                markBroadcastSeen(context, broadcast.id)
+            }
         }
     }
 
