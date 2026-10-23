@@ -378,16 +378,17 @@
                 android:overScrollMode="always"
                 android:inputType="textMultiLine|textCapSentences" />
 
-            <!-- SMS Broadcast Option -->
+            <!-- SMS Broadcast Option (Hidden: Handled via In-App Notifications) -->
             <CheckBox
                 android:id="@+id/chkSendSmsOnSubmit"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Broadcast Emergency SMS Alert to all application users"
+                android:text="Broadcast Emergency Alert"
                 android:textColor="@color/text_primary"
                 android:textSize="13sp"
                 android:textStyle="bold"
-                android:checked="true"
+                android:checked="false"
+                android:visibility="gone"
                 android:layout_marginBottom="10dp" />
 
             <!-- Daily Report Limit Indicator -->
