@@ -412,14 +412,18 @@ def find_account(req: AccountFindRequest, db: Session = Depends(get_db)):
 @app.post("/auth/login")
 def login_user(credentials: UserLogin, db: Session = Depends(get_db)):
     clean_username = credentials.username.strip().lower()
+    print(f"🔑 Login Attempt: username='{credentials.username}' (clean='{clean_username}')")
     user = db.query(User).filter(func.lower(User.username) == clean_username).first()
     if not user:
+        print(f"❌ User '{clean_username}' NOT FOUND in backend database!")
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     hashed_attempt = hash_password(credentials.password)
     # Support both hashed and legacy plain-text match
     if user.password != credentials.password and user.password != hashed_attempt:
+        print(f"❌ Password mismatch for user '{user.username}'!")
         raise HTTPException(status_code=401, detail="Invalid username or password")
+    print(f"✅ Login successful for '{user.username}'!")
 
     # If it was plain text, upgrade to hash
     if user.password == credentials.password and user.password != hashed_attempt:
