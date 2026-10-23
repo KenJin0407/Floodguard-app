@@ -106,7 +106,7 @@ object FloatingAlertManager {
         mainHandler.post {
             val activity = activeActivityRef?.get()
             if (activity != null && !activity.isFinishing && !activity.isDestroyed) {
-                if (forcePopUp || !SmsAlertBroadcastManager.hasUserSeenBroadcast(activity, broadcast.id, broadcast.timestamp)) {
+                if (forcePopUp || !SmsAlertBroadcastManager.hasUserSeenBroadcast(activity, broadcast.id)) {
                     SmsAlertBroadcastManager.markBroadcastSeen(activity, broadcast.id)
                     showFloatingAlert(activity, broadcast)
                     showSmsWarningPopUpDialog(activity, broadcast)
@@ -120,45 +120,28 @@ object FloatingAlertManager {
     }
 
     private fun checkUnseenBroadcastsForUser(activity: Activity) {
-        if (!SmsAlertBroadcastManager.isBaselineSet(activity)) {
-            SmsAlertBroadcastManager.markAllExistingBroadcastsSeen(activity)
-            return
-        }
-
         val localBroadcasts = SmsAlertBroadcastManager.getSavedBroadcasts(activity)
         val recentCutoff = System.currentTimeMillis() - 6 * 60 * 60 * 1000L // Last 6 hours
-        val unseenLocal = localBroadcasts.filter { b ->
+        val unseenLocal = localBroadcasts.firstOrNull { b ->
             b.timestamp >= recentCutoff &&
                 SmsAlertBroadcastManager.isUserNearArea(b.lat, b.lon, radiusKm = b.radiusKm) &&
-                !SmsAlertBroadcastManager.hasUserSeenBroadcast(activity, b.id, b.timestamp)
+                !SmsAlertBroadcastManager.hasUserSeenBroadcast(activity, b.id)
         }
-        if (unseenLocal.isNotEmpty()) {
-            val latest = unseenLocal.maxByOrNull { it.timestamp } ?: unseenLocal.first()
-            for (b in unseenLocal) {
-                SmsAlertBroadcastManager.markBroadcastSeen(activity, b.id)
-            }
-            deliverBroadcastIfNearby(activity, latest, forcePopUp = false)
+        if (unseenLocal != null) {
+            deliverBroadcastIfNearby(activity, unseenLocal, forcePopUp = false)
         }
 
         FloodGuardApiService.syncBroadcastsFromBackend { remoteList ->
             for (b in remoteList) {
                 SmsAlertBroadcastManager.saveBroadcastLocally(activity.applicationContext, b)
             }
-            if (!SmsAlertBroadcastManager.isBaselineSet(activity.applicationContext)) {
-                SmsAlertBroadcastManager.markAllExistingBroadcastsSeen(activity.applicationContext)
-                return@syncBroadcastsFromBackend
-            }
-            val unseenRemote = remoteList.filter { b ->
+            val unseenRemote = remoteList.firstOrNull { b ->
                 b.timestamp >= recentCutoff &&
                     SmsAlertBroadcastManager.isUserNearArea(b.lat, b.lon, radiusKm = b.radiusKm) &&
-                    !SmsAlertBroadcastManager.hasUserSeenBroadcast(activity.applicationContext, b.id, b.timestamp)
+                    !SmsAlertBroadcastManager.hasUserSeenBroadcast(activity.applicationContext, b.id)
             }
-            if (unseenRemote.isNotEmpty()) {
-                val latestRemote = unseenRemote.maxByOrNull { it.timestamp } ?: unseenRemote.first()
-                for (b in unseenRemote) {
-                    SmsAlertBroadcastManager.markBroadcastSeen(activity.applicationContext, b.id)
-                }
-                deliverBroadcastIfNearby(activity.applicationContext, latestRemote, forcePopUp = false)
+            if (unseenRemote != null) {
+                deliverBroadcastIfNearby(activity.applicationContext, unseenRemote, forcePopUp = false)
             }
         }
     }

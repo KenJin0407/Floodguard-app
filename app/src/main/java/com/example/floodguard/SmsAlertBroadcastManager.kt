@@ -25,7 +25,6 @@ object SmsAlertBroadcastManager {
     private const val PREF_NAME = "floodguard_sms_broadcasts"
     private const val KEY_BROADCAST_HISTORY = "broadcast_history_json"
     private const val KEY_SEEN_BROADCAST_IDS = "seen_broadcast_ids"
-    private const val KEY_SEEN_BASELINE_TIME = "seen_alerts_baseline_time"
 
     // Free public SMS API endpoint (Textbelt Free SMS API)
     const val FREE_SMS_API_ENDPOINT = "https://textbelt.com/text"
@@ -316,34 +315,9 @@ object SmsAlertBroadcastManager {
         return list
     }
 
-    fun isBaselineSet(context: Context): Boolean {
+    fun hasUserSeenBroadcast(context: Context, broadcastId: String): Boolean {
         val userKey = UserSession.getUsername(context).trim().lowercase(Locale.ROOT).ifEmpty { "guest" }
         val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        return prefs.contains("${KEY_SEEN_BASELINE_TIME}_$userKey")
-    }
-
-    fun markAllExistingBroadcastsSeen(context: Context) {
-        val userKey = UserSession.getUsername(context).trim().lowercase(Locale.ROOT).ifEmpty { "guest" }
-        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        val current = prefs.getStringSet("${KEY_SEEN_BROADCAST_IDS}_$userKey", emptySet())?.toMutableSet()
-            ?: mutableSetOf()
-        val local = getSavedBroadcasts(context)
-        for (b in local) {
-            current.add(b.id)
-        }
-        prefs.edit {
-            putStringSet("${KEY_SEEN_BROADCAST_IDS}_$userKey", current)
-            putLong("${KEY_SEEN_BASELINE_TIME}_$userKey", System.currentTimeMillis())
-        }
-    }
-
-    fun hasUserSeenBroadcast(context: Context, broadcastId: String, broadcastTimestamp: Long = 0L): Boolean {
-        val userKey = UserSession.getUsername(context).trim().lowercase(Locale.ROOT).ifEmpty { "guest" }
-        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        val baselineTime = prefs.getLong("${KEY_SEEN_BASELINE_TIME}_$userKey", 0L)
-        if (baselineTime > 0L && broadcastTimestamp > 0L && broadcastTimestamp <= baselineTime) {
-            return true
-        }
         val seenSet = prefs.getStringSet("${KEY_SEEN_BROADCAST_IDS}_$userKey", emptySet()) ?: emptySet()
         return broadcastId in seenSet
     }

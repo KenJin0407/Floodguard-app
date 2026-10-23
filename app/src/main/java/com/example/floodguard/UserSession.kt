@@ -58,9 +58,6 @@ object UserSession {
                 putString("saved_contact_$userKey", userContact)
             }
         }
-        if (loggedIn) {
-            SmsAlertBroadcastManager.markAllExistingBroadcastsSeen(context)
-        }
     }
 
     fun logout(context: Context) {
