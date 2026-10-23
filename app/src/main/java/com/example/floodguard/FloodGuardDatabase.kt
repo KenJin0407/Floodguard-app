@@ -15,7 +15,7 @@ class FloodGuardDatabase(context: Context) :
 
     companion object {
         private const val DATABASE_NAME = "floodguard.db"
-        private const val DATABASE_VERSION = 7
+        private const val DATABASE_VERSION = 8
 
         @Volatile
         private var instance: FloodGuardDatabase? = null
@@ -57,7 +57,7 @@ class FloodGuardDatabase(context: Context) :
                 $COLUMN_USER_ID TEXT PRIMARY KEY,
                 $COLUMN_FULL_NAME TEXT,
                 $COLUMN_GENDER TEXT,
-                $COLUMN_MOBILE TEXT,
+                $COLUMN_MOBILE TEXT UNIQUE,
                 $COLUMN_USERNAME TEXT UNIQUE,
                 $COLUMN_PASSWORD TEXT
             )
@@ -82,6 +82,10 @@ class FloodGuardDatabase(context: Context) :
 
         db.execSQL(createUsersTable)
         db.execSQL(createReportsTable)
+        try {
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_mobile_unique ON $TABLE_USERS($COLUMN_MOBILE)")
+        } catch (_: Exception) {
+        }
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -93,11 +97,13 @@ class FloodGuardDatabase(context: Context) :
         }
         ensureReportColumns(db)
         removeEmailColumnFromUsersTable(db)
+        ensureMobileUniqueness(db)
     }
 
     override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         ensureReportColumns(db)
         removeEmailColumnFromUsersTable(db)
+        ensureMobileUniqueness(db)
     }
 
     override fun onOpen(db: SQLiteDatabase) {
@@ -105,6 +111,42 @@ class FloodGuardDatabase(context: Context) :
         if (!db.isReadOnly) {
             ensureReportColumns(db)
             removeEmailColumnFromUsersTable(db)
+            ensureMobileUniqueness(db)
+        }
+    }
+
+    private fun ensureMobileUniqueness(db: SQLiteDatabase) {
+        try {
+            // Deduplicate if any duplicates exist in local SQLite
+            val cursor = db.rawQuery("SELECT $COLUMN_USER_ID, $COLUMN_MOBILE FROM $TABLE_USERS", null)
+            val seenMobiles = mutableSetOf<String>()
+            val duplicateIds = mutableListOf<String>()
+            val idCol = cursor.getColumnIndex(COLUMN_USER_ID)
+            val mobCol = cursor.getColumnIndex(COLUMN_MOBILE)
+            if (idCol >= 0 && mobCol >= 0 && cursor.moveToFirst()) {
+                do {
+                    val id = cursor.getString(idCol)
+                    val rawMob = cursor.getString(mobCol) ?: ""
+                    val std = PhilippineNumberValidator.standardize(rawMob)
+                        ?: rawMob.filter { it.isDigit() }.takeLast(10)
+                    if (std.isNotBlank()) {
+                        if (seenMobiles.contains(std)) {
+                            duplicateIds.add(id)
+                        } else {
+                            seenMobiles.add(std)
+                        }
+                    }
+                } while (cursor.moveToNext())
+            }
+            cursor.close()
+
+            for (dupId in duplicateIds) {
+                db.delete(TABLE_USERS, "$COLUMN_USER_ID = ?", arrayOf(dupId))
+            }
+
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_mobile_unique ON $TABLE_USERS($COLUMN_MOBILE)")
+        } catch (e: Exception) {
+            android.util.Log.w("FloodGuardDB", "ensureMobileUniqueness: ${e.message}")
         }
     }
 
@@ -131,7 +173,7 @@ class FloodGuardDatabase(context: Context) :
                         $COLUMN_USER_ID TEXT PRIMARY KEY,
                         $COLUMN_FULL_NAME TEXT,
                         $COLUMN_GENDER TEXT,
-                        $COLUMN_MOBILE TEXT,
+                        $COLUMN_MOBILE TEXT UNIQUE,
                         $COLUMN_USERNAME TEXT UNIQUE,
                         $COLUMN_PASSWORD TEXT
                     )
@@ -351,16 +393,36 @@ class FloodGuardDatabase(context: Context) :
     }
 
     fun registerUser(user: UserEntity): Boolean {
+        // Enforce strict uniqueness: Ensure this mobile number is not already registered to someone else
+        val existingWithMobile = getUserByMobile(user.mobile)
+        if (existingWithMobile != null && !existingWithMobile.username.equals(user.username, ignoreCase = true)) {
+            android.util.Log.w(
+                "FloodGuardDB",
+                "registerUser rejected: Mobile '${user.mobile}' is already registered to user '${existingWithMobile.username}'"
+            )
+            return false
+        }
+
+        val existingWithUsername = getUserByUsername(user.username)
+        if (existingWithUsername != null && existingWithUsername.id != user.id) {
+            android.util.Log.w(
+                "FloodGuardDB",
+                "registerUser rejected: Username '${user.username}' is already taken"
+            )
+            return false
+        }
+
         val db = writableDatabase
+        val stdMobile = PhilippineNumberValidator.standardize(user.mobile) ?: user.mobile.trim()
         val cv = ContentValues().apply {
             put(COLUMN_USER_ID, user.id)
             put(COLUMN_FULL_NAME, user.fullName)
             put(COLUMN_GENDER, user.gender)
-            put(COLUMN_MOBILE, user.mobile)
-            put(COLUMN_USERNAME, user.username)
+            put(COLUMN_MOBILE, stdMobile)
+            put(COLUMN_USERNAME, user.username.trim())
             put(COLUMN_PASSWORD, user.password)
         }
-        val result = db.insertWithOnConflict(TABLE_USERS, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+        val result = db.insertWithOnConflict(TABLE_USERS, null, cv, SQLiteDatabase.CONFLICT_FAIL)
         return result != -1L
     }
 
@@ -407,13 +469,23 @@ class FloodGuardDatabase(context: Context) :
     }
 
     fun updateUserProfile(username: String, fullName: String, gender: String, mobile: String): Boolean {
+        val existingWithMobile = getUserByMobile(mobile)
+        if (existingWithMobile != null && !existingWithMobile.username.equals(username, ignoreCase = true)) {
+            android.util.Log.w(
+                "FloodGuardDB",
+                "updateUserProfile rejected: Mobile '$mobile' is already assigned to '${existingWithMobile.username}'"
+            )
+            return false
+        }
+
         val existing = getUserByUsername(username)
         val db = writableDatabase
+        val stdMobile = PhilippineNumberValidator.standardize(mobile) ?: mobile.trim()
         return if (existing != null) {
             val cv = ContentValues().apply {
                 put(COLUMN_FULL_NAME, fullName.trim())
                 put(COLUMN_GENDER, gender)
-                put(COLUMN_MOBILE, mobile.trim())
+                put(COLUMN_MOBILE, stdMobile)
             }
             db.update(TABLE_USERS, cv, "$COLUMN_USERNAME = ? COLLATE NOCASE", arrayOf(username.trim())) > 0
         } else {
@@ -421,7 +493,7 @@ class FloodGuardDatabase(context: Context) :
                 UserEntity(
                     fullName = fullName.trim(),
                     gender = gender,
-                    mobile = mobile.trim(),
+                    mobile = stdMobile,
                     username = username.trim(),
                     password = "password123",
                 )
