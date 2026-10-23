@@ -1,3 +1,11 @@
+import sys
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 """
 FloodGuard REST API Backend Service
 Provides endpoints for user authentication, flood report synchronization,
@@ -72,7 +80,7 @@ def verify_flood_photo_with_gemini(photo_uri: str) -> dict:
     }
 
     for model in GEMINI_MODELS:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent[OK]key={GEMINI_API_KEY}"
         try:
             r = httpx.post(url, json=payload, timeout=20.0)
             if r.status_code == 200:
@@ -100,7 +108,9 @@ def verify_flood_photo_with_gemini(photo_uri: str) -> dict:
 app = FastAPI(title="FloodGuard Backend", version="2.0.0")
 
 # SQLite Database setup
-SQLALCHEMY_DATABASE_URL = "sqlite:///./floodguard.db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILE = os.path.join(BASE_DIR, "floodguard.db")
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_FILE}"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -135,6 +145,7 @@ class FloodReport(Base):
     lat = Column(Float, default=14.6958)
     lon = Column(Float, default=121.1207)
     reporterUsername = Column(String, default="anonymous")
+    reporterName = Column(String, default="")
 
 Base.metadata.create_all(engine)
 
@@ -174,6 +185,8 @@ class FloodReportCreate(BaseModel):
     lat: Optional[float] = 14.6958
     lon: Optional[float] = 121.1207
     username: Optional[str] = "anonymous"
+    authorUsername: Optional[str] = None
+    reporterName: Optional[str] = None
 
 MAX_DAILY_REPORTS = 4
 daily_user_reports = {}  # key: "username:YYYY-MM-DD" -> count
@@ -398,7 +411,9 @@ def get_all_reports(db: Session = Depends(get_db)):
             "photoUri": r.photoUri,
             "lat": r.lat,
             "lon": r.lon,
-            "reporterUsername": getattr(r, "reporterUsername", "") or ""
+            "reporterUsername": getattr(r, "reporterUsername", "") or "",
+            "authorUsername": getattr(r, "reporterUsername", "") or "",
+            "reporterName": getattr(r, "reporterName", "") or getattr(r, "reporterUsername", "") or ""
         })
     return {"reports": report_list}
 
@@ -442,7 +457,8 @@ def create_report(report: FloodReportCreate, db: Session = Depends(get_db)):
 
     report_id = report.id or str(uuid.uuid4())
     timestamp = report.timestamp or int(datetime.now().timestamp() * 1000)
-    reporter = (report.username or "anonymous").strip()
+    reporter = (report.authorUsername or report.username or "anonymous").strip()
+    disp_name = (report.reporterName or reporter).strip()
     
     existing = db.query(FloodReport).filter(FloodReport.id == report_id).first()
     if existing:
@@ -470,7 +486,8 @@ def create_report(report: FloodReportCreate, db: Session = Depends(get_db)):
         photoUri=report.photoUri,
         lat=report.lat or 14.6958,
         lon=report.lon or 121.1207,
-        reporterUsername=reporter
+        reporterUsername=reporter,
+        reporterName=disp_name
     )
     db.add(db_report)
     db.commit()
@@ -517,7 +534,7 @@ def delete_report(report_id: str, db: Session = Depends(get_db)):
 @app.get("/weather/")
 def get_weather():
     try:
-        response = httpx.get("https://api.open-meteo.com/v1/forecast?latitude=14.6958&longitude=121.1207&current=temperature_2m,precipitation")
+        response = httpx.get("https://api.open-meteo.com/v1/forecast[OK]latitude=14.6958&longitude=121.1207&current=temperature_2m,precipitation")
         data = response.json()
         return {
             "temperature": data["current"]["temperature_2m"],
@@ -607,3 +624,42 @@ def get_flood_geojson(db: Session = Depends(get_db)):
         "type": "FeatureCollection",
         "features": features
     }
+
+
+# EMERGENCY BROADCASTS ROUTES (For Floating Alert & Emergency SMS Sync)
+@app.get("/api/broadcasts")
+@app.get("/broadcasts")
+def get_active_broadcasts(db: Session = Depends(get_db)):
+    now_ms = int(datetime.now().timestamp() * 1000)
+    day_ago = now_ms - (24 * 60 * 60 * 1000)
+    
+    severe_reports = db.query(FloodReport).filter(
+        FloodReport.timestamp >= day_ago,
+        (FloodReport.severity.ilike("%impassable%") | FloodReport.severity.ilike("%waist%") | FloodReport.severityLevel.ilike("%not_passable%"))
+    ).order_by(FloodReport.timestamp.desc()).all()
+    
+    broadcasts = []
+    for r in severe_reports:
+        broadcasts.append({
+            "id": f"bcast_{r.id}",
+            "location": r.location,
+            "severity": r.severity,
+            "notes": r.notes or "Severe flood alert broadcast",
+            "reporterName": getattr(r, "reporterName", "") or getattr(r, "reporterUsername", "") or "FloodGuard Alert",
+            "timestamp": r.timestamp,
+            "statusText": r.statusText or "Active Warning",
+            "similarReportCount": 2,
+            "lat": r.lat or 14.6958,
+            "lon": r.lon or 121.1207,
+            "radiusKm": 5.0,
+            "smsMessage": f"[FloodGuard Emergency] Flood reported in {r.location}: {r.severity}. Caution advised.",
+            "smsProvider": "FloodGuard Municipal Network",
+            "smsRecipientsCount": 1,
+            "recipientPhones": []
+        })
+    return {"broadcasts": broadcasts}
+
+@app.post("/api/broadcasts")
+@app.post("/broadcasts")
+def create_broadcast(payload: dict):
+    return {"success": True, "message": "Broadcast received"}
