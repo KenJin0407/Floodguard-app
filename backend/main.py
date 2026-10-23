@@ -80,7 +80,7 @@ def verify_flood_photo_with_gemini(photo_uri: str) -> dict:
     }
 
     for model in GEMINI_MODELS:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent[OK]key={GEMINI_API_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
         try:
             r = httpx.post(url, json=payload, timeout=20.0)
             if r.status_code == 200:
@@ -649,7 +649,7 @@ def delete_report(report_id: str, db: Session = Depends(get_db)):
 @app.get("/weather/")
 def get_weather():
     try:
-        response = httpx.get("https://api.open-meteo.com/v1/forecast[OK]latitude=14.6958&longitude=121.1207&current=temperature_2m,precipitation")
+        response = httpx.get("https://api.open-meteo.com/v1/forecast?latitude=14.6958&longitude=121.1207&current=temperature_2m,precipitation")
         data = response.json()
         return {
             "temperature": data["current"]["temperature_2m"],
