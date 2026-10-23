@@ -559,10 +559,12 @@ def get_severity_style(severity_str: str):
 def get_flood_geojson(db: Session = Depends(get_db)):
     """
     Returns FLOMPY-compatible GeoJSON features dynamically generated from active
-    flood reports in San Mateo, Rizal.
+    flood reports in San Mateo, Rizal within the last 24 hours.
     Color is based on flood severity; opacity/thickness scales with report count.
     """
-    reports = db.query(FloodReport).order_by(FloodReport.timestamp.asc()).all()
+    now_ms = int(datetime.now().timestamp() * 1000)
+    day_ago = now_ms - (24 * 60 * 60 * 1000)
+    reports = db.query(FloodReport).filter(FloodReport.timestamp >= day_ago).order_by(FloodReport.timestamp.asc()).all()
     if not reports:
         return {
             "type": "FeatureCollection",
