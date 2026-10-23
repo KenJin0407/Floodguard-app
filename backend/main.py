@@ -13,7 +13,7 @@ Gemini AI image validation, Open-Meteo weather forecasts, and satellite GeoJSON 
 """
 
 from fastapi import FastAPI, HTTPException, Depends
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, DateTime, Float, func
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, DateTime, Float, func, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
@@ -114,6 +114,17 @@ SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_FILE}"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+# Startup migration to ensure old index constraints are safely cleared
+def run_db_migrations():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("DROP INDEX IF EXISTS ix_users_email"))
+            conn.commit()
+    except Exception as e:
+        print(f"Database migration note: {e}")
+
+run_db_migrations()
 
 # --- DATABASE MODELS ---
 class User(Base):
@@ -366,9 +377,42 @@ def register_user(user: UserRegister, db: Session = Depends(get_db)):
     print(f"✅ User '{user.username}' successfully saved to SQLite database (id={new_user.id})!")
     return {"success": True, "message": "User registered successfully", "user": user_data}
 
+class AccountFindRequest(BaseModel):
+    identifier: str
+
+@app.post("/api/auth/find-account")
+@app.post("/auth/find-account")
+def find_account(req: AccountFindRequest, db: Session = Depends(get_db)):
+    clean_id = req.identifier.strip().lower()
+    user = db.query(User).filter(func.lower(User.username) == clean_id).first()
+    if not user:
+        clean_target = normalize_ph_mobile(req.identifier)
+        if clean_target:
+            for u in db.query(User).all():
+                if u.mobile and normalize_ph_mobile(u.mobile) == clean_target:
+                    user = u
+                    break
+
+    if not user:
+        return {"found": False, "username": "", "mobile": "", "maskedMobile": ""}
+
+    mob = user.mobile or ""
+    masked = mob
+    if len(mob) >= 8:
+        masked = mob[:4] + "***" + mob[-4:]
+
+    return {
+        "found": True,
+        "username": user.username,
+        "mobile": mob,
+        "maskedMobile": masked
+    }
+
 @app.post("/api/auth/login")
+@app.post("/auth/login")
 def login_user(credentials: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == credentials.username).first()
+    clean_username = credentials.username.strip().lower()
+    user = db.query(User).filter(func.lower(User.username) == clean_username).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
