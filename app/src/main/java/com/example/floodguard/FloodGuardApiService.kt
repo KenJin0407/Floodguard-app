@@ -330,6 +330,42 @@ object FloodGuardApiService {
         }
     }
 
+    fun checkAccountAvailability(
+        mobile: String,
+        username: String,
+        onResult: (isAvailable: Boolean, field: String?, errorMsg: String?) -> Unit
+    ) {
+        thread {
+            for (baseUrl in HOST_URLS) {
+                try {
+                    val encodedMobile = URLEncoder.encode(mobile, "UTF-8")
+                    val encodedUsername = URLEncoder.encode(username, "UTF-8")
+                    val url = URL("$baseUrl/auth/check-availability?mobile=$encodedMobile&username=$encodedUsername")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.requestMethod = "GET"
+                    conn.connectTimeout = 3000
+                    conn.readTimeout = 3000
+
+                    if (conn.responseCode in 200..299) {
+                        val responseText = conn.inputStream.bufferedReader().use { it.readText() }
+                        val json = JSONObject(responseText)
+                        val available = json.optBoolean("available", true)
+                        val field = if (json.has("field")) json.optString("field") else null
+                        val msg = if (json.has("message")) json.optString("message") else null
+                        conn.disconnect()
+                        onResult(available, field, msg)
+                        return@thread
+                    }
+                    conn.disconnect()
+                } catch (e: Exception) {
+                    Log.w("FloodGuardApi", "checkAccountAvailability on $baseUrl: ${e.message}")
+                }
+            }
+            // If backend is unreachable, allow proceeding (local SQLite check will still safeguard)
+            onResult(true, null, null)
+        }
+    }
+
     fun registerUserInBackend(user: UserEntity) {
         thread {
             for (baseUrl in HOST_URLS) {

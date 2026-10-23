@@ -286,7 +286,44 @@ def validate_contact_number(mobile: str) -> bool:
         return (len(rest) in (10, 11)) and rest.isdigit()
     return False
 
+def normalize_ph_mobile(raw: Optional[str]) -> str:
+    if not raw:
+        return ""
+    digits = "".join(ch for ch in str(raw) if ch.isdigit())
+    if digits.startswith("63") and len(digits) == 12:
+        return "0" + digits[2:]
+    if digits.startswith("9") and len(digits) == 10:
+        return "0" + digits
+    return digits
+
+@app.get("/api/auth/check-availability")
+@app.get("/auth/check-availability")
+def check_availability(mobile: Optional[str] = None, username: Optional[str] = None, db: Session = Depends(get_db)):
+    if mobile:
+        clean_target = normalize_ph_mobile(mobile)
+        if clean_target:
+            all_users = db.query(User).all()
+            for u in all_users:
+                if u.mobile and normalize_ph_mobile(u.mobile) == clean_target:
+                    return {
+                        "available": False,
+                        "field": "mobile",
+                        "message": "This mobile number is already registered to another account. Please use a different number or log in."
+                    }
+    if username:
+        clean_user = username.strip().lower()
+        all_users = db.query(User).all()
+        for u in all_users:
+            if u.username and u.username.strip().lower() == clean_user:
+                return {
+                    "available": False,
+                    "field": "username",
+                    "message": f"Username '{username}' is already taken. Please choose another username."
+                }
+    return {"available": True, "message": "Available"}
+
 @app.post("/api/auth/register")
+@app.post("/auth/register")
 def register_user(user: UserRegister, db: Session = Depends(get_db)):
     print(f"📥 Registration Request: username='{user.username}', mobile='{user.mobile}'")
     if user.mobile and not validate_contact_number(user.mobile):
@@ -294,7 +331,19 @@ def register_user(user: UserRegister, db: Session = Depends(get_db)):
             status_code=400,
             detail="Contact number must start with +63 or 09 and consist of 11 digits (e.g. 09123456789 or +639123456789)"
         )
-    existing = db.query(User).filter(User.username == user.username).first()
+    # Check if mobile number is already registered to another user
+    clean_target = normalize_ph_mobile(user.mobile)
+    if clean_target:
+        all_users = db.query(User).all()
+        for u in all_users:
+            if u.mobile and normalize_ph_mobile(u.mobile) == clean_target:
+                if u.username.strip().lower() != user.username.strip().lower():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="This mobile number is already registered to another user account. Please use a different number or log in."
+                    )
+
+    existing = db.query(User).filter(func.lower(User.username) == user.username.strip().lower()).first()
     if existing:
         print(f"⚠️ User '{user.username}' already exists in SQLite database!")
         return {"success": True, "message": "User already registered", "user": user.dict()}
@@ -337,10 +386,22 @@ def login_user(credentials: UserLogin, db: Session = Depends(get_db)):
     return {"success": True, "message": "Login successful", "user": user_dict}
 
 @app.put("/api/auth/profile")
+@app.put("/auth/profile")
 def update_profile(profile: UserProfileUpdate, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == profile.username).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    if profile.mobile:
+        clean_target = normalize_ph_mobile(profile.mobile)
+        if clean_target:
+            all_users = db.query(User).all()
+            for u in all_users:
+                if u.id != user.id and u.mobile and normalize_ph_mobile(u.mobile) == clean_target:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="This mobile number is already registered to another user account."
+                    )
     if profile.mobile and not validate_contact_number(profile.mobile):
         raise HTTPException(
             status_code=400,

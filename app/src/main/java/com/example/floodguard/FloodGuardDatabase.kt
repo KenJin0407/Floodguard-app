@@ -160,30 +160,47 @@ class FloodGuardDatabase(context: Context) :
     }
 
     fun getUserByMobile(mobile: String): UserEntity? {
-        val cleanMobile = mobile.replace(" ", "").replace("-", "").trim()
+        val targetStd = PhilippineNumberValidator.standardize(mobile)
+        val targetDigits = mobile.filter { it.isDigit() }
         val db = readableDatabase
-        val cursor = db.query(
-            TABLE_USERS,
-            null,
-            "$COLUMN_MOBILE = ? OR REPLACE(REPLACE($COLUMN_MOBILE, ' ', ''), '-', '') = ?",
-            arrayOf(mobile, cleanMobile),
-            null,
-            null,
-            null
-        )
+        val cursor = db.rawQuery("SELECT * FROM $TABLE_USERS", null)
         var user: UserEntity? = null
-        if (cursor.moveToFirst()) {
-            user = UserEntity(
-                id = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USER_ID)),
-                fullName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FULL_NAME)),
-                gender = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_GENDER)),
-                mobile = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MOBILE)),
-                username = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USERNAME)),
-                password = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD))
-            )
+        try {
+            while (cursor.moveToNext()) {
+                val userMobile = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MOBILE)) ?: ""
+                val userStd = PhilippineNumberValidator.standardize(userMobile)
+                val userDigits = userMobile.filter { it.isDigit() }
+
+                val isMatch = when {
+                    !targetStd.isNullOrBlank() && !userStd.isNullOrBlank() -> targetStd == userStd
+                    targetDigits.length >= 10 && userDigits.length >= 10 -> targetDigits.takeLast(10) == userDigits.takeLast(10)
+                    else -> userMobile.replace(" ", "").replace("-", "").equals(mobile.replace(" ", "").replace("-", ""), ignoreCase = true)
+                }
+
+                if (isMatch) {
+                    user = UserEntity(
+                        id = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USER_ID)),
+                        fullName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FULL_NAME)),
+                        gender = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_GENDER)),
+                        mobile = userMobile,
+                        username = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USERNAME)),
+                        password = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD))
+                    )
+                    break
+                }
+            }
+        } finally {
+            cursor.close()
         }
-        cursor.close()
         return user
+    }
+
+    fun isMobileRegistered(mobile: String): Boolean {
+        return getUserByMobile(mobile) != null
+    }
+
+    fun isUsernameTaken(username: String): Boolean {
+        return getUserByUsername(username) != null
     }
 
     fun updateUserPassword(username: String, newPasswordHash: String): Boolean {

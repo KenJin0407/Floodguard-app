@@ -429,12 +429,20 @@ class ProfileActivity : ComponentActivity() {
                 Toast.makeText(this, contactError, Toast.LENGTH_LONG).show()
             } else {
                 val username = UserSession.getUsername(this)
+                val db = FloodGuardDatabase.getInstance(this)
+                val existingWithContact = db.getUserByMobile(newContact)
+                if (existingWithContact != null && !existingWithContact.username.equals(username, ignoreCase = true)) {
+                    contactEdit.error = "This mobile number is already in use by another user."
+                    contactEdit.requestFocus()
+                    Toast.makeText(this, "⚠️ This mobile number is already assigned to another account.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
                 profileNameInput.setText(newName)
                 profileGenderInput.setText(selectedGender)
                 profileContactInput.setText(newContact)
 
                 UserSession.updateProfile(this, newName, selectedGender, newContact)
-                FloodGuardDatabase.getInstance(this).updateUserProfile(username, newName, selectedGender, newContact)
+                db.updateUserProfile(username, newName, selectedGender, newContact)
                 FloodGuardApiService.updateUserProfileInBackend(username, newName, selectedGender, newContact)
                 populateProfileReports()
                 Toast.makeText(this, "Profile information updated successfully!", Toast.LENGTH_SHORT).show()
