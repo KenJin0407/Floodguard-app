@@ -57,10 +57,11 @@
 
         <!-- Screen Title -->
         <TextView
+            android:id="@+id/tvAlertsScreenTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerInParent="true"
-            android:text="Alerts"
+            android:text="Notification Alerts"
             android:textColor="@android:color/white"
             android:textSize="18sp"
             android:textStyle="bold" />
@@ -176,11 +177,12 @@
                 android:layout_marginBottom="12dp">
 
                 <TextView
+                    android:id="@+id/tvAlertsHeaderTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true"
-                    android:text="Recent Alerts"
+                    android:text="Submitted Flood Alerts"
                     android:textColor="@color/text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />

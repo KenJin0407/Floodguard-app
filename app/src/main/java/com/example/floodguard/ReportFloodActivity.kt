@@ -849,14 +849,8 @@ class ReportFloodActivity : ComponentActivity() {
                     }
                 }
 
-                if (chkSendSmsOnSubmit.isChecked) {
-                    SmsHelper.broadcastSmsToAllUsers(
-                        context = this@ReportFloodActivity,
-                        location = loc,
-                        severity = selectedSeverity,
-                        notes = notes
-                    )
-                }
+                // Native external SMS dispatch disabled: In-App community notifications handle all alerts
+                // without interrupting the user or opening the phone's SMS messaging app.
 
                 val aiNote = if (aiResult.isFlood && !aiResult.isErrorOrTimeout) {
                     "Photo verified by FloodGuard Gemini AI (Water Level: ${aiResult.estimatedSeverity})"

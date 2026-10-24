@@ -140,6 +140,35 @@ class LoginActivity : ComponentActivity() {
         val inputOtp = dialogView.findViewById<EditText>(R.id.forgotOtpCodeInput)
         val inputNewPass = dialogView.findViewById<EditText>(R.id.forgotNewPassInput)
         val inputConfirmPass = dialogView.findViewById<EditText>(R.id.forgotConfirmPassInput)
+        val toggleForgotNewPass = dialogView.findViewById<ImageView>(R.id.toggleForgotNewPassVisibility)
+        val toggleForgotConfirmPass = dialogView.findViewById<ImageView>(R.id.toggleForgotConfirmPassVisibility)
+
+        var isForgotNewPassVisible = false
+        toggleForgotNewPass?.setOnClickListener {
+            isForgotNewPassVisible = !isForgotNewPassVisible
+            if (isForgotNewPassVisible) {
+                inputNewPass.transformationMethod = android.text.method.HideReturnsTransformationMethod.getInstance()
+                toggleForgotNewPass.setImageResource(R.drawable.ic_visibility)
+            } else {
+                inputNewPass.transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
+                toggleForgotNewPass.setImageResource(R.drawable.ic_visibility_off)
+            }
+            inputNewPass.setSelection(inputNewPass.text.length)
+        }
+
+        var isForgotConfirmPassVisible = false
+        toggleForgotConfirmPass?.setOnClickListener {
+            isForgotConfirmPassVisible = !isForgotConfirmPassVisible
+            if (isForgotConfirmPassVisible) {
+                inputConfirmPass.transformationMethod = android.text.method.HideReturnsTransformationMethod.getInstance()
+                toggleForgotConfirmPass.setImageResource(R.drawable.ic_visibility)
+            } else {
+                inputConfirmPass.transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
+                toggleForgotConfirmPass.setImageResource(R.drawable.ic_visibility_off)
+            }
+            inputConfirmPass.setSelection(inputConfirmPass.text.length)
+        }
+
         val resetStatusText = dialogView.findViewById<TextView>(R.id.forgotResetStatusMessage)
         val btnBack = dialogView.findViewById<Button>(R.id.btnForgotBack)
         val btnSubmit = dialogView.findViewById<Button>(R.id.btnForgotSubmit)
@@ -207,6 +236,18 @@ class LoginActivity : ComponentActivity() {
                             btnNext.isEnabled = true
                             userStatusText.text = message
                             userStatusText.setTextColor(Color.parseColor("#DC2626"))
+                        }
+
+                        override fun onFallbackCodeGenerated(code: String) {
+                            runOnUiThread {
+                                FloodGuardThemedDialog.showSecurityCode(
+                                    activity = this@LoginActivity,
+                                    code = code,
+                                    notice = "Firebase SMS is not yet activated on Firebase Console. Valid for 5 minutes."
+                                ) { enteredCode ->
+                                    inputOtp.setText(enteredCode)
+                                }
+                            }
                         }
                     }
                 )

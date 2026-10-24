@@ -31,10 +31,15 @@ class AlertsActivity : ComponentActivity() {
         setupBottomNavigation()
     }
 
+    private var isFirstResume = true
+
     override fun onResume() {
         super.onResume()
         FloatingAlertManager.onActivityResumed(this)
-        populateAlerts()
+        if (!isFirstResume) {
+            populateAlerts()
+        }
+        isFirstResume = false
     }
 
     override fun onPause() {
@@ -53,8 +58,8 @@ class AlertsActivity : ComponentActivity() {
             try {
                 val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:0289111406"))
                 startActivity(dialIntent)
-            } catch (e: Exception) {
-                Toast.makeText(this, "Could not open dialer", Toast.LENGTH_SHORT).show()
+            } catch (_: Exception) {
+                Toast.makeText(this, "Calling NDRRMC Hotline: (02) 8911-1406", Toast.LENGTH_LONG).show()
             }
         }
 
@@ -62,84 +67,94 @@ class AlertsActivity : ComponentActivity() {
             val intent = Intent(this, ReportFloodActivity::class.java)
             startActivity(intent)
         }
+
+        findViewById<LinearLayout>(R.id.logoLayout)?.setOnClickListener {
+            val intent = Intent(this, DashboardActivity::class.java)
+            startActivity(intent)
+            finish()
+        }
+
+        findViewById<ImageView>(R.id.menuIcon)?.setOnClickListener { view ->
+            NavigationMenuHelper.showMenu(this, view)
+        }
     }
 
     private fun populateAlerts() {
-        val currentUsername = UserSession.getUsername(this).trim()
-        val currentFullName = UserSession.getUserName(this).trim()
-        val reports = ReportRepository.loadReports(this) {
-            runOnUiThread {
-                if (!isFinishing && !isDestroyed) {
-                    populateAlerts()
-                }
-            }
-        }
-
         alertsContainer.removeAllViews()
 
-        if (reports.isEmpty()) {
-            val emptyView = TextView(this).apply {
-                text = "No flood reports available."
+        val currentUsername = UserSession.getUsername(this)
+        val currentFullName = UserSession.getUserName(this)
+
+        val allReports = ReportRepository.loadReports(this) {
+            runOnUiThread { populateAlerts() }
+        }.toList()
+        val reportsList = allReports
+
+        val count = reportsList.size
+        findViewById<TextView>(R.id.tvAlertsHeaderTitle)?.text = "Submitted Flood Alerts ($count)"
+
+        if (reportsList.isEmpty()) {
+            val emptyText = TextView(this).apply {
+                text = "No community flood alerts at this moment."
                 setTextColor(resources.getColor(android.R.color.darker_gray, theme))
-                textSize = 14f
-                val paddingPx = (16 * resources.displayMetrics.density).toInt()
-                setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                textSize = 13f
+                setPadding(12, 12, 12, 12)
             }
-            alertsContainer.addView(emptyView)
+            alertsContainer.addView(emptyText)
             return
         }
 
-        for (report in reports) {
-            val similarReports = SmsAlertBroadcastManager.findSimilarReportsInVicinity(this, report)
+        for (report in reportsList) {
+            val similarReports = SmsAlertBroadcastManager.findSimilarActiveReports(report, allReports)
             val cardView = RelativeLayout(this).apply {
-                layoutParams = LinearLayout.LayoutParams(
+                val params = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    setMargins(0, 0, 0, (12 * resources.displayMetrics.density).toInt())
+                    bottomMargin = (12 * resources.displayMetrics.density).toInt()
                 }
-                background = ContextCompat.getDrawable(
-                    this@AlertsActivity,
-                    when (report.severityLevel) {
-                        SeverityLevel.NOT_PASSABLE -> R.drawable.alert_card_red
-                        SeverityLevel.HEAVY_VEHICLES -> R.drawable.alert_card_yellow
-                        SeverityLevel.LIGHT_VEHICLES -> R.drawable.alert_card_yellow
-                        SeverityLevel.PASSABLE -> R.drawable.alert_card_green
-                    }
-                )
-                val padPx = (16 * resources.displayMetrics.density).toInt()
-                setPadding(padPx, padPx, padPx, padPx)
+                layoutParams = params
+                val paddingPx = (16 * resources.displayMetrics.density).toInt()
+                setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+
+                val bgDrawable = when (report.severityLevel) {
+                    SeverityLevel.NOT_PASSABLE -> R.drawable.card_alert_red
+                    SeverityLevel.HEAVY_VEHICLES_ONLY -> R.drawable.card_alert_yellow
+                    SeverityLevel.CLEARED -> R.drawable.card_alert_green
+                }
+                setBackgroundResource(bgDrawable)
             }
 
             val timeText = TextView(this).apply {
                 id = View.generateViewId()
-                layoutParams = RelativeLayout.LayoutParams(
+                text = report.getFormattedTimeAgo()
+                setTextColor(resources.getColor(android.R.color.darker_gray, theme))
+                textSize = 12f
+                val params = RelativeLayout.LayoutParams(
                     RelativeLayout.LayoutParams.WRAP_CONTENT,
                     RelativeLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    addRule(RelativeLayout.ALIGN_PARENT_TOP)
                     addRule(RelativeLayout.ALIGN_PARENT_END)
                 }
-                text = report.getFormattedTimeAgo()
-                setTextColor(resources.getColor(android.R.color.darker_gray, theme))
-                textSize = 11f
+                layoutParams = params
             }
 
             val textLayout = LinearLayout(this).apply {
-                layoutParams = RelativeLayout.LayoutParams(
+                orientation = LinearLayout.VERTICAL
+                val params = RelativeLayout.LayoutParams(
                     RelativeLayout.LayoutParams.MATCH_PARENT,
                     RelativeLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    addRule(RelativeLayout.START_OF, timeText.id)
                     addRule(RelativeLayout.ALIGN_PARENT_START)
+                    addRule(RelativeLayout.START_OF, timeText.id)
                 }
-                orientation = LinearLayout.VERTICAL
+                layoutParams = params
             }
 
             val titleText = TextView(this).apply {
-                text = "${report.location} (${report.severity})"
+                text = "${report.location} - ${report.statusText}"
                 setTextColor(resources.getColor(android.R.color.black, theme))
-                textSize = 15f
+                textSize = 14f
                 paint.isFakeBoldText = true
             }
 

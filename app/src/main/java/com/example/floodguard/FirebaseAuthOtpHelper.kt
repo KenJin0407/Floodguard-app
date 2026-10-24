@@ -40,6 +40,7 @@ object FirebaseAuthOtpHelper {
         fun onCodeSent(formattedPhone: String)
         fun onAutoVerified()
         fun onError(message: String)
+        fun onFallbackCodeGenerated(code: String) {}
     }
 
     /** Normalizes Philippine mobile numbers (09xx / 9xx) to standard E.164 (+639xx) format */
@@ -133,6 +134,7 @@ object FirebaseAuthOtpHelper {
         showOtpNotification(context, formattedNumber, generatedCode)
 
         Handler(Looper.getMainLooper()).post {
+            callback.onFallbackCodeGenerated(generatedCode)
             callback.onCodeSent(formattedNumber)
         }
     }

@@ -16,6 +16,8 @@ import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import android.widget.Spinner
 import android.widget.TextView
+import android.text.method.HideReturnsTransformationMethod
+import android.text.method.PasswordTransformationMethod
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -335,20 +337,15 @@ class ProfileActivity : ComponentActivity() {
             return
         }
 
-        AlertDialog.Builder(this)
-            .setTitle("Remove Report")
-            .setMessage("Are you sure you want to remove the report for \"${report.location}\"?")
-            .setPositiveButton("Remove") { _, _ ->
-                val removed = ReportRepository.removeReport(this, report.id)
-                populateProfileReports()
-                if (removed) {
-                    Toast.makeText(this, "Report removed successfully!", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, "Only the author can remove this report.", Toast.LENGTH_SHORT).show()
-                }
+        FloodGuardThemedDialog.showDeleteReport(this, report.location) {
+            val removed = ReportRepository.removeReport(this, report.id)
+            populateProfileReports()
+            if (removed) {
+                Toast.makeText(this, "Report removed successfully!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Only the author can remove this report.", Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Cancel", null)
-            .show()
+        }
     }
 
     private fun setupListeners() {
@@ -434,12 +431,26 @@ class ProfileActivity : ComponentActivity() {
                 Toast.makeText(this, contactError, Toast.LENGTH_LONG).show()
             } else {
                 val username = UserSession.getUsername(this)
+                val db = FloodGuardDatabase.getInstance(this)
+                val existingWithContact = db.getUserByMobile(newContact)
+                if (existingWithContact != null && !existingWithContact.username.equals(username, ignoreCase = true)) {
+                    contactEdit.error = "This mobile number is already in use by another user."
+                    contactEdit.requestFocus()
+                    Toast.makeText(this, "⚠️ This mobile number is already assigned to another account.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                val updated = db.updateUserProfile(username, newName, selectedGender, newContact)
+                if (!updated) {
+                    contactEdit.error = "This mobile number is already in use by another user."
+                    contactEdit.requestFocus()
+                    Toast.makeText(this, "⚠️ Failed to update: This mobile number is already assigned to another account.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
                 profileNameInput.setText(newName)
                 profileGenderInput.setText(selectedGender)
                 profileContactInput.setText(newContact)
 
                 UserSession.updateProfile(this, newName, selectedGender, newContact)
-                FloodGuardDatabase.getInstance(this).updateUserProfile(username, newName, selectedGender, newContact)
                 FloodGuardApiService.updateUserProfileInBackend(username, newName, selectedGender, newContact)
                 populateProfileReports()
                 Toast.makeText(this, "Profile information updated successfully!", Toast.LENGTH_SHORT).show()
@@ -453,10 +464,52 @@ class ProfileActivity : ComponentActivity() {
     private fun showChangePasswordDialog() {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_change_password, null)
         val currentPass = dialogView.findViewById<EditText>(R.id.dialogCurrentPassInput)
+        val toggleCurrentPass = dialogView.findViewById<ImageView>(R.id.toggleCurrentPassVisibility)
         val newPass = dialogView.findViewById<EditText>(R.id.dialogNewPassInput)
+        val toggleNewPass = dialogView.findViewById<ImageView>(R.id.toggleNewPassVisibility)
         val confirmPass = dialogView.findViewById<EditText>(R.id.dialogConfirmPassInput)
+        val toggleConfirmPass = dialogView.findViewById<ImageView>(R.id.toggleConfirmPassVisibility)
         val btnCancel = dialogView.findViewById<Button>(R.id.btnPasswordCancel)
         val btnSave = dialogView.findViewById<Button>(R.id.btnPasswordSave)
+
+        var isCurrentPassVisible = false
+        toggleCurrentPass?.setOnClickListener {
+            isCurrentPassVisible = !isCurrentPassVisible
+            if (isCurrentPassVisible) {
+                currentPass.transformationMethod = HideReturnsTransformationMethod.getInstance()
+                toggleCurrentPass.setImageResource(R.drawable.ic_visibility)
+            } else {
+                currentPass.transformationMethod = PasswordTransformationMethod.getInstance()
+                toggleCurrentPass.setImageResource(R.drawable.ic_visibility_off)
+            }
+            currentPass.setSelection(currentPass.text.length)
+        }
+
+        var isNewPassVisible = false
+        toggleNewPass?.setOnClickListener {
+            isNewPassVisible = !isNewPassVisible
+            if (isNewPassVisible) {
+                newPass.transformationMethod = HideReturnsTransformationMethod.getInstance()
+                toggleNewPass.setImageResource(R.drawable.ic_visibility)
+            } else {
+                newPass.transformationMethod = PasswordTransformationMethod.getInstance()
+                toggleNewPass.setImageResource(R.drawable.ic_visibility_off)
+            }
+            newPass.setSelection(newPass.text.length)
+        }
+
+        var isConfirmPassVisible = false
+        toggleConfirmPass?.setOnClickListener {
+            isConfirmPassVisible = !isConfirmPassVisible
+            if (isConfirmPassVisible) {
+                confirmPass.transformationMethod = HideReturnsTransformationMethod.getInstance()
+                toggleConfirmPass.setImageResource(R.drawable.ic_visibility)
+            } else {
+                confirmPass.transformationMethod = PasswordTransformationMethod.getInstance()
+                toggleConfirmPass.setImageResource(R.drawable.ic_visibility_off)
+            }
+            confirmPass.setSelection(confirmPass.text.length)
+        }
 
         val dialog = AlertDialog.Builder(this)
             .setView(dialogView)
@@ -523,19 +576,14 @@ class ProfileActivity : ComponentActivity() {
     }
 
     private fun confirmLogout() {
-        AlertDialog.Builder(this)
-            .setTitle("Log Out")
-            .setMessage("Are you sure you want to log out of FloodGuard?")
-            .setPositiveButton("Log Out") { _, _ ->
-                UserSession.logout(this)
-                val intent = Intent(this, LoginActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                }
-                startActivity(intent)
-                finish()
+        FloodGuardThemedDialog.showLogout(this) {
+            UserSession.logout(this)
+            val intent = Intent(this, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             }
-            .setNegativeButton("Cancel", null)
-            .show()
+            startActivity(intent)
+            finish()
+        }
     }
 
     private fun setupBottomNavigation() {

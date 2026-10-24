@@ -32,20 +32,29 @@ import androidx.core.content.ContextCompat
 import java.lang.ref.WeakReference
 import java.util.Locale
 
+/**
+ * In-app floating alert notification and banner manager.
+ * Displays high-visibility heads-up warning banners when severe flood reports or emergency broadcasts
+ * are detected near the user's current location.
+ */
 object FloatingAlertManager {
 
     private var activeActivityRef: WeakReference<Activity>? = null
     private var activeDialogRef: WeakReference<AlertDialog>? = null
+    private var activeFloatingCardRef: WeakReference<View>? = null
     private var pendingBroadcast: FloodBroadcast? = null
+    private var lastCheckTime = 0L
     private val mainHandler = Handler(Looper.getMainLooper())
     private const val CHANNEL_ID = "floodguard_flood_alerts"
-    private const val POLL_INTERVAL_MS = 8000L
+    private const val POLL_INTERVAL_MS = 30000L // Relaxed polling interval to prevent spam
 
     private val broadcastPollRunnable = object : Runnable {
         override fun run() {
             val activity = activeActivityRef?.get()
             if (activity != null && !activity.isFinishing && !activity.isDestroyed) {
-                checkUnseenBroadcastsForUser(activity)
+                if (activity !is ReportFloodActivity && activity !is AlertsActivity) {
+                    checkUnseenBroadcastsForUser(activity)
+                }
                 mainHandler.postDelayed(this, POLL_INTERVAL_MS)
             }
         }
@@ -55,25 +64,40 @@ object FloatingAlertManager {
         activeActivityRef = WeakReference(activity)
         mainHandler.removeCallbacks(broadcastPollRunnable)
 
+        // Do not interrupt user while they are writing a flood report or already browsing the alerts list
+        if (activity is ReportFloodActivity || activity is AlertsActivity) {
+            return
+        }
+
         val pending = pendingBroadcast
         if (pending != null) {
             pendingBroadcast = null
+            // Smooth delay so the screen renders cleanly first
             mainHandler.postDelayed({
                 val currentAct = activeActivityRef?.get()
                 if (currentAct != null && !currentAct.isFinishing && !currentAct.isDestroyed) {
-                    SmsAlertBroadcastManager.markBroadcastSeen(currentAct, pending.id)
-                    showFloatingAlert(currentAct, pending)
-                    showSmsWarningPopUpDialog(currentAct, pending)
-                    showSystemNotification(currentAct.applicationContext, pending)
+                    if (currentAct !is ReportFloodActivity && currentAct !is AlertsActivity) {
+                        SmsAlertBroadcastManager.markBroadcastSeen(currentAct, pending.id)
+                        showFloatingAlert(currentAct, pending)
+                        showSystemNotification(currentAct.applicationContext, pending)
+                    }
                 }
-            }, 300)
+            }, 1200)
         } else {
-            mainHandler.postDelayed({
-                val currentAct = activeActivityRef?.get()
-                if (currentAct != null && !currentAct.isFinishing && !currentAct.isDestroyed) {
-                    checkUnseenBroadcastsForUser(currentAct)
-                }
-            }, 400)
+            val now = System.currentTimeMillis()
+            // Avoid duplicate checks when simply navigating between tabs within 25 seconds
+            if (now - lastCheckTime > 25000L) {
+                lastCheckTime = now
+                // Gentle delay on launch (1800ms) so weather cards and dashboard finish animating
+                mainHandler.postDelayed({
+                    val currentAct = activeActivityRef?.get()
+                    if (currentAct != null && !currentAct.isFinishing && !currentAct.isDestroyed) {
+                        if (currentAct !is ReportFloodActivity && currentAct !is AlertsActivity) {
+                            checkUnseenBroadcastsForUser(currentAct)
+                        }
+                    }
+                }, 1800)
+            }
         }
 
         mainHandler.postDelayed(broadcastPollRunnable, POLL_INTERVAL_MS)
@@ -98,15 +122,32 @@ object FloatingAlertManager {
         )
         if (!isNearby) return
 
+        // Skip popping up if the current user is the author of this report
+        val currentUsername = UserSession.getUsername(context)
+        val currentFullName = UserSession.getUserName(context)
+        if (broadcast.isAuthoredBy(currentUsername, currentFullName)) {
+            SmsAlertBroadcastManager.markBroadcastSeen(context, broadcast.id)
+            return
+        }
+
+        // If user has already seen or acknowledged, do not pop up again
+        if (!forcePopUp && SmsAlertBroadcastManager.hasUserSeenBroadcast(context, broadcast.id)) {
+            return
+        }
+
         mainHandler.post {
             val activity = activeActivityRef?.get()
             if (activity != null && !activity.isFinishing && !activity.isDestroyed) {
-                if (forcePopUp || !SmsAlertBroadcastManager.hasUserSeenBroadcast(activity, broadcast.id)) {
-                    SmsAlertBroadcastManager.markBroadcastSeen(activity, broadcast.id)
-                    showFloatingAlert(activity, broadcast)
-                    showSmsWarningPopUpDialog(activity, broadcast)
+                // Do not pop up inside ReportFloodActivity or AlertsActivity
+                if (activity is ReportFloodActivity || activity is AlertsActivity) {
                     showSystemNotification(context.applicationContext, broadcast)
+                    return@post
                 }
+
+                SmsAlertBroadcastManager.markBroadcastSeen(activity, broadcast.id)
+                // SHOW ONLY THE SMOOTH FLOATING BANNER (Never double-pop with dialog!)
+                showFloatingAlert(activity, broadcast)
+                showSystemNotification(context.applicationContext, broadcast)
             } else {
                 pendingBroadcast = broadcast
                 showSystemNotification(context.applicationContext, broadcast)
@@ -537,36 +578,51 @@ object FloatingAlertManager {
         cardLayout.addView(detailsText)
         cardLayout.addView(actionRow)
 
-        // Initial translation off-screen top
-        cardLayout.translationY = -400f
+        // Remove any previous active floating card so they never stack
+        activeFloatingCardRef?.get()?.let { oldView ->
+            try {
+                rootGroup.removeView(oldView)
+            } catch (_: Exception) {}
+        }
+        activeFloatingCardRef = WeakReference(cardLayout)
+
+        val density = activity.resources.displayMetrics.density
+        // Smooth entrance: fade-in and slide down
+        cardLayout.alpha = 0f
+        cardLayout.translationY = -180f * density
         rootGroup.addView(cardLayout)
 
-        // Animate slide down
-        ObjectAnimator.ofFloat(cardLayout, "translationY", -400f, 0f).apply {
-            duration = 450
-            interpolator = DecelerateInterpolator()
-            start()
-        }
+        cardLayout.animate()
+            .alpha(1f)
+            .translationY(0f)
+            .setDuration(400)
+            .setInterpolator(DecelerateInterpolator(1.5f))
+            .start()
 
-        // Auto dismiss after 12 seconds
+        // Auto dismiss after 10 seconds smoothly
         mainHandler.postDelayed({
             dismissCard(rootGroup, cardLayout)
-        }, 12000)
+        }, 10000)
     }
 
     private fun dismissCard(rootGroup: ViewGroup, cardLayout: View) {
         if (cardLayout.parent != null) {
-            ObjectAnimator.ofFloat(cardLayout, "translationY", cardLayout.translationY, -500f).apply {
-                duration = 350
-                interpolator = DecelerateInterpolator()
-                start()
-            }
-            mainHandler.postDelayed({
-                try {
-                    rootGroup.removeView(cardLayout)
-                } catch (_: Exception) {
+            val density = cardLayout.resources.displayMetrics.density
+            cardLayout.animate()
+                .alpha(0f)
+                .translationY(-180f * density)
+                .setDuration(280)
+                .setInterpolator(android.view.animation.AccelerateInterpolator())
+                .withEndAction {
+                    try {
+                        rootGroup.removeView(cardLayout)
+                        if (activeFloatingCardRef?.get() == cardLayout) {
+                            activeFloatingCardRef = null
+                        }
+                    } catch (_: Exception) {
+                    }
                 }
-            }, 360)
+                .start()
         }
     }
 }
