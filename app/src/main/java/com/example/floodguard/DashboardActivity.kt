@@ -1,5 +1,19 @@
 package com.example.floodguard
 
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.os.Build
+import android.view.LayoutInflater
+import android.widget.Button
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Intent
@@ -667,6 +681,10 @@ class DashboardActivity : ComponentActivity() {
                         val hasNotPassableReport = reports.any { it.severityLevel == SeverityLevel.NOT_PASSABLE }
 
                         val weatherCondition = getWeatherCondition(weatherCode)
+                        val isSevereWeather = (precip >= 7.5 || weatherCode in listOf(65, 82, 95, 96, 99))
+                        if (isSevereWeather) {
+                            checkAndPromptSevereWeatherReport(weatherCondition, precip)
+                        }
                         val rainStatus = when {
                             precip >= 25.0 -> String.format(Locale.US, "Heavy Rain: %.1f mm/h Critical Traffic Gridlock (Main Roads)", precip)
                             hasNotPassableReport -> String.format(Locale.US, "Rainfall: %.1f mm/h Active Flood Reports (Main Roads Gridlock)", precip)
@@ -715,6 +733,124 @@ class DashboardActivity : ComponentActivity() {
             80, 81, 82 -> "Rain Showers"
             95, 96, 99 -> "Thunderstorm"
             else -> "Thunderstorm"
+        }
+    }
+
+    private fun checkAndPromptSevereWeatherReport(condition: String, precip: Double) {
+        val prefs = getSharedPreferences("floodguard_weather_prompt", Context.MODE_PRIVATE)
+        val lastPromptTime = prefs.getLong("last_prompt_time", 0L)
+        val now = System.currentTimeMillis()
+        val cooldownMs = 2 * 60 * 60 * 1000L // Prompt at most once every 2 hours
+
+        if (now - lastPromptTime < cooldownMs) {
+            return
+        }
+        prefs.edit().putLong("last_prompt_time", now).apply()
+
+        runOnUiThread {
+            showSevereWeatherPromptDialog(condition, precip)
+            sendSevereWeatherSystemNotification(condition, precip)
+        }
+    }
+
+    private fun showSevereWeatherPromptDialog(condition: String, precipRate: Double) {
+        if (isFinishing || isDestroyed) return
+
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_floodguard_confirm, null)
+        val tvSubtitle = dialogView.findViewById<TextView>(R.id.dialogHeaderSubtitle)
+        val tvTitle = dialogView.findViewById<TextView>(R.id.dialogConfirmTitle)
+        val tvMessage = dialogView.findViewById<TextView>(R.id.dialogConfirmMessage)
+        val btnCancel = dialogView.findViewById<Button>(R.id.btnDialogCancel)
+        val btnConfirm = dialogView.findViewById<Button>(R.id.btnDialogConfirm)
+
+        tvSubtitle?.text = "Severe Weather Advisory"
+        tvTitle?.text = "⛈️ Severe Weather Detected in San Mateo"
+        tvMessage?.text = String.format(
+            Locale.US,
+            "Heavy rainfall (%s, %.1f mm/h) is currently recorded in your area.\n\nAre you observing flooded streets, rising water levels, or impassable roads nearby? Help keep fellow residents safe by submitting a real-time report.",
+            condition,
+            precipRate
+        )
+
+        btnCancel?.text = "Not Now"
+        btnConfirm?.apply {
+            text = "Report Flood Now"
+            setBackgroundResource(R.drawable.btn_yellow)
+            setTextColor(Color.parseColor("#0A192F"))
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(true)
+            .create()
+
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        btnCancel?.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        btnConfirm?.setOnClickListener {
+            dialog.dismiss()
+            val intent = Intent(this, ReportFloodActivity::class.java)
+            startActivity(intent)
+        }
+
+        dialog.show()
+    }
+
+    private fun sendSevereWeatherSystemNotification(condition: String, precipRate: Double) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        val channelId = "floodguard_severe_weather"
+        val notificationManager = NotificationManagerCompat.from(this)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Severe Weather Advisories",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifies users during heavy rain and storm conditions to crowdsource flood reports"
+            }
+            getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
+        }
+
+        val intent = Intent(this, ReportFloodActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            1001,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val title = "⛈️ Severe Weather Alert — San Mateo"
+        val message = String.format(
+            Locale.US,
+            "Heavy rain (%s, %.1f mm/h) detected. Are there flooded streets near you? Tap to submit a report.",
+            condition,
+            precipRate
+        )
+
+        val notification = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(R.drawable.ic_alert)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        try {
+            notificationManager.notify(7001, notification)
+        } catch (_: SecurityException) {
         }
     }
 }
