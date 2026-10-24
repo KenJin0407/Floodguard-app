@@ -675,7 +675,8 @@ def get_flood_geojson(db: Session = Depends(get_db)):
     """
     Returns FLOMPY-compatible GeoJSON features dynamically generated from active
     flood reports in San Mateo, Rizal within the last 24 hours.
-    Color is based on flood severity; opacity/thickness scales with report count.
+    Nearby reports within 300 meters are clustered into a single flood zone.
+    Combines Solution 1 (Latest status transparency) and Solution 2 (Highest severity safety priority).
     """
     now_ms = int(datetime.now().timestamp() * 1000)
     day_ago = now_ms - (24 * 60 * 60 * 1000)
@@ -686,46 +687,71 @@ def get_flood_geojson(db: Session = Depends(get_db)):
             "features": []
         }
 
-    grouped = {}
+    import math
+    def haversine_m(lat1, lon1, lat2, lon2):
+        R = 6371000
+        dlat = math.radians(lat2 - lat1)
+        dlon = math.radians(lon2 - lon1)
+        a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+        return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    clusters = []
     for r in reports:
         lat = r.lat or 14.6958
         lon = r.lon or 121.1207
-        key = f"{lat:.4f},{lon:.4f}"
-        rank, color = get_severity_style(r.severity)
-
-        if key not in grouped:
-            grouped[key] = {
+        matched = None
+        for c in clusters:
+            if haversine_m(lat, lon, c["lat"], c["lon"]) <= 300:
+                matched = c
+                break
+        if not matched:
+            matched = {
                 "lat": lat,
                 "lon": lon,
                 "location": r.location,
-                "severity": r.severity,
-                "notes": r.notes or "",
-                "count": 1,
-                "rank": rank,
-                "color": color,
+                "reports": []
             }
-        else:
-            grouped[key]["count"] += 1
-            if rank >= grouped[key]["rank"]:
-                grouped[key]["rank"] = rank
-                grouped[key]["color"] = color
-                grouped[key]["severity"] = r.severity
-                grouped[key]["notes"] = r.notes or ""
+            clusters.append(matched)
+        matched["reports"].append(r)
 
     features = []
-    for g in grouped.values():
-        count = g["count"]
-        fill_opacity = min(0.22 + (count - 1) * 0.16, 0.78)
-        stroke_weight = min(1.5 + (count - 1) * 1.2, 6.0)
+    for c in clusters:
+        rep_list = c["reports"]
+        if not rep_list:
+            continue
+
+        # Sort: latest first (Solution 1)
+        rep_list.sort(key=lambda x: x.timestamp or 0, reverse=True)
+        latest = rep_list[0]
+        latest_rank, latest_color = get_severity_style(latest.severity)
+
+        max_report = latest
+        max_rank = latest_rank
+        max_color = latest_color
+        for r in rep_list:
+            rk, clr = get_severity_style(r.severity)
+            if rk > max_rank:
+                max_rank = rk
+                max_color = clr
+                max_report = r
+
+        has_conflict = (max_rank != latest_rank)
+        # Solution 2: For public safety, severe danger (Waist/Impassable) dictates the circle color
+        active_color = max_color if max_rank >= 3 else latest_color
+        count = len(rep_list)
+        fill_opacity = min(0.24 + (count - 1) * 0.14, 0.78)
+        stroke_weight = min(1.5 + (count - 1) * 1.0, 5.0)
 
         features.append({
             "type": "Feature",
             "properties": {
-                "name": g["location"],
-                "severity": g["severity"],
-                "notes": g["notes"],
+                "name": c["location"],
+                "severity": latest.severity,
+                "highestSeverity": max_report.severity,
+                "hasConflict": has_conflict,
+                "notes": latest.notes or "",
                 "reportCount": count,
-                "color": g["color"],
+                "color": active_color,
                 "fillOpacity": round(fill_opacity, 2),
                 "strokeWeight": round(stroke_weight, 2),
                 "radius": 220,
@@ -733,7 +759,7 @@ def get_flood_geojson(db: Session = Depends(get_db)):
             },
             "geometry": {
                 "type": "Point",
-                "coordinates": [g["lon"], g["lat"]]
+                "coordinates": [c["lon"], c["lat"]]
             }
         })
 

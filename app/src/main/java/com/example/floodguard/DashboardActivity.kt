@@ -403,64 +403,113 @@ class DashboardActivity : ComponentActivity() {
                         }
                     }
 
+                    function getDistanceM(lat1, lon1, lat2, lon2) {
+                        var R = 6371000;
+                        var dLat = (lat2 - lat1) * Math.PI / 180;
+                        var dLon = (lon2 - lon1) * Math.PI / 180;
+                        var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                                Math.sin(dLon/2) * Math.sin(dLon/2);
+                        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                    }
+
                     window.renderFloodRadius = function(reports) {
                         radiusLayer.clearLayers();
                         if (!reports || reports.length === 0) return;
 
                         var now = Date.now();
                         var maxAgeMs = 24 * 60 * 60 * 1000;
-                        var grouped = {};
+                        var clusters = [];
+
                         for (var i = 0; i < reports.length; i++) {
                             var r = reports[i];
                             if (!r.lat || !r.lon) continue;
                             if (r.timestamp && (now - r.timestamp > maxAgeMs)) {
                                 continue; // Auto-expire flood radius after 24 hours
                             }
-                            var key = r.lat.toFixed(4) + "," + r.lon.toFixed(4);
-                            var style = getSeverityStyle(r.waterDepth);
 
-                            if (!grouped[key]) {
-                                grouped[key] = {
+                            // Cluster nearby reports within 300 meters into a single zone
+                            var matchedCluster = null;
+                            for (var c = 0; c < clusters.length; c++) {
+                                if (getDistanceM(r.lat, r.lon, clusters[c].lat, clusters[c].lon) <= 300) {
+                                    matchedCluster = clusters[c];
+                                    break;
+                                }
+                            }
+
+                            if (!matchedCluster) {
+                                matchedCluster = {
                                     lat: r.lat,
                                     lon: r.lon,
                                     location: r.location,
-                                    waterDepth: r.waterDepth,
-                                    notes: r.notes,
-                                    count: 1,
-                                    rank: style.rank,
-                                    color: style.color
+                                    reports: []
                                 };
-                            } else {
-                                grouped[key].count += 1;
-                                if (style.rank >= grouped[key].rank) {
-                                    grouped[key].rank = style.rank;
-                                    grouped[key].color = style.color;
-                                    grouped[key].waterDepth = r.waterDepth;
-                                    grouped[key].notes = r.notes;
-                                }
+                                clusters.push(matchedCluster);
                             }
+                            matchedCluster.reports.push(r);
                         }
 
-                        for (var k in grouped) {
-                            var g = grouped[k];
-                            var fillOpacity = Math.min(0.22 + (g.count - 1) * 0.16, 0.78);
-                            var strokeWeight = Math.min(1.5 + (g.count - 1) * 1.2, 6.0);
+                        for (var idx = 0; idx < clusters.length; idx++) {
+                            var cluster = clusters[idx];
+                            var repList = cluster.reports;
+                            if (repList.length === 0) continue;
 
-                            var circle = L.circle([g.lat, g.lon], {
+                            // Sort: newest first (Solusyon 1: Latest Report Priority)
+                            repList.sort(function(a, b) {
+                                return (b.timestamp || 0) - (a.timestamp || 0);
+                            });
+
+                            var latest = repList[0];
+                            var latestStyle = getSeverityStyle(latest.waterDepth);
+
+                            // Find highest severity in this cluster (Solusyon 2: Highest Severity Safety Priority)
+                            var maxReport = latest;
+                            var maxStyle = latestStyle;
+                            for (var j = 0; j < repList.length; j++) {
+                                var s = getSeverityStyle(repList[j].waterDepth);
+                                if (s.rank > maxStyle.rank) {
+                                    maxStyle = s;
+                                    maxReport = repList[j];
+                                }
+                            }
+
+                            var count = repList.length;
+                            var hasConflict = (maxStyle.rank !== latestStyle.rank);
+
+                            // For public safety, severe danger (Waist/Impassable) dictates the warning color
+                            var circleColor = (maxStyle.rank >= 3) ? maxStyle.color : latestStyle.color;
+                            var fillOpacity = Math.min(0.24 + (count - 1) * 0.14, 0.78);
+                            var strokeWeight = Math.min(1.5 + (count - 1) * 1.0, 5.0);
+
+                            var circle = L.circle([cluster.lat, cluster.lon], {
                                 radius: 220,
-                                color: g.color,
-                                fillColor: g.color,
+                                color: circleColor,
+                                fillColor: circleColor,
                                 fillOpacity: fillOpacity,
                                 weight: strokeWeight
                             }).addTo(radiusLayer);
 
-                            circle.bindPopup(
-                                "<b>🚨 " + g.location + "</b><br>" +
-                                "<b>Severity:</b> " + g.waterDepth + "<br>" +
-                                "<b>Reports:</b> " + g.count + " report(s)<br>" +
-                                "<span style='color:#0284C7;font-size:11px;font-weight:600;'>● Active Flood Zone (Last 24h)</span><br>" +
-                                "<small>" + (g.notes || "") + "</small>"
-                            );
+                            var minutesAgo = Math.max(0, Math.round((now - (latest.timestamp || now)) / 60000));
+                            var timeAgoText = minutesAgo < 1 ? "Just now" : (minutesAgo < 60 ? minutesAgo + "m ago" : Math.round(minutesAgo/60) + "h ago");
+
+                            var popupHtml = "<b>🚨 " + cluster.location + "</b><br>";
+                            popupHtml += "<b>Latest Status:</b> " + latest.waterDepth + " <span style='font-size:11px;color:#64748B;'>(" + timeAgoText + ")</span><br>";
+                            popupHtml += "<b>Reports:</b> " + count + " active report(s)<br>";
+
+                            if (hasConflict) {
+                                popupHtml += "<div style='background:#FEF2F2;border-left:3px solid #DC2626;padding:4px 6px;margin:5px 0;font-size:11px;color:#991B1B;'>" +
+                                    "⚠️ <b>Safety Notice (Mixed Reports):</b><br>" +
+                                    "Highest severity reported: <b>" + maxReport.waterDepth + "</b>.<br>" +
+                                    "Latest update: <i>" + latest.waterDepth + "</i>. Exercise extreme caution!" +
+                                    "</div>";
+                            }
+
+                            popupHtml += "<span style='color:#0284C7;font-size:11px;font-weight:600;'>● Active Flood Zone (Last 24h)</span><br>";
+                            if (latest.notes) {
+                                popupHtml += "<small style='color:#334155;'>" + latest.notes + "</small>";
+                            }
+
+                            circle.bindPopup(popupHtml);
                         }
                     };
 
@@ -474,18 +523,27 @@ class DashboardActivity : ComponentActivity() {
                                     radius: p.radius || 220,
                                     color: p.color || "#8B0000",
                                     fillColor: p.color || "#8B0000",
-                                    fillOpacity: p.fillOpacity || 0.22,
+                                    fillOpacity: p.fillOpacity || 0.24,
                                     weight: p.strokeWeight || 1.5
                                 });
                             },
                             onEachFeature: function(feature, layer) {
                                 var p = feature.properties || {};
-                                layer.bindPopup(
-                                    "<b>🚨 " + (p.name || "Flood Zone") + "</b><br>" +
-                                    "<b>Severity:</b> " + (p.severity || "") + "<br>" +
-                                    "<b>Reports:</b> " + (p.reportCount || 1) + " report(s)<br>" +
-                                    "<small>" + (p.notes || p.source || "") + "</small>"
-                                );
+                                var html = "<b>🚨 " + (p.name || "Flood Zone") + "</b><br>";
+                                html += "<b>Latest Status:</b> " + (p.severity || "") + "<br>";
+                                html += "<b>Reports:</b> " + (p.reportCount || 1) + " active report(s)<br>";
+                                if (p.hasConflict) {
+                                    html += "<div style='background:#FEF2F2;border-left:3px solid #DC2626;padding:4px 6px;margin:5px 0;font-size:11px;color:#991B1B;'>" +
+                                        "⚠️ <b>Safety Notice (Mixed Reports):</b><br>" +
+                                        "Highest severity reported: <b>" + (p.highestSeverity || "") + "</b>.<br>" +
+                                        "Exercise extreme caution!" +
+                                        "</div>";
+                                }
+                                html += "<span style='color:#0284C7;font-size:11px;font-weight:600;'>● Active Flood Zone (Last 24h)</span><br>";
+                                if (p.notes) {
+                                    html += "<small style='color:#334155;'>" + p.notes + "</small>";
+                                }
+                                layer.bindPopup(html);
                             }
                         }).addTo(radiusLayer);
                     };
