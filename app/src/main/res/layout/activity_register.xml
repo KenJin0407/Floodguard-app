@@ -140,6 +140,15 @@
                 android:src="@drawable/ic_visibility_off" />
         </RelativeLayout>
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_marginStart="2dp"
+            android:text="Must be 6+ chars with uppercase, lowercase, number, and symbol (no spaces)"
+            android:textColor="#CBD5E1"
+            android:textSize="11sp" />
+
         <!-- Confirm Password -->
         <RelativeLayout
             android:layout_width="match_parent"

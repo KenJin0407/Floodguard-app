@@ -147,11 +147,6 @@ class ForgotPasswordActivity : ComponentActivity() {
             val newPw = newPasswordField.text?.toString().orEmpty()
             val confirmPw = confirmPasswordField.text?.toString().orEmpty()
 
-            if (enteredOtp.length != 6) {
-                Toast.makeText(this, "Please enter the valid 6-digit verification code", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
             val pwError = UserSession.getPasswordValidationError(newPw)
             if (pwError != null) {
                 newPasswordField.error = pwError
@@ -160,8 +155,17 @@ class ForgotPasswordActivity : ComponentActivity() {
                 return@setOnClickListener
             }
 
-            if (newPw != confirmPw) {
+            if (confirmPw.isEmpty() || newPw != confirmPw) {
+                confirmPasswordField.error = "Passwords do not match."
+                confirmPasswordField.requestFocus()
                 Toast.makeText(this, "Passwords do not match. Please re-check.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            if (enteredOtp.length != 6) {
+                otpField.error = "Please enter 6-digit code"
+                otpField.requestFocus()
+                Toast.makeText(this, "Please enter the valid 6-digit verification code", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
