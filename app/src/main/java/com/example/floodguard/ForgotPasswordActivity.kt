@@ -152,8 +152,11 @@ class ForgotPasswordActivity : ComponentActivity() {
                 return@setOnClickListener
             }
 
-            if (newPw.length < 6) {
-                Toast.makeText(this, "Password must be at least 6 characters long", Toast.LENGTH_SHORT).show()
+            val pwError = UserSession.getPasswordValidationError(newPw)
+            if (pwError != null) {
+                newPasswordField.error = pwError
+                newPasswordField.requestFocus()
+                Toast.makeText(this, "⚠️ $pwError", Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
 

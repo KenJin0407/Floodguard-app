@@ -530,8 +530,11 @@ class ProfileActivity : ComponentActivity() {
                     Toast.makeText(this, "Please fill in all password fields", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-                newText.length < 6 -> {
-                    Toast.makeText(this, "New password must be at least 6 characters", Toast.LENGTH_SHORT).show()
+                UserSession.getPasswordValidationError(newText) != null -> {
+                    val err = UserSession.getPasswordValidationError(newText)!!
+                    newPass.error = err
+                    newPass.requestFocus()
+                    Toast.makeText(this, "⚠️ $err", Toast.LENGTH_LONG).show()
                     return@setOnClickListener
                 }
                 newText != confirmText -> {

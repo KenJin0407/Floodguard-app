@@ -305,6 +305,25 @@ def hash_password(plain_pw: str) -> str:
     import hashlib
     return hashlib.sha256(plain_pw.encode("utf-8")).hexdigest()
 
+def validate_password_strength(password: str) -> tuple[bool, str]:
+    if not password:
+        return False, "Password cannot be empty."
+    if len(password) == 64 and all(c in "0123456789abcdefABCDEF" for c in password):
+        return True, ""
+    if len(password) < 6:
+        return False, "Password must be at least 6 characters long."
+    if " " in password:
+        return False, "Password must not contain spaces."
+    if not any(c.isupper() for c in password):
+        return False, "Password must contain at least one uppercase letter (A-Z)."
+    if not any(c.islower() for c in password):
+        return False, "Password must contain at least one lowercase letter (a-z)."
+    if not any(c.isdigit() for c in password):
+        return False, "Password must contain at least one number (0-9)."
+    if not any(not c.isalnum() and not c.isspace() for c in password):
+        return False, "Password must contain at least one special character (e.g. !@#$%^&*)."
+    return True, ""
+
 def validate_contact_number(mobile: str) -> bool:
     clean = (mobile or "").strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
     if clean.startswith("09"):
@@ -359,11 +378,10 @@ def register_user(user: UserRegister, db: Session = Depends(get_db)):
             status_code=400,
             detail="Contact number must start with +63 or 09 and consist of 11 digits (e.g. 09123456789 or +639123456789)"
         )
-    if user.password and len(user.password) < 6 and len(user.password) != 64:
-        raise HTTPException(
-            status_code=400,
-            detail="Password must be at least 6 characters long."
-        )
+    if user.password:
+        valid_pw, pw_err = validate_password_strength(user.password)
+        if not valid_pw:
+            raise HTTPException(status_code=400, detail=pw_err)
 
     # Check if mobile number is already registered to another user
     clean_target = normalize_ph_mobile(user.mobile)
@@ -498,6 +516,10 @@ def change_password(payload: UserPasswordUpdate, db: Session = Depends(get_db)):
     if user.password != payload.currentPassword and user.password != hashed_current:
         raise HTTPException(status_code=400, detail="Current password is incorrect")
 
+    valid_pw, pw_err = validate_password_strength(payload.newPassword)
+    if not valid_pw:
+        raise HTTPException(status_code=400, detail=pw_err)
+
     new_hashed = hash_password(payload.newPassword) if len(payload.newPassword) != 64 else payload.newPassword
     user.password = new_hashed
     db.commit()
@@ -509,6 +531,11 @@ def reset_password(payload: UserPasswordReset, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == payload.username).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    valid_pw, pw_err = validate_password_strength(payload.newPassword)
+    if not valid_pw:
+        raise HTTPException(status_code=400, detail=pw_err)
+
     new_hashed = hash_password(payload.newPassword) if len(payload.newPassword) != 64 else payload.newPassword
     user.password = new_hashed
     db.commit()
