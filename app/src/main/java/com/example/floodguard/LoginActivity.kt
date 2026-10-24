@@ -290,8 +290,12 @@ class LoginActivity : ComponentActivity() {
                 resetStatusText.visibility = View.VISIBLE
                 return@setOnClickListener
             }
-            if (newPass.length < 6) {
-                resetStatusText.text = "New password must be at least 6 characters."
+            val pwError = UserSession.getPasswordValidationError(newPass)
+            if (pwError != null) {
+                inputNewPass.error = pwError
+                inputNewPass.requestFocus()
+                resetStatusText.text = "⚠️ $pwError"
+                resetStatusText.setTextColor(Color.parseColor("#DC2626"))
                 resetStatusText.visibility = View.VISIBLE
                 return@setOnClickListener
             }

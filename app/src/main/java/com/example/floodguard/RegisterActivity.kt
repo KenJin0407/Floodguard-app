@@ -101,10 +101,11 @@ class RegisterActivity : ComponentActivity() {
                 Toast.makeText(this, contactError, Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
-            if (password.length < 6) {
-                regPasswordField?.error = "Password must be at least 6 characters long."
+            val passwordError = UserSession.getPasswordValidationError(password)
+            if (passwordError != null) {
+                regPasswordField?.error = passwordError
                 regPasswordField?.requestFocus()
-                Toast.makeText(this, "⚠️ Password must be at least 6 characters long.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "⚠️ $passwordError", Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
             if (password != confirmPassword) {

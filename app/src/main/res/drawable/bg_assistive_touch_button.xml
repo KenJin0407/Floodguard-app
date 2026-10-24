@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Outer Translucent Dark Circle -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#B3111827" />
+            <stroke
+                android:width="1.5dp"
+                android:color="#4DFFFFFF" />
+            <size
+                android:width="54dp"
+                android:height="54dp" />
+        </shape>
+    </item>
+
+    <!-- Middle Translucent Ring -->
+    <item
+        android:bottom="8dp"
+        android:left="8dp"
+        android:right="8dp"
+        android:top="8dp">
+        <shape android:shape="oval">
+            <stroke
+                android:width="2dp"
+                android:color="#80FFFFFF" />
+        </shape>
+    </item>
+
+    <!-- Inner Solid White Circle (iPhone AssistiveTouch style) -->
+    <item
+        android:bottom="15dp"
+        android:left="15dp"
+        android:right="15dp"
+        android:top="15dp">
+        <shape android:shape="oval">
+            <solid android:color="#F1F5F9" />
+        </shape>
+    </item>
+</layer-list>

@@ -530,8 +530,11 @@ class ProfileActivity : ComponentActivity() {
                     Toast.makeText(this, "Please fill in all password fields", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-                newText.length < 6 -> {
-                    Toast.makeText(this, "New password must be at least 6 characters", Toast.LENGTH_SHORT).show()
+                UserSession.getPasswordValidationError(newText) != null -> {
+                    val err = UserSession.getPasswordValidationError(newText)!!
+                    newPass.error = err
+                    newPass.requestFocus()
+                    Toast.makeText(this, "⚠️ $err", Toast.LENGTH_LONG).show()
                     return@setOnClickListener
                 }
                 newText != confirmText -> {
@@ -592,23 +595,9 @@ class ProfileActivity : ComponentActivity() {
             startActivity(intent)
             finish()
         }
-        findViewById<LinearLayout>(R.id.navHome)?.setOnClickListener {
-            val intent = Intent(this, DashboardActivity::class.java)
-            startActivity(intent)
-            finish()
+        findViewById<ImageView>(R.id.menuIcon)?.setOnClickListener { view ->
+            NavigationMenuHelper.showMenu(this, view)
         }
-        findViewById<LinearLayout>(R.id.navMap)?.setOnClickListener {
-            val intent = Intent(this, MapActivity::class.java)
-            startActivity(intent)
-            finish()
-        }
-        findViewById<LinearLayout>(R.id.navAlerts)?.setOnClickListener {
-            val intent = Intent(this, AlertsActivity::class.java)
-            startActivity(intent)
-            finish()
-        }
-        findViewById<LinearLayout>(R.id.navProfile)?.setOnClickListener {
-            // Already on Profile
-        }
+        EdgeNavigationHelper.attachEdgeNavigation(this, EdgeNavigationHelper.NavTab.PROFILE)
     }
 }

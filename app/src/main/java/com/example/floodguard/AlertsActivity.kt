@@ -232,23 +232,14 @@ class AlertsActivity : ComponentActivity() {
     }
 
     private fun setupBottomNavigation() {
-        findViewById<LinearLayout>(R.id.navHome)?.setOnClickListener {
+        findViewById<LinearLayout>(R.id.logoLayout)?.setOnClickListener {
             val intent = Intent(this, DashboardActivity::class.java)
             startActivity(intent)
             finish()
         }
-        findViewById<LinearLayout>(R.id.navMap)?.setOnClickListener {
-            val intent = Intent(this, MapActivity::class.java)
-            startActivity(intent)
-            finish()
+        findViewById<ImageView>(R.id.menuIcon)?.setOnClickListener { view ->
+            NavigationMenuHelper.showMenu(this, view)
         }
-        findViewById<LinearLayout>(R.id.navAlerts)?.setOnClickListener {
-            // Already on Alerts screen
-        }
-        findViewById<LinearLayout>(R.id.navProfile)?.setOnClickListener {
-            val intent = Intent(this, ProfileActivity::class.java)
-            startActivity(intent)
-            finish()
-        }
+        EdgeNavigationHelper.attachEdgeNavigation(this, EdgeNavigationHelper.NavTab.ALERTS)
     }
 }

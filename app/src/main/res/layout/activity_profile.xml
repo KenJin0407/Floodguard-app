@@ -84,7 +84,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/headerBar"
-        android:layout_above="@id/bottomNav"
+        android:layout_alignParentBottom="true"
         android:fillViewport="true">
 
         <LinearLayout
@@ -448,110 +448,5 @@
 
         </LinearLayout>
     </ScrollView>
-
-    <!-- Bottom Navigation Bar -->
-    <LinearLayout
-        android:id="@+id/bottomNav"
-        android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:background="@color/bottom_nav_bg"
-        android:orientation="horizontal"
-        android:layout_alignParentBottom="true"
-        android:elevation="8dp">
-
-        <!-- Tab 1: Home -->
-        <LinearLayout
-            android:id="@+id/navHome"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:clickable="true"
-            android:focusable="true">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@drawable/ic_home"
-                android:contentDescription="Home" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Home"
-                android:textSize="11sp"
-                android:textColor="#78909C" />
-        </LinearLayout>
-
-        <!-- Tab 2: Map -->
-        <LinearLayout
-            android:id="@+id/navMap"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:clickable="true"
-            android:focusable="true">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@drawable/ic_map_pin"
-                android:contentDescription="Map" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Map"
-                android:textSize="11sp"
-                android:textColor="#78909C" />
-        </LinearLayout>
-
-        <!-- Tab 3: Alerts -->
-        <LinearLayout
-            android:id="@+id/navAlerts"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:clickable="true"
-            android:focusable="true">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@drawable/ic_alert"
-                android:contentDescription="Alerts" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Alerts"
-                android:textSize="11sp"
-                android:textColor="#D32F2F" />
-        </LinearLayout>
-
-        <!-- Tab 4: Profile (Selected) -->
-        <LinearLayout
-            android:id="@+id/navProfile"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:clickable="true"
-            android:focusable="true">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@drawable/ic_profile"
-                android:contentDescription="Profile" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Profile"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:textColor="#000000" />
-        </LinearLayout>
-
-    </LinearLayout>
 
 </RelativeLayout>

@@ -219,5 +219,41 @@ object UserSession {
         }
         return null
     }
+
+    /**
+     * Validates password based on required rules:
+     * - Minimum 6 characters long
+     * - Must contain at least one uppercase letter (A-Z)
+     * - Must contain at least one lowercase letter (a-z)
+     * - Must contain at least one digit (0-9)
+     * - Must contain at least one special character (!@#$%^&* etc.)
+     * - Must NOT contain spaces
+     */
+    fun getPasswordValidationError(password: String): String? {
+        if (password.length < 6) {
+            return "Password must be at least 6 characters long."
+        }
+        if (password.contains(" ")) {
+            return "Password must not contain spaces."
+        }
+        if (!password.any { it.isUpperCase() }) {
+            return "Password must contain at least one uppercase letter (A-Z)."
+        }
+        if (!password.any { it.isLowerCase() }) {
+            return "Password must contain at least one lowercase letter (a-z)."
+        }
+        if (!password.any { it.isDigit() }) {
+            return "Password must contain at least one number (0-9)."
+        }
+        val hasSpecialChar = password.any { !it.isLetterOrDigit() && !it.isWhitespace() }
+        if (!hasSpecialChar) {
+            return "Password must contain at least one special character (e.g. !@#$%^&*)."
+        }
+        return null
+    }
+
+    fun isValidPassword(password: String): Boolean {
+        return getPasswordValidationError(password) == null
+    }
 }
 
