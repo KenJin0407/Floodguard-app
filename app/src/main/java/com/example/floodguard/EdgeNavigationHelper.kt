@@ -3,20 +3,23 @@ package com.example.floodguard
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
+import android.graphics.Color
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 
 /**
- * Helper for attaching and animating the Edge Navigation Panel.
- * Replaces the traditional bottom navigation bar with a sleek, slide-out edge drawer
- * containing Home, Map, Alerts, and Profile destinations.
+ * iOS AssistiveTouch-style floating navigation menu for FloodGuard.
+ * Replaces the traditional bottom navigation bar with a floating circular button
+ * that expands into an iOS-style dark rounded card containing Home, Map, Alerts, and Profile.
  */
 object EdgeNavigationHelper {
 
@@ -24,90 +27,108 @@ object EdgeNavigationHelper {
         HOME, MAP, ALERTS, PROFILE
     }
 
-    @SuppressLint("InflateParams")
+    @SuppressLint("ClickableViewAccessibility", "InflateParams")
     fun attachEdgeNavigation(activity: Activity, currentTab: NavTab) {
         val rootViewGroup = activity.findViewById<ViewGroup>(android.R.id.content) ?: return
 
-        // Inflate Edge Navigation layout into the activity root
+        // Inflate AssistiveTouch layout into the activity root
         val edgeView = LayoutInflater.from(activity).inflate(R.layout.layout_edge_navigation, rootViewGroup, false)
 
         val edgeScrim = edgeView.findViewById<View>(R.id.edgeScrim)
-        val edgeHandle = edgeView.findViewById<LinearLayout>(R.id.edgeHandle)
-        val edgePanelContainer = edgeView.findViewById<LinearLayout>(R.id.edgePanelContainer)
-        val btnEdgeClose = edgeView.findViewById<ImageView>(R.id.btnEdgeClose)
+        val edgeFloatingButton = edgeView.findViewById<FrameLayout>(R.id.edgeFloatingButton)
+        val edgeAssistiveCard = edgeView.findViewById<LinearLayout>(R.id.edgeAssistiveCard)
 
-        val itemNavHome = edgeView.findViewById<LinearLayout>(R.id.edgeNavHome)
-        val itemNavMap = edgeView.findViewById<LinearLayout>(R.id.edgeNavMap)
-        val itemNavAlerts = edgeView.findViewById<LinearLayout>(R.id.edgeNavAlerts)
-        val itemNavProfile = edgeView.findViewById<LinearLayout>(R.id.edgeNavProfile)
+        val edgeNavHome = edgeView.findViewById<LinearLayout>(R.id.edgeNavHome)
+        val edgeNavMap = edgeView.findViewById<LinearLayout>(R.id.edgeNavMap)
+        val edgeNavAlerts = edgeView.findViewById<LinearLayout>(R.id.edgeNavAlerts)
+        val edgeNavProfile = edgeView.findViewById<LinearLayout>(R.id.edgeNavProfile)
 
-        val tagHomeActive = edgeView.findViewById<TextView>(R.id.tagHomeActive)
-        val tagMapActive = edgeView.findViewById<TextView>(R.id.tagMapActive)
-        val tagAlertsActive = edgeView.findViewById<TextView>(R.id.tagAlertsActive)
-        val tagProfileActive = edgeView.findViewById<TextView>(R.id.tagProfileActive)
-        val btnEdgeHotline = edgeView.findViewById<LinearLayout>(R.id.btnEdgeHotline)
+        val ivHomeIcon = edgeView.findViewById<ImageView>(R.id.ivHomeIcon)
+        val tvHomeText = edgeView.findViewById<TextView>(R.id.tvHomeText)
+        val ivMapIcon = edgeView.findViewById<ImageView>(R.id.ivMapIcon)
+        val tvMapText = edgeView.findViewById<TextView>(R.id.tvMapText)
+        val ivAlertsIcon = edgeView.findViewById<ImageView>(R.id.ivAlertsIcon)
+        val tvAlertsText = edgeView.findViewById<TextView>(R.id.tvAlertsText)
+        val ivProfileIcon = edgeView.findViewById<ImageView>(R.id.ivProfileIcon)
+        val tvProfileText = edgeView.findViewById<TextView>(R.id.tvProfileText)
 
-        // Highlight the current active tab
+        // Highlight current active tab (iOS style active badge)
+        val activeAccentColor = Color.parseColor("#38BDF8")
         when (currentTab) {
             NavTab.HOME -> {
-                itemNavHome.setBackgroundResource(R.drawable.bg_edge_item_active)
-                tagHomeActive.visibility = View.VISIBLE
+                edgeNavHome.setBackgroundResource(R.drawable.bg_assistive_item_active)
+                ivHomeIcon.setColorFilter(activeAccentColor)
+                tvHomeText.setTextColor(activeAccentColor)
+                tvHomeText.text = "● Home"
             }
             NavTab.MAP -> {
-                itemNavMap.setBackgroundResource(R.drawable.bg_edge_item_active)
-                tagMapActive.visibility = View.VISIBLE
+                edgeNavMap.setBackgroundResource(R.drawable.bg_assistive_item_active)
+                ivMapIcon.setColorFilter(activeAccentColor)
+                tvMapText.setTextColor(activeAccentColor)
+                tvMapText.text = "● Map"
             }
             NavTab.ALERTS -> {
-                itemNavAlerts.setBackgroundResource(R.drawable.bg_edge_item_active)
-                tagAlertsActive.visibility = View.VISIBLE
+                edgeNavAlerts.setBackgroundResource(R.drawable.bg_assistive_item_active)
+                ivAlertsIcon.setColorFilter(Color.parseColor("#F87171"))
+                tvAlertsText.setTextColor(Color.parseColor("#F87171"))
+                tvAlertsText.text = "● Alerts"
             }
             NavTab.PROFILE -> {
-                itemNavProfile.setBackgroundResource(R.drawable.bg_edge_item_active)
-                tagProfileActive.visibility = View.VISIBLE
+                edgeNavProfile.setBackgroundResource(R.drawable.bg_assistive_item_active)
+                ivProfileIcon.setColorFilter(activeAccentColor)
+                tvProfileText.setTextColor(activeAccentColor)
+                tvProfileText.text = "● Profile"
             }
         }
 
-        var isPanelOpen = false
-        val panelWidthPx = (300 * activity.resources.displayMetrics.density)
+        var isMenuOpen = false
 
-        fun openPanel() {
-            if (isPanelOpen) return
-            isPanelOpen = true
+        fun openMenu() {
+            if (isMenuOpen) return
+            isMenuOpen = true
 
-            edgePanelContainer.visibility = View.VISIBLE
+            edgeAssistiveCard.visibility = View.VISIBLE
             edgeScrim.visibility = View.VISIBLE
 
-            // Slide in animation from right edge
-            edgePanelContainer.translationX = panelWidthPx
-            edgePanelContainer.animate()
-                .translationX(0f)
-                .setDuration(260)
-                .setInterpolator(DecelerateInterpolator())
+            // Spring scale & fade in (iOS AssistiveTouch open animation)
+            edgeAssistiveCard.scaleX = 0.4f
+            edgeAssistiveCard.scaleY = 0.4f
+            edgeAssistiveCard.alpha = 0f
+            edgeAssistiveCard.animate()
+                .scaleX(1f)
+                .scaleY(1f)
+                .alpha(1f)
+                .setDuration(240)
+                .setInterpolator(OvershootInterpolator(1.1f))
                 .start()
 
             edgeScrim.alpha = 0f
             edgeScrim.animate()
                 .alpha(1f)
-                .setDuration(260)
+                .setDuration(240)
                 .start()
 
-            edgeHandle.animate()
+            edgeFloatingButton.animate()
                 .alpha(0f)
-                .setDuration(150)
-                .withEndAction { edgeHandle.visibility = View.GONE }
+                .scaleX(0.5f)
+                .scaleY(0.5f)
+                .setDuration(160)
+                .withEndAction { edgeFloatingButton.visibility = View.GONE }
                 .start()
         }
 
-        fun closePanel(onClosed: (() -> Unit)? = null) {
-            if (!isPanelOpen) return
-            isPanelOpen = false
+        fun closeMenu(onClosed: (() -> Unit)? = null) {
+            if (!isMenuOpen) return
+            isMenuOpen = false
 
-            edgePanelContainer.animate()
-                .translationX(panelWidthPx)
-                .setDuration(220)
+            edgeAssistiveCard.animate()
+                .scaleX(0.4f)
+                .scaleY(0.4f)
+                .alpha(0f)
+                .setDuration(180)
                 .setInterpolator(DecelerateInterpolator())
                 .withEndAction {
-                    edgePanelContainer.visibility = View.GONE
+                    edgeAssistiveCard.visibility = View.GONE
                     edgeScrim.visibility = View.GONE
                     onClosed?.invoke()
                 }
@@ -115,35 +136,63 @@ object EdgeNavigationHelper {
 
             edgeScrim.animate()
                 .alpha(0f)
-                .setDuration(220)
+                .setDuration(180)
                 .start()
 
-            edgeHandle.visibility = View.VISIBLE
-            edgeHandle.animate()
+            edgeFloatingButton.visibility = View.VISIBLE
+            edgeFloatingButton.animate()
                 .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
                 .setDuration(200)
                 .start()
         }
 
-        edgeHandle.setOnClickListener {
-            openPanel()
+        // Draggable iPhone AssistiveTouch Button
+        var dY = 0f
+        var startY = 0f
+        var isDragging = false
+
+        edgeFloatingButton.setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    dY = view.y - event.rawY
+                    startY = event.rawY
+                    isDragging = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (Math.abs(event.rawY - startY) > 12) {
+                        isDragging = true
+                        val parentHeight = (view.parent as? View)?.height ?: rootViewGroup.height
+                        val minTop = (60 * activity.resources.displayMetrics.density)
+                        val maxBottom = parentHeight - view.height - (40 * activity.resources.displayMetrics.density)
+                        val newY = (event.rawY + dY).coerceIn(minTop, maxBottom)
+                        view.y = newY
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!isDragging) {
+                        openMenu()
+                    }
+                    true
+                }
+                else -> false
+            }
         }
 
         edgeScrim.setOnClickListener {
-            closePanel()
+            closeMenu()
         }
 
-        btnEdgeClose.setOnClickListener {
-            closePanel()
-        }
-
-        itemNavHome.setOnClickListener {
+        edgeNavHome.setOnClickListener {
             if (currentTab == NavTab.HOME) {
-                closePanel {
+                closeMenu {
                     Toast.makeText(activity, "You are on Home Screen", Toast.LENGTH_SHORT).show()
                 }
             } else {
-                closePanel {
+                closeMenu {
                     val intent = Intent(activity, DashboardActivity::class.java)
                     activity.startActivity(intent)
                     activity.finish()
@@ -151,11 +200,11 @@ object EdgeNavigationHelper {
             }
         }
 
-        itemNavMap.setOnClickListener {
+        edgeNavMap.setOnClickListener {
             if (currentTab == NavTab.MAP) {
-                closePanel()
+                closeMenu()
             } else {
-                closePanel {
+                closeMenu {
                     val intent = Intent(activity, MapActivity::class.java)
                     activity.startActivity(intent)
                     activity.finish()
@@ -163,11 +212,11 @@ object EdgeNavigationHelper {
             }
         }
 
-        itemNavAlerts.setOnClickListener {
+        edgeNavAlerts.setOnClickListener {
             if (currentTab == NavTab.ALERTS) {
-                closePanel()
+                closeMenu()
             } else {
-                closePanel {
+                closeMenu {
                     val intent = Intent(activity, AlertsActivity::class.java)
                     activity.startActivity(intent)
                     activity.finish()
@@ -175,24 +224,15 @@ object EdgeNavigationHelper {
             }
         }
 
-        itemNavProfile.setOnClickListener {
+        edgeNavProfile.setOnClickListener {
             if (currentTab == NavTab.PROFILE) {
-                closePanel()
+                closeMenu()
             } else {
-                closePanel {
+                closeMenu {
                     val intent = Intent(activity, ProfileActivity::class.java)
                     activity.startActivity(intent)
                     activity.finish()
                 }
-            }
-        }
-
-        btnEdgeHotline.setOnClickListener {
-            try {
-                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:0289971830"))
-                activity.startActivity(dialIntent)
-            } catch (_: Exception) {
-                Toast.makeText(activity, "Rescue Hotline: (02) 8997-1830", Toast.LENGTH_LONG).show()
             }
         }
 
