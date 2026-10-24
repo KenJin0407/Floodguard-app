@@ -192,4 +192,32 @@ object FloodGuardThemedDialog {
 
         dialog.show()
     }
+
+    /** Displays the themed Daily Report Limit Reached modal adhering to FloodGuard aesthetic */
+    fun showDailyLimitReached(activity: Activity, onReturnToDashboard: (() -> Unit)? = null) {
+        if (activity.isFinishing || activity.isDestroyed) return
+
+        val dialogView = LayoutInflater.from(activity).inflate(R.layout.dialog_daily_limit_reached, null)
+        val dialog = AlertDialog.Builder(activity)
+            .setView(dialogView)
+            .setCancelable(true)
+            .create()
+
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        dialogView.findViewById<Button>(R.id.btnLimitClose)?.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialogView.findViewById<Button>(R.id.btnLimitDashboard)?.setOnClickListener {
+            dialog.dismiss()
+            if (onReturnToDashboard != null) {
+                onReturnToDashboard()
+            } else {
+                activity.finish()
+            }
+        }
+
+        dialog.show()
+    }
 }
