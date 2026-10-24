@@ -115,6 +115,16 @@ engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+def normalize_ph_mobile(raw: Optional[str]) -> str:
+    if not raw:
+        return ""
+    digits = "".join(ch for ch in str(raw) if ch.isdigit())
+    if digits.startswith("63") and len(digits) == 12:
+        return "0" + digits[2:]
+    if digits.startswith("9") and len(digits) == 10:
+        return "0" + digits
+    return digits
+
 # Startup migration to ensure old index constraints are safely cleared
 def run_db_migrations():
     try:
@@ -333,15 +343,6 @@ def validate_contact_number(mobile: str) -> bool:
         return (len(rest) in (10, 11)) and rest.isdigit()
     return False
 
-def normalize_ph_mobile(raw: Optional[str]) -> str:
-    if not raw:
-        return ""
-    digits = "".join(ch for ch in str(raw) if ch.isdigit())
-    if digits.startswith("63") and len(digits) == 12:
-        return "0" + digits[2:]
-    if digits.startswith("9") and len(digits) == 10:
-        return "0" + digits
-    return digits
 
 @app.get("/api/auth/check-availability")
 @app.get("/auth/check-availability")
