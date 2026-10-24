@@ -310,7 +310,10 @@ class ReportFloodActivity : ComponentActivity() {
             tvRemainingReports.text = "You Reached your limit: 0 / $max remaining (resets tomorrow)"
             tvRemainingReports.setTextColor(Color.parseColor("#D32F2F"))
             submitReportButton.text = "DAILY LIMIT REACHED (0 / $max)"
-            submitReportButton.alpha = 0.6f
+            submitReportButton.alpha = 0.75f
+            tvRemainingReports.setOnClickListener {
+                FloodGuardThemedDialog.showDailyLimitReached(this)
+            }
         }
     }
 
@@ -706,11 +709,7 @@ class ReportFloodActivity : ComponentActivity() {
         // 1. Check 4-report daily limit per user
         val remainingBefore = UserSession.getRemainingReportsToday(this)
         if (remainingBefore <= 0) {
-            AlertDialog.Builder(this)
-                .setTitle("Daily Report Limit Reached (4 / 4)")
-                .setMessage("You've reached the limit of 4 flood reports for today. Your report limit will automatically reset tomorrow.")
-                .setPositiveButton("OK", null)
-                .show()
+            FloodGuardThemedDialog.showDailyLimitReached(this)
             return
         }
 
