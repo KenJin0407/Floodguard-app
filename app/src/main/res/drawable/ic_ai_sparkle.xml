@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Center star sparkle -->
+    <path
+        android:fillColor="#FFA500"
+        android:pathData="M12,2L14.26,8.74L21,11L14.26,13.26L12,20L9.74,13.26L3,11L9.74,8.74L12,2Z" />
+    <!-- Secondary small sparkle -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M19,3L19.9,5.1L22,6L19.9,6.9L19,9L18.1,6.9L16,6L18.1,5.1L19,3Z" />
+</vector>

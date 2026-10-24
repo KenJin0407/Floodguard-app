@@ -65,19 +65,50 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <ImageView
-                android:id="@+id/bellIcon"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:src="@drawable/ic_bell"
-                android:contentDescription="Notifications"
-                android:layout_marginEnd="16dp" />
+            <FrameLayout
+                android:id="@+id/btnNotificationBell"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginEnd="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Notification Alerts">
+
+                <ImageView
+                    android:id="@+id/bellIcon"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_bell"
+                    android:contentDescription="Notifications" />
+
+                <!-- Red Notification Badge -->
+                <TextView
+                    android:id="@+id/tvBellBadge"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:layout_gravity="top|end"
+                    android:layout_marginTop="3dp"
+                    android:layout_marginEnd="3dp"
+                    android:background="@drawable/badge_verified_green"
+                    android:backgroundTint="#EF4444"
+                    android:gravity="center"
+                    android:textColor="@android:color/white"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+            </FrameLayout>
 
             <ImageView
                 android:id="@+id/menuIcon"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="2dp"
                 android:src="@drawable/ic_menu"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Menu" />
         </LinearLayout>
     </RelativeLayout>
@@ -87,7 +118,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/headerBar"
-        android:layout_above="@id/bottomNav"
+        android:layout_alignParentBottom="true"
         android:fillViewport="true">
 
         <LinearLayout
@@ -250,7 +281,7 @@
 
                 <LinearLayout
                     android:id="@+id/hourlyForecastContainer"
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center">
@@ -498,110 +529,5 @@
 
         </LinearLayout>
     </ScrollView>
-
-    <!-- Bottom Navigation Bar -->
-    <LinearLayout
-        android:id="@+id/bottomNav"
-        android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:background="@color/bottom_nav_bg"
-        android:orientation="horizontal"
-        android:layout_alignParentBottom="true"
-        android:elevation="8dp">
-
-        <!-- Tab 1: Home -->
-        <LinearLayout
-            android:id="@+id/navHome"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:clickable="true"
-            android:focusable="true">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@drawable/ic_home"
-                android:contentDescription="Home" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Home"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:textColor="@color/text_primary" />
-        </LinearLayout>
-
-        <!-- Tab 2: Map -->
-        <LinearLayout
-            android:id="@+id/navMap"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:clickable="true"
-            android:focusable="true">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@drawable/ic_map_pin"
-                android:contentDescription="Map" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Map"
-                android:textSize="11sp"
-                android:textColor="#78909C" />
-        </LinearLayout>
-
-        <!-- Tab 3: Alerts -->
-        <LinearLayout
-            android:id="@+id/navAlerts"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:clickable="true"
-            android:focusable="true">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@drawable/ic_alert"
-                android:contentDescription="Alerts" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Alerts"
-                android:textSize="11sp"
-                android:textColor="#D32F2F" />
-        </LinearLayout>
-
-        <!-- Tab 4: Profile -->
-        <LinearLayout
-            android:id="@+id/navProfile"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:clickable="true"
-            android:focusable="true">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@drawable/ic_profile"
-                android:contentDescription="Profile" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Profile"
-                android:textSize="11sp"
-                android:textColor="#78909C" />
-        </LinearLayout>
-
-    </LinearLayout>
 
 </RelativeLayout>

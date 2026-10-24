@@ -158,7 +158,7 @@
             android:layout_height="48dp"
             android:layout_marginBottom="20dp"
             android:background="@drawable/search_bg"
-            android:hint="e.g. +63 915 245 6879"
+            android:hint="09XXXXXXXXX or +639XXXXXXXXX"
             android:inputType="phone"
             android:paddingStart="14dp"
             android:paddingEnd="14dp"

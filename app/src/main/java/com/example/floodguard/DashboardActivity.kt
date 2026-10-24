@@ -1,5 +1,19 @@
 package com.example.floodguard
 
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.os.Build
+import android.view.LayoutInflater
+import android.widget.Button
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Intent
@@ -132,6 +146,9 @@ class DashboardActivity : ComponentActivity() {
             }
         }
 
+        updateMapRadius(allReports)
+        updateBellNotificationBadge(allReports)
+
         val reportsList = if (searchQuery.isBlank()) {
             allReports
         } else {
@@ -144,7 +161,7 @@ class DashboardActivity : ComponentActivity() {
 
         if (reportsList.isEmpty()) {
             val emptyText = TextView(this).apply {
-                text = if (searchQuery.isBlank()) "No community flood reports from other users at this moment." else "No flood reports found for \"$searchQuery\"."
+                text = if (searchQuery.isBlank()) "No community flood reports at this moment." else "No flood reports found for \"$searchQuery\"."
                 setTextColor(resources.getColor(android.R.color.darker_gray, theme))
                 textSize = 13f
                 setPadding(12, 12, 12, 12)
@@ -307,6 +324,17 @@ class DashboardActivity : ComponentActivity() {
         startActivity(intent)
     }
 
+    private fun updateBellNotificationBadge(reports: List<FloodReport>) {
+        val activeCount = reports.count { it.severityLevel != SeverityLevel.CLEARED }
+        val tvBadge = findViewById<TextView>(R.id.tvBellBadge) ?: return
+        if (activeCount > 0) {
+            tvBadge.visibility = View.VISIBLE
+            tvBadge.text = if (activeCount > 9) "9+" else activeCount.toString()
+        } else {
+            tvBadge.visibility = View.GONE
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
     @Suppress("DEPRECATION")
     private fun setupRoadMap() {
@@ -339,6 +367,11 @@ class DashboardActivity : ComponentActivity() {
             @Deprecated("Deprecated in Java")
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                 return false
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                updateMapRadius(ReportRepository.loadReports(this@DashboardActivity))
             }
         }
 
@@ -381,6 +414,166 @@ class DashboardActivity : ComponentActivity() {
                     var activeMarker = L.marker([lat, lon]).addTo(map);
                     activeMarker.bindPopup("<b>San Mateo, Rizal</b><br>Google Maps Traffic Navigation").openPopup();
 
+                    var radiusLayer = L.layerGroup().addTo(map);
+
+                    function getSeverityStyle(waterDepth) {
+                        var d = (waterDepth || "").toLowerCase();
+                        if (d.indexOf("impassable") >= 0) {
+                            return { rank: 4, color: "#8B0000" }; // Dark Red
+                        } else if (d.indexOf("waist") >= 0) {
+                            return { rank: 3, color: "#D32F2F" }; // Red
+                        } else if (d.indexOf("knee") >= 0) {
+                            return { rank: 2, color: "#FFA000" }; // Yellow/Orange
+                        } else {
+                            return { rank: 1, color: "#388E3C" }; // Green (Ankle-Deep)
+                        }
+                    }
+
+                    function getDistanceM(lat1, lon1, lat2, lon2) {
+                        var R = 6371000;
+                        var dLat = (lat2 - lat1) * Math.PI / 180;
+                        var dLon = (lon2 - lon1) * Math.PI / 180;
+                        var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                                Math.sin(dLon/2) * Math.sin(dLon/2);
+                        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                    }
+
+                    window.renderFloodRadius = function(reports) {
+                        radiusLayer.clearLayers();
+                        if (!reports || reports.length === 0) return;
+
+                        var now = Date.now();
+                        var maxAgeMs = 24 * 60 * 60 * 1000;
+                        var clusters = [];
+
+                        for (var i = 0; i < reports.length; i++) {
+                            var r = reports[i];
+                            if (!r.lat || !r.lon) continue;
+                            if (r.timestamp && (now - r.timestamp > maxAgeMs)) {
+                                continue; // Auto-expire flood radius after 24 hours
+                            }
+
+                            // Cluster nearby reports within 300 meters into a single zone
+                            var matchedCluster = null;
+                            for (var c = 0; c < clusters.length; c++) {
+                                if (getDistanceM(r.lat, r.lon, clusters[c].lat, clusters[c].lon) <= 300) {
+                                    matchedCluster = clusters[c];
+                                    break;
+                                }
+                            }
+
+                            if (!matchedCluster) {
+                                matchedCluster = {
+                                    lat: r.lat,
+                                    lon: r.lon,
+                                    location: r.location,
+                                    reports: []
+                                };
+                                clusters.push(matchedCluster);
+                            }
+                            matchedCluster.reports.push(r);
+                        }
+
+                        for (var idx = 0; idx < clusters.length; idx++) {
+                            var cluster = clusters[idx];
+                            var repList = cluster.reports;
+                            if (repList.length === 0) continue;
+
+                            // Sort: newest first (Solusyon 1: Latest Report Priority)
+                            repList.sort(function(a, b) {
+                                return (b.timestamp || 0) - (a.timestamp || 0);
+                            });
+
+                            var latest = repList[0];
+                            var latestStyle = getSeverityStyle(latest.waterDepth);
+
+                            // Find highest severity in this cluster (Solusyon 2: Highest Severity Safety Priority)
+                            var maxReport = latest;
+                            var maxStyle = latestStyle;
+                            for (var j = 0; j < repList.length; j++) {
+                                var s = getSeverityStyle(repList[j].waterDepth);
+                                if (s.rank > maxStyle.rank) {
+                                    maxStyle = s;
+                                    maxReport = repList[j];
+                                }
+                            }
+
+                            var count = repList.length;
+                            var hasConflict = (maxStyle.rank !== latestStyle.rank);
+
+                            // For public safety, severe danger (Waist/Impassable) dictates the warning color
+                            var circleColor = (maxStyle.rank >= 3) ? maxStyle.color : latestStyle.color;
+                            var fillOpacity = Math.min(0.24 + (count - 1) * 0.14, 0.78);
+                            var strokeWeight = Math.min(1.5 + (count - 1) * 1.0, 5.0);
+
+                            var circle = L.circle([cluster.lat, cluster.lon], {
+                                radius: 220,
+                                color: circleColor,
+                                fillColor: circleColor,
+                                fillOpacity: fillOpacity,
+                                weight: strokeWeight
+                            }).addTo(radiusLayer);
+
+                            var minutesAgo = Math.max(0, Math.round((now - (latest.timestamp || now)) / 60000));
+                            var timeAgoText = minutesAgo < 1 ? "Just now" : (minutesAgo < 60 ? minutesAgo + "m ago" : Math.round(minutesAgo/60) + "h ago");
+
+                            var popupHtml = "<b>🚨 " + cluster.location + "</b><br>";
+                            popupHtml += "<b>Latest Status:</b> " + latest.waterDepth + " <span style='font-size:11px;color:#64748B;'>(" + timeAgoText + ")</span><br>";
+                            popupHtml += "<b>Reports:</b> " + count + " active report(s)<br>";
+
+                            if (hasConflict) {
+                                popupHtml += "<div style='background:#FEF2F2;border-left:3px solid #DC2626;padding:4px 6px;margin:5px 0;font-size:11px;color:#991B1B;'>" +
+                                    "⚠️ <b>Safety Notice (Mixed Reports):</b><br>" +
+                                    "Highest severity reported: <b>" + maxReport.waterDepth + "</b>.<br>" +
+                                    "Latest update: <i>" + latest.waterDepth + "</i>. Exercise extreme caution!" +
+                                    "</div>";
+                            }
+
+                            popupHtml += "<span style='color:#0284C7;font-size:11px;font-weight:600;'>● Active Flood Zone (Last 24h)</span><br>";
+                            if (latest.notes) {
+                                popupHtml += "<small style='color:#334155;'>" + latest.notes + "</small>";
+                            }
+
+                            circle.bindPopup(popupHtml);
+                        }
+                    };
+
+                    window.renderFlompyGeoJson = function(geojsonData) {
+                        if (!geojsonData || !geojsonData.features || geojsonData.features.length === 0) return;
+                        radiusLayer.clearLayers();
+                        L.geoJSON(geojsonData, {
+                            pointToLayer: function(feature, latlng) {
+                                var p = feature.properties || {};
+                                return L.circle(latlng, {
+                                    radius: p.radius || 220,
+                                    color: p.color || "#8B0000",
+                                    fillColor: p.color || "#8B0000",
+                                    fillOpacity: p.fillOpacity || 0.24,
+                                    weight: p.strokeWeight || 1.5
+                                });
+                            },
+                            onEachFeature: function(feature, layer) {
+                                var p = feature.properties || {};
+                                var html = "<b>🚨 " + (p.name || "Flood Zone") + "</b><br>";
+                                html += "<b>Latest Status:</b> " + (p.severity || "") + "<br>";
+                                html += "<b>Reports:</b> " + (p.reportCount || 1) + " active report(s)<br>";
+                                if (p.hasConflict) {
+                                    html += "<div style='background:#FEF2F2;border-left:3px solid #DC2626;padding:4px 6px;margin:5px 0;font-size:11px;color:#991B1B;'>" +
+                                        "⚠️ <b>Safety Notice (Mixed Reports):</b><br>" +
+                                        "Highest severity reported: <b>" + (p.highestSeverity || "") + "</b>.<br>" +
+                                        "Exercise extreme caution!" +
+                                        "</div>";
+                                }
+                                html += "<span style='color:#0284C7;font-size:11px;font-weight:600;'>● Active Flood Zone (Last 24h)</span><br>";
+                                if (p.notes) {
+                                    html += "<small style='color:#334155;'>" + p.notes + "</small>";
+                                }
+                                layer.bindPopup(html);
+                            }
+                        }).addTo(radiusLayer);
+                    };
+
                     function locateArea(newLat, newLon, title) {
                         map.setView([newLat, newLon], 15);
                         if (activeMarker) {
@@ -398,32 +591,58 @@ class DashboardActivity : ComponentActivity() {
         mapWebView.loadDataWithBaseURL("https://basemaps.cartocdn.com", htmlContent, "text/html", "UTF-8", null)
     }
 
+    private fun updateMapRadius(reports: List<FloodReport>) {
+        if (!::mapWebView.isInitialized) return
+        val activeWindowMs = 24 * 60 * 60 * 1000L
+        val now = System.currentTimeMillis()
+        val activeReports = reports.filter { r ->
+            val age = now - r.timestamp
+            age in -120_000L..activeWindowMs
+        }
+        val jsonArray = JSONArray()
+        for (r in activeReports) {
+            val obj = JSONObject().apply {
+                put("location", r.location)
+                put("waterDepth", r.severity)
+                put("statusText", r.statusText)
+                put("notes", r.notes)
+                put("lat", r.lat)
+                put("lon", r.lon)
+                put("timestamp", r.timestamp)
+            }
+            jsonArray.put(obj)
+        }
+        mapWebView.evaluateJavascript(
+            "javascript:if(window.renderFloodRadius) window.renderFloodRadius($jsonArray);",
+            null
+        )
+
+        FloodGuardApiService.fetchFloodGeoJsonFromBackend { geoJsonStr ->
+            runOnUiThread {
+                mapWebView.evaluateJavascript(
+                    "javascript:if(window.renderFlompyGeoJson) window.renderFlompyGeoJson($geoJsonStr);",
+                    null
+                )
+            }
+        }
+    }
+
     private fun setupBottomNavigation() {
         findViewById<LinearLayout>(R.id.logoLayout)?.setOnClickListener {
             Toast.makeText(this, "You are on Home Screen", Toast.LENGTH_SHORT).show()
         }
-        findViewById<LinearLayout>(R.id.navHome)?.setOnClickListener {
-            // Already on Home
-        }
-        findViewById<LinearLayout>(R.id.navMap)?.setOnClickListener {
-            val intent = Intent(this, MapActivity::class.java)
+        val openNotificationAlerts = View.OnClickListener {
+            val intent = Intent(this, AlertsActivity::class.java).apply {
+                putExtra("title", "Notification Alerts")
+            }
             startActivity(intent)
         }
-        findViewById<LinearLayout>(R.id.navAlerts)?.setOnClickListener {
-            val intent = Intent(this, AlertsActivity::class.java)
-            startActivity(intent)
-        }
-        findViewById<LinearLayout>(R.id.navProfile)?.setOnClickListener {
-            val intent = Intent(this, ProfileActivity::class.java)
-            startActivity(intent)
-        }
-        findViewById<ImageView>(R.id.bellIcon)?.setOnClickListener {
-            val intent = Intent(this, AlertsActivity::class.java)
-            startActivity(intent)
-        }
+        findViewById<View>(R.id.btnNotificationBell)?.setOnClickListener(openNotificationAlerts)
+        findViewById<View>(R.id.bellIcon)?.setOnClickListener(openNotificationAlerts)
         findViewById<ImageView>(R.id.menuIcon)?.setOnClickListener { view ->
             NavigationMenuHelper.showMenu(this, view)
         }
+        EdgeNavigationHelper.attachEdgeNavigation(this, EdgeNavigationHelper.NavTab.HOME)
     }
 
     private fun fetchRealTimeWeather() {
@@ -462,6 +681,10 @@ class DashboardActivity : ComponentActivity() {
                         val hasNotPassableReport = reports.any { it.severityLevel == SeverityLevel.NOT_PASSABLE }
 
                         val weatherCondition = getWeatherCondition(weatherCode)
+                        val isSevereWeather = (precip >= 7.5 || weatherCode in listOf(65, 82, 95, 96, 99))
+                        if (isSevereWeather) {
+                            checkAndPromptSevereWeatherReport(weatherCondition, precip)
+                        }
                         val rainStatus = when {
                             precip >= 25.0 -> String.format(Locale.US, "Heavy Rain: %.1f mm/h Critical Traffic Gridlock (Main Roads)", precip)
                             hasNotPassableReport -> String.format(Locale.US, "Rainfall: %.1f mm/h Active Flood Reports (Main Roads Gridlock)", precip)
@@ -510,6 +733,124 @@ class DashboardActivity : ComponentActivity() {
             80, 81, 82 -> "Rain Showers"
             95, 96, 99 -> "Thunderstorm"
             else -> "Thunderstorm"
+        }
+    }
+
+    private fun checkAndPromptSevereWeatherReport(condition: String, precip: Double) {
+        val prefs = getSharedPreferences("floodguard_weather_prompt", Context.MODE_PRIVATE)
+        val lastPromptTime = prefs.getLong("last_prompt_time", 0L)
+        val now = System.currentTimeMillis()
+        val cooldownMs = 2 * 60 * 60 * 1000L // Prompt at most once every 2 hours
+
+        if (now - lastPromptTime < cooldownMs) {
+            return
+        }
+        prefs.edit().putLong("last_prompt_time", now).apply()
+
+        runOnUiThread {
+            showSevereWeatherPromptDialog(condition, precip)
+            sendSevereWeatherSystemNotification(condition, precip)
+        }
+    }
+
+    private fun showSevereWeatherPromptDialog(condition: String, precipRate: Double) {
+        if (isFinishing || isDestroyed) return
+
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_floodguard_confirm, null)
+        val tvSubtitle = dialogView.findViewById<TextView>(R.id.dialogHeaderSubtitle)
+        val tvTitle = dialogView.findViewById<TextView>(R.id.dialogConfirmTitle)
+        val tvMessage = dialogView.findViewById<TextView>(R.id.dialogConfirmMessage)
+        val btnCancel = dialogView.findViewById<Button>(R.id.btnDialogCancel)
+        val btnConfirm = dialogView.findViewById<Button>(R.id.btnDialogConfirm)
+
+        tvSubtitle?.text = "Severe Weather Advisory"
+        tvTitle?.text = "⛈️ Severe Weather Detected in San Mateo"
+        tvMessage?.text = String.format(
+            Locale.US,
+            "Heavy rainfall (%s, %.1f mm/h) is currently recorded in your area.\n\nAre you observing flooded streets, rising water levels, or impassable roads nearby? Help keep fellow residents safe by submitting a real-time report.",
+            condition,
+            precipRate
+        )
+
+        btnCancel?.text = "Not Now"
+        btnConfirm?.apply {
+            text = "Report Flood Now"
+            setBackgroundResource(R.drawable.btn_yellow)
+            setTextColor(Color.parseColor("#0A192F"))
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(true)
+            .create()
+
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        btnCancel?.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        btnConfirm?.setOnClickListener {
+            dialog.dismiss()
+            val intent = Intent(this, ReportFloodActivity::class.java)
+            startActivity(intent)
+        }
+
+        dialog.show()
+    }
+
+    private fun sendSevereWeatherSystemNotification(condition: String, precipRate: Double) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        val channelId = "floodguard_severe_weather"
+        val notificationManager = NotificationManagerCompat.from(this)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Severe Weather Advisories",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifies users during heavy rain and storm conditions to crowdsource flood reports"
+            }
+            getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
+        }
+
+        val intent = Intent(this, ReportFloodActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            1001,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val title = "⛈️ Severe Weather Alert — San Mateo"
+        val message = String.format(
+            Locale.US,
+            "Heavy rain (%s, %.1f mm/h) detected. Are there flooded streets near you? Tap to submit a report.",
+            condition,
+            precipRate
+        )
+
+        val notification = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(R.drawable.ic_alert)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        try {
+            notificationManager.notify(7001, notification)
+        } catch (_: SecurityException) {
         }
     }
 }

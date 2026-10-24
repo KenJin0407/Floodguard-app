@@ -16,6 +16,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
@@ -24,6 +25,11 @@ import java.net.URLEncoder
 import java.util.Locale
 import kotlin.concurrent.thread
 
+/**
+ * Activity for the full-screen interactive Leaflet flood map.
+ * Displays real-time location heatmaps, flood depth markers, preset barangay quick-zoom chips,
+ * and geocoded search capabilities.
+ */
 class MapActivity : ComponentActivity() {
 
     private lateinit var fullMapView: WebView
@@ -50,6 +56,7 @@ class MapActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         FloatingAlertManager.onActivityResumed(this)
+        updateMapRadius()
     }
 
     override fun onPause() {
@@ -110,6 +117,11 @@ class MapActivity : ComponentActivity() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                 return false
             }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                updateMapRadius()
+            }
         }
 
         val htmlContent = """
@@ -149,6 +161,166 @@ class MapActivity : ComponentActivity() {
                     var activeMarker = L.marker([14.6958, 121.1207]).addTo(map)
                         .bindPopup("<b>San Mateo Town Center</b><br>Google Maps Traffic Navigation");
 
+                    var radiusLayer = L.layerGroup().addTo(map);
+
+                    function getSeverityStyle(waterDepth) {
+                        var d = (waterDepth || "").toLowerCase();
+                        if (d.indexOf("impassable") >= 0) {
+                            return { rank: 4, color: "#8B0000" }; // Dark Red
+                        } else if (d.indexOf("waist") >= 0) {
+                            return { rank: 3, color: "#D32F2F" }; // Red
+                        } else if (d.indexOf("knee") >= 0) {
+                            return { rank: 2, color: "#FFA000" }; // Yellow/Orange
+                        } else {
+                            return { rank: 1, color: "#388E3C" }; // Green (Ankle-Deep)
+                        }
+                    }
+
+                    function getDistanceM(lat1, lon1, lat2, lon2) {
+                        var R = 6371000;
+                        var dLat = (lat2 - lat1) * Math.PI / 180;
+                        var dLon = (lon2 - lon1) * Math.PI / 180;
+                        var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                                Math.sin(dLon/2) * Math.sin(dLon/2);
+                        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                    }
+
+                    window.renderFloodRadius = function(reports) {
+                        radiusLayer.clearLayers();
+                        if (!reports || reports.length === 0) return;
+
+                        var now = Date.now();
+                        var maxAgeMs = 24 * 60 * 60 * 1000;
+                        var clusters = [];
+
+                        for (var i = 0; i < reports.length; i++) {
+                            var r = reports[i];
+                            if (!r.lat || !r.lon) continue;
+                            if (r.timestamp && (now - r.timestamp > maxAgeMs)) {
+                                continue; // Auto-expire flood radius after 24 hours
+                            }
+
+                            // Cluster nearby reports within 300 meters into a single zone
+                            var matchedCluster = null;
+                            for (var c = 0; c < clusters.length; c++) {
+                                if (getDistanceM(r.lat, r.lon, clusters[c].lat, clusters[c].lon) <= 300) {
+                                    matchedCluster = clusters[c];
+                                    break;
+                                }
+                            }
+
+                            if (!matchedCluster) {
+                                matchedCluster = {
+                                    lat: r.lat,
+                                    lon: r.lon,
+                                    location: r.location,
+                                    reports: []
+                                };
+                                clusters.push(matchedCluster);
+                            }
+                            matchedCluster.reports.push(r);
+                        }
+
+                        for (var idx = 0; idx < clusters.length; idx++) {
+                            var cluster = clusters[idx];
+                            var repList = cluster.reports;
+                            if (repList.length === 0) continue;
+
+                            // Sort: newest first (Solusyon 1: Latest Report Priority)
+                            repList.sort(function(a, b) {
+                                return (b.timestamp || 0) - (a.timestamp || 0);
+                            });
+
+                            var latest = repList[0];
+                            var latestStyle = getSeverityStyle(latest.waterDepth);
+
+                            // Find highest severity in this cluster (Solusyon 2: Highest Severity Safety Priority)
+                            var maxReport = latest;
+                            var maxStyle = latestStyle;
+                            for (var j = 0; j < repList.length; j++) {
+                                var s = getSeverityStyle(repList[j].waterDepth);
+                                if (s.rank > maxStyle.rank) {
+                                    maxStyle = s;
+                                    maxReport = repList[j];
+                                }
+                            }
+
+                            var count = repList.length;
+                            var hasConflict = (maxStyle.rank !== latestStyle.rank);
+
+                            // For public safety, severe danger (Waist/Impassable) dictates the warning color
+                            var circleColor = (maxStyle.rank >= 3) ? maxStyle.color : latestStyle.color;
+                            var fillOpacity = Math.min(0.24 + (count - 1) * 0.14, 0.78);
+                            var strokeWeight = Math.min(1.5 + (count - 1) * 1.0, 5.0);
+
+                            var circle = L.circle([cluster.lat, cluster.lon], {
+                                radius: 220,
+                                color: circleColor,
+                                fillColor: circleColor,
+                                fillOpacity: fillOpacity,
+                                weight: strokeWeight
+                            }).addTo(radiusLayer);
+
+                            var minutesAgo = Math.max(0, Math.round((now - (latest.timestamp || now)) / 60000));
+                            var timeAgoText = minutesAgo < 1 ? "Just now" : (minutesAgo < 60 ? minutesAgo + "m ago" : Math.round(minutesAgo/60) + "h ago");
+
+                            var popupHtml = "<b>🚨 " + cluster.location + "</b><br>";
+                            popupHtml += "<b>Latest Status:</b> " + latest.waterDepth + " <span style='font-size:11px;color:#64748B;'>(" + timeAgoText + ")</span><br>";
+                            popupHtml += "<b>Reports:</b> " + count + " active report(s)<br>";
+
+                            if (hasConflict) {
+                                popupHtml += "<div style='background:#FEF2F2;border-left:3px solid #DC2626;padding:4px 6px;margin:5px 0;font-size:11px;color:#991B1B;'>" +
+                                    "⚠️ <b>Safety Notice (Mixed Reports):</b><br>" +
+                                    "Highest severity reported: <b>" + maxReport.waterDepth + "</b>.<br>" +
+                                    "Latest update: <i>" + latest.waterDepth + "</i>. Exercise extreme caution!" +
+                                    "</div>";
+                            }
+
+                            popupHtml += "<span style='color:#0284C7;font-size:11px;font-weight:600;'>● Active Flood Zone (Last 24h)</span><br>";
+                            if (latest.notes) {
+                                popupHtml += "<small style='color:#334155;'>" + latest.notes + "</small>";
+                            }
+
+                            circle.bindPopup(popupHtml);
+                        }
+                    };
+
+                    window.renderFlompyGeoJson = function(geojsonData) {
+                        if (!geojsonData || !geojsonData.features || geojsonData.features.length === 0) return;
+                        radiusLayer.clearLayers();
+                        L.geoJSON(geojsonData, {
+                            pointToLayer: function(feature, latlng) {
+                                var p = feature.properties || {};
+                                return L.circle(latlng, {
+                                    radius: p.radius || 220,
+                                    color: p.color || "#8B0000",
+                                    fillColor: p.color || "#8B0000",
+                                    fillOpacity: p.fillOpacity || 0.24,
+                                    weight: p.strokeWeight || 1.5
+                                });
+                            },
+                            onEachFeature: function(feature, layer) {
+                                var p = feature.properties || {};
+                                var html = "<b>🚨 " + (p.name || "Flood Zone") + "</b><br>";
+                                html += "<b>Latest Status:</b> " + (p.severity || "") + "<br>";
+                                html += "<b>Reports:</b> " + (p.reportCount || 1) + " active report(s)<br>";
+                                if (p.hasConflict) {
+                                    html += "<div style='background:#FEF2F2;border-left:3px solid #DC2626;padding:4px 6px;margin:5px 0;font-size:11px;color:#991B1B;'>" +
+                                        "⚠️ <b>Safety Notice (Mixed Reports):</b><br>" +
+                                        "Highest severity reported: <b>" + (p.highestSeverity || "") + "</b>.<br>" +
+                                        "Exercise extreme caution!" +
+                                        "</div>";
+                                }
+                                html += "<span style='color:#0284C7;font-size:11px;font-weight:600;'>● Active Flood Zone (Last 24h)</span><br>";
+                                if (p.notes) {
+                                    html += "<small style='color:#334155;'>" + p.notes + "</small>";
+                                }
+                                layer.bindPopup(html);
+                            }
+                        }).addTo(radiusLayer);
+                    };
+
                     function setLocation(lat, lon, title) {
                         map.setView([lat, lon], 15);
                         if (activeMarker) {
@@ -163,7 +335,46 @@ class MapActivity : ComponentActivity() {
             </html>
         """.trimIndent()
 
-        fullMapView.loadDataWithBaseURL("https://basemaps.cartocdn.com", htmlContent, "text/html", "UTF-8", null)
+        fullMapView.loadDataWithBaseURL("http://localhost", htmlContent, "text/html", "UTF-8", null)
+    }
+
+    private fun updateMapRadius() {
+        if (!::fullMapView.isInitialized) return
+        val reports = ReportRepository.loadReports(this) {
+            runOnUiThread { updateMapRadius() }
+        }
+        val activeWindowMs = 24 * 60 * 60 * 1000L
+        val now = System.currentTimeMillis()
+        val activeReports = reports.filter { r ->
+            val age = now - r.timestamp
+            age in -120_000L..activeWindowMs
+        }
+        val jsonArray = JSONArray()
+        for (r in activeReports) {
+            val obj = JSONObject().apply {
+                put("location", r.location)
+                put("waterDepth", r.severity)
+                put("statusText", r.statusText)
+                put("notes", r.notes)
+                put("lat", r.lat)
+                put("lon", r.lon)
+                put("timestamp", r.timestamp)
+            }
+            jsonArray.put(obj)
+        }
+        fullMapView.evaluateJavascript(
+            "javascript:if(window.renderFloodRadius) window.renderFloodRadius($jsonArray);",
+            null
+        )
+
+        FloodGuardApiService.fetchFloodGeoJsonFromBackend { geoJsonStr ->
+            runOnUiThread {
+                fullMapView.evaluateJavascript(
+                    "javascript:if(window.renderFlompyGeoJson) window.renderFlompyGeoJson($geoJsonStr);",
+                    null
+                )
+            }
+        }
     }
 
     private fun recenterMap(lat: Double, lon: Double, title: String) {
@@ -236,23 +447,6 @@ class MapActivity : ComponentActivity() {
         findViewById<ImageView>(R.id.menuIcon)?.setOnClickListener { view ->
             NavigationMenuHelper.showMenu(this, view)
         }
-        findViewById<LinearLayout>(R.id.navHome)?.setOnClickListener {
-            val intent = Intent(this, DashboardActivity::class.java)
-            startActivity(intent)
-            finish()
-        }
-        findViewById<LinearLayout>(R.id.navMap)?.setOnClickListener {
-            // Already on Map
-        }
-        findViewById<LinearLayout>(R.id.navAlerts)?.setOnClickListener {
-            val intent = Intent(this, AlertsActivity::class.java)
-            startActivity(intent)
-            finish()
-        }
-        findViewById<LinearLayout>(R.id.navProfile)?.setOnClickListener {
-            val intent = Intent(this, ProfileActivity::class.java)
-            startActivity(intent)
-            finish()
-        }
+        EdgeNavigationHelper.attachEdgeNavigation(this, EdgeNavigationHelper.NavTab.MAP)
     }
 }

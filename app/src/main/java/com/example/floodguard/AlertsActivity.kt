@@ -11,6 +11,10 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 
+/**
+ * Activity for displaying real-time community flood alerts,
+ * emergency hotline shortcuts, and severity-colored warnings.
+ */
 class AlertsActivity : ComponentActivity() {
 
     private lateinit var alertsContainer: LinearLayout
@@ -27,10 +31,15 @@ class AlertsActivity : ComponentActivity() {
         setupBottomNavigation()
     }
 
+    private var isFirstResume = true
+
     override fun onResume() {
         super.onResume()
         FloatingAlertManager.onActivityResumed(this)
-        populateAlerts()
+        if (!isFirstResume) {
+            populateAlerts()
+        }
+        isFirstResume = false
     }
 
     override fun onPause() {
@@ -78,12 +87,15 @@ class AlertsActivity : ComponentActivity() {
 
         val allReports = ReportRepository.loadReports(this) {
             runOnUiThread { populateAlerts() }
-        }
-        val reportsList = allReports.filter { !it.isAuthoredBy(currentUsername, currentFullName) }
+        }.toList()
+        val reportsList = allReports
+
+        val count = reportsList.size
+        findViewById<TextView>(R.id.tvAlertsHeaderTitle)?.text = "Submitted Flood Alerts ($count)"
 
         if (reportsList.isEmpty()) {
             val emptyText = TextView(this).apply {
-                text = "No community flood alerts from other users at this moment."
+                text = "No community flood alerts at this moment."
                 setTextColor(resources.getColor(android.R.color.darker_gray, theme))
                 textSize = 13f
                 setPadding(12, 12, 12, 12)
@@ -220,23 +232,14 @@ class AlertsActivity : ComponentActivity() {
     }
 
     private fun setupBottomNavigation() {
-        findViewById<LinearLayout>(R.id.navHome)?.setOnClickListener {
+        findViewById<LinearLayout>(R.id.logoLayout)?.setOnClickListener {
             val intent = Intent(this, DashboardActivity::class.java)
             startActivity(intent)
             finish()
         }
-        findViewById<LinearLayout>(R.id.navMap)?.setOnClickListener {
-            val intent = Intent(this, MapActivity::class.java)
-            startActivity(intent)
-            finish()
+        findViewById<ImageView>(R.id.menuIcon)?.setOnClickListener { view ->
+            NavigationMenuHelper.showMenu(this, view)
         }
-        findViewById<LinearLayout>(R.id.navAlerts)?.setOnClickListener {
-            // Already on Alerts screen
-        }
-        findViewById<LinearLayout>(R.id.navProfile)?.setOnClickListener {
-            val intent = Intent(this, ProfileActivity::class.java)
-            startActivity(intent)
-            finish()
-        }
+        EdgeNavigationHelper.attachEdgeNavigation(this, EdgeNavigationHelper.NavTab.ALERTS)
     }
 }

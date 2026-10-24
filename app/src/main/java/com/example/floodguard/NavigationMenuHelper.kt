@@ -11,6 +11,10 @@ import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.Toast
 
+/**
+ * Helper for rendering the top app bar popup menu.
+ * Provides shortcuts to the user's profile, the About FloodGuard dialog, and account logout.
+ */
 object NavigationMenuHelper {
 
     @SuppressLint("InflateParams")
@@ -52,26 +56,17 @@ object NavigationMenuHelper {
     }
 
     private fun showAboutDialog(activity: Activity) {
-        AlertDialog.Builder(activity)
-            .setTitle("About FloodGuard")
-            .setMessage("FloodGuard v1.0\n\nFloodGuard provides real-time weather forecasting, road flood level monitoring, and emergency alerts for San Mateo, Rizal.")
-            .setPositiveButton("OK", null)
-            .show()
+        FloodGuardThemedDialog.showAbout(activity)
     }
 
     private fun confirmLogout(activity: Activity) {
-        AlertDialog.Builder(activity)
-            .setTitle("Log Out")
-            .setMessage("Are you sure you want to log out of FloodGuard?")
-            .setPositiveButton("Log Out") { _, _ ->
-                UserSession.logout(activity)
-                val intent = Intent(activity, LoginActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                }
-                activity.startActivity(intent)
-                activity.finish()
+        FloodGuardThemedDialog.showLogout(activity) {
+            UserSession.logout(activity)
+            val intent = Intent(activity, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             }
-            .setNegativeButton("Cancel", null)
-            .show()
+            activity.startActivity(intent)
+            activity.finish()
+        }
     }
 }

@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.example.floodguard.InputScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/app_bg"
-    android:clipToPadding="false"
+    android:background="@color/divider_color"
     android:fillViewport="true"
+    android:isScrollContainer="true"
+    android:overScrollMode="ifContentScrolls"
     android:scrollbars="vertical">
 
     <LinearLayout
@@ -32,9 +33,6 @@
             android:textStyle="bold" />
 
         <!-- Full Name -->
-
-        <!-- Mobile Number -->
-
         <EditText
             android:id="@+id/fullNameField"
             android:layout_width="match_parent"
@@ -45,13 +43,14 @@
             android:inputType="textPersonName"
             android:padding="12dp" />
 
+        <!-- Mobile Number -->
         <EditText
             android:id="@+id/mobileField"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:background="@color/text_secondary"
-            android:hint="Mobile Number (+63...)"
+            android:hint="Contact Number (09... or +63...)"
             android:inputType="phone"
             android:padding="12dp" />
 
@@ -91,7 +90,7 @@
                 android:layout_height="match_parent"
                 android:layout_marginStart="6dp"
                 android:layout_weight="1"
-                android:background="@color/text_secondary"
+                android:background="@drawable/btn_severity_default"
                 android:text="Female"
                 android:textAllCaps="false"
                 android:textColor="@android:color/black"
@@ -110,26 +109,77 @@
             android:padding="12dp" />
 
         <!-- Password -->
-        <EditText
-            android:id="@+id/regPasswordField"
+        <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="@color/text_secondary"
-            android:hint="Password"
-            android:inputType="textPassword"
-            android:padding="12dp" />
+            android:layout_marginTop="12dp">
+
+            <EditText
+                android:id="@+id/regPasswordField"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/text_secondary"
+                android:hint="Password (min. 6 chars, A-Z, a-z, 0-9, symbol)"
+                android:inputType="textPassword"
+                android:paddingStart="12dp"
+                android:paddingTop="12dp"
+                android:paddingEnd="46dp"
+                android:paddingBottom="12dp" />
+
+            <ImageView
+                android:id="@+id/toggleRegPassword"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="12dp"
+                android:clickable="true"
+                android:contentDescription="Toggle Password Visibility"
+                android:focusable="true"
+                android:padding="2dp"
+                android:src="@drawable/ic_visibility_off" />
+        </RelativeLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_marginStart="2dp"
+            android:text="Must be 6+ chars with uppercase, lowercase, number, and symbol (no spaces)"
+            android:textColor="#CBD5E1"
+            android:textSize="11sp" />
 
         <!-- Confirm Password -->
-        <EditText
-            android:id="@+id/confirmPasswordField"
+        <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="@color/text_secondary"
-            android:hint="Confirm Password"
-            android:inputType="textPassword"
-            android:padding="12dp" />
+            android:layout_marginTop="12dp">
+
+            <EditText
+                android:id="@+id/confirmPasswordField"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/text_secondary"
+                android:hint="Confirm Password"
+                android:inputType="textPassword"
+                android:paddingStart="12dp"
+                android:paddingTop="12dp"
+                android:paddingEnd="46dp"
+                android:paddingBottom="12dp" />
+
+            <ImageView
+                android:id="@+id/toggleConfirmPassword"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="12dp"
+                android:clickable="true"
+                android:contentDescription="Toggle Confirm Password Visibility"
+                android:focusable="true"
+                android:padding="2dp"
+                android:src="@drawable/ic_visibility_off" />
+        </RelativeLayout>
 
         <!-- Register Button -->
         <Button
@@ -146,6 +196,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
+            android:layout_marginBottom="32dp"
             android:gravity="center"
             android:orientation="horizontal">
 
@@ -153,16 +204,16 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Already have an account?"
-                android:textColor="@color/text_secondary" />
+                android:textColor="@color/black" />
 
             <TextView
                 android:id="@+id/loginLink"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text=" LOG IN"
-                android:textColor="@android:color/holo_red_light"
+                android:textColor="@color/light_blue_900"
                 android:textStyle="bold" />
         </LinearLayout>
 
     </LinearLayout>
-</com.example.floodguard.InputScrollView>
+</ScrollView>

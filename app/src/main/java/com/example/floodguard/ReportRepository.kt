@@ -16,7 +16,16 @@ data class FloodReport(
     var lon: Double = 121.1207,
     var authorUsername: String = "",
     var reporterName: String = "",
+    var reporterUsername: String = "",
 ) {
+    init {
+        if (authorUsername.isBlank() && reporterUsername.isNotBlank()) {
+            authorUsername = reporterUsername
+        } else if (reporterUsername.isBlank() && authorUsername.isNotBlank()) {
+            reporterUsername = authorUsername
+        }
+    }
+
     fun getFormattedTimeAgo(): String {
         val diffMs = System.currentTimeMillis() - timestamp
         val diffMins = diffMs / (1000 * 60)
@@ -77,6 +86,10 @@ enum class SeverityLevel {
     CLEARED,
 }
 
+/**
+ * Central repository managing flood incident reports.
+ * Coordinates local SQLite storage, backend synchronization, report caching, and author mapping.
+ */
 object ReportRepository {
 
     private var cachedReports: MutableList<FloodReport>? = null
@@ -85,17 +98,16 @@ object ReportRepository {
     val reports: MutableList<FloodReport>
         get() = cachedReports ?: mutableListOf()
 
+    @Synchronized
     fun loadReports(context: Context, onSynced: (() -> Unit)? = null): List<FloodReport> {
-        val db = FloodGuardDatabase(context)
+        val db = FloodGuardDatabase.getInstance(context)
         val loaded = db.getAllReports().toMutableList()
 
-        val previousCache = cachedReports
-        if (previousCache != null) {
-            for (cached in previousCache) {
-                if (loaded.none { it.id == cached.id }) {
-                    db.insertReport(cached)
-                    loaded.add(cached)
-                }
+        val previousCache = synchronized(this) { cachedReports?.toList() ?: emptyList() }
+        for (cached in previousCache) {
+            if (loaded.none { it.id == cached.id }) {
+                db.insertReport(cached)
+                loaded.add(cached)
             }
         }
 
@@ -103,7 +115,8 @@ object ReportRepository {
             val currentUsername = UserSession.getUsername(context).trim()
             val currentFullName = UserSession.getUserName(context).trim()
             if (currentUsername.isNotEmpty()) {
-                for (report in loaded) {
+                val reportsToIterate = loaded.toList()
+                for (report in reportsToIterate) {
                     if (report.isAuthoredBy(currentUsername, currentFullName) &&
                         !report.authorUsername.equals(currentUsername, ignoreCase = true)
                     ) {
@@ -127,15 +140,18 @@ object ReportRepository {
         }
 
         loaded.sortByDescending { it.timestamp }
-        cachedReports = loaded
+        synchronized(this) {
+            cachedReports = loaded.toMutableList()
+        }
 
         FloodGuardApiService.syncReportsFromBackend { remoteList ->
             var updated = false
+            val localWorkingCopy = synchronized(this) { cachedReports?.toList() ?: loaded.toList() }.toMutableList()
             for (remoteReport in remoteList) {
-                val existing = loaded.find { it.id == remoteReport.id }
+                val existing = localWorkingCopy.find { it.id == remoteReport.id }
                 if (existing == null) {
                     db.insertReport(remoteReport)
-                    loaded.add(0, remoteReport)
+                    localWorkingCopy.add(0, remoteReport)
                     updated = true
                 } else if (existing.location != remoteReport.location ||
                     existing.severity != remoteReport.severity ||
@@ -169,14 +185,17 @@ object ReportRepository {
                     updated = true
                 }
             }
-            loaded.sortByDescending { it.timestamp }
-            if (updated || loaded.size != cachedReports?.size) {
-                cachedReports = loaded
+            localWorkingCopy.sortByDescending { it.timestamp }
+            val shouldNotify = updated || localWorkingCopy.size != (synchronized(this) { cachedReports?.size })
+            if (shouldNotify) {
+                synchronized(this) {
+                    cachedReports = localWorkingCopy
+                }
                 onSynced?.invoke()
             }
         }
 
-        return loaded
+        return synchronized(this) { loaded.toList() }
     }
 
     fun loadUserReports(context: Context, onSynced: (() -> Unit)? = null): List<FloodReport> {
@@ -187,10 +206,7 @@ object ReportRepository {
     }
 
     fun loadCommunityReports(context: Context, onSynced: (() -> Unit)? = null): List<FloodReport> {
-        val currentUsername = UserSession.getUsername(context)
-        val currentFullName = UserSession.getUserName(context)
-        val allReports = loadReports(context, onSynced)
-        return allReports.filter { !it.isAuthoredBy(currentUsername, currentFullName) }
+        return loadReports(context, onSynced)
     }
 
     fun addReport(
@@ -211,13 +227,17 @@ object ReportRepository {
             report.lon = resolvedLon
         }
 
-        val db = FloodGuardDatabase(context)
+        val db = FloodGuardDatabase.getInstance(context)
         db.insertReport(report)
-        if (cachedReports == null) {
-            loadReports(context)
-        } else {
-            cachedReports?.removeAll { it.id == report.id }
-            cachedReports?.add(0, report)
+        synchronized(this) {
+            if (cachedReports == null) {
+                loadReports(context)
+            } else {
+                val list = cachedReports?.toMutableList() ?: mutableListOf()
+                list.removeAll { it.id == report.id }
+                list.add(0, report)
+                cachedReports = list
+            }
         }
 
         val allCurrentReports = cachedReports?.toList() ?: db.getAllReports()
@@ -237,13 +257,11 @@ object ReportRepository {
             val effectiveBroadcast = backendStatus.smsBroadcast ?: localBroadcast
             if (backendStatus.smsBroadcast != null) {
                 SmsAlertBroadcastManager.saveBroadcastLocally(context.applicationContext, backendStatus.smsBroadcast)
-                if (similarActive.size < 2) {
-                    FloatingAlertManager.deliverBroadcastIfNearby(
-                        context.applicationContext,
-                        backendStatus.smsBroadcast,
-                        forcePopUp = true
-                    )
-                }
+                // Author has just submitted this report, so mark it seen silently
+                SmsAlertBroadcastManager.markBroadcastSeen(context.applicationContext, backendStatus.smsBroadcast.id)
+            }
+            if (localBroadcast != null) {
+                SmsAlertBroadcastManager.markBroadcastSeen(context.applicationContext, localBroadcast!!.id)
             }
             onSubmitted(
                 ReportSubmissionStatus(
@@ -259,7 +277,7 @@ object ReportRepository {
     fun removeReport(context: Context, id: String): Boolean {
         val currentUsername = UserSession.getUsername(context)
         val currentFullName = UserSession.getUserName(context)
-        val db = FloodGuardDatabase(context)
+        val db = FloodGuardDatabase.getInstance(context)
         val existing = (cachedReports ?: db.getAllReports()).find { it.id == id }
         if (existing != null && !existing.isAuthoredBy(currentUsername, currentFullName)) {
             return false
@@ -275,7 +293,7 @@ object ReportRepository {
     fun updateReport(context: Context, id: String, location: String, severity: String, notes: String): Boolean {
         val currentUsername = UserSession.getUsername(context)
         val currentFullName = UserSession.getUserName(context)
-        val db = FloodGuardDatabase(context)
+        val db = FloodGuardDatabase.getInstance(context)
         val existing = (cachedReports ?: db.getAllReports()).find { it.id == id }
         if (existing != null && !existing.isAuthoredBy(currentUsername, currentFullName)) {
             return false

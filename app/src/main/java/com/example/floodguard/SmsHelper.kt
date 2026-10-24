@@ -6,6 +6,10 @@ import android.net.Uri
 import android.telephony.SmsManager
 import android.widget.Toast
 
+/**
+ * Utility for collecting registered community phone contacts and dispatching SMS alerts
+ * via the native Android SMS telephony manager.
+ */
 object SmsHelper {
 
     private val SAN_MATEO_COMMUNITY_CONTACTS = listOf(
@@ -19,7 +23,7 @@ object SmsHelper {
      * Collects contact numbers for all application users registered in San Mateo / flood vicinity.
      */
     fun getSanMateoVicinityContacts(context: Context): List<String> {
-        val db = FloodGuardDatabase(context)
+        val db = FloodGuardDatabase.getInstance(context)
         
         FloodGuardApiService.syncUsersFromBackend { remoteUsers ->
             for (u in remoteUsers) {
