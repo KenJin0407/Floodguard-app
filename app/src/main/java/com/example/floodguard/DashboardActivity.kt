@@ -133,6 +133,7 @@ class DashboardActivity : ComponentActivity() {
         }
 
         updateMapRadius(allReports)
+        updateBellNotificationBadge(allReports)
 
         val reportsList = if (searchQuery.isBlank()) {
             allReports
@@ -307,6 +308,17 @@ class DashboardActivity : ComponentActivity() {
             }
         }
         startActivity(intent)
+    }
+
+    private fun updateBellNotificationBadge(reports: List<FloodReport>) {
+        val activeCount = reports.count { it.severityLevel != SeverityLevel.CLEARED }
+        val tvBadge = findViewById<TextView>(R.id.tvBellBadge) ?: return
+        if (activeCount > 0) {
+            tvBadge.visibility = View.VISIBLE
+            tvBadge.text = if (activeCount > 9) "9+" else activeCount.toString()
+        } else {
+            tvBadge.visibility = View.GONE
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
@@ -605,10 +617,14 @@ class DashboardActivity : ComponentActivity() {
         findViewById<LinearLayout>(R.id.logoLayout)?.setOnClickListener {
             Toast.makeText(this, "You are on Home Screen", Toast.LENGTH_SHORT).show()
         }
-        findViewById<ImageView>(R.id.bellIcon)?.setOnClickListener {
-            val intent = Intent(this, AlertsActivity::class.java)
+        val openNotificationAlerts = View.OnClickListener {
+            val intent = Intent(this, AlertsActivity::class.java).apply {
+                putExtra("title", "Notification Alerts")
+            }
             startActivity(intent)
         }
+        findViewById<View>(R.id.btnNotificationBell)?.setOnClickListener(openNotificationAlerts)
+        findViewById<View>(R.id.bellIcon)?.setOnClickListener(openNotificationAlerts)
         findViewById<ImageView>(R.id.menuIcon)?.setOnClickListener { view ->
             NavigationMenuHelper.showMenu(this, view)
         }

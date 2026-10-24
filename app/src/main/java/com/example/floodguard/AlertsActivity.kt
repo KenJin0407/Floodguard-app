@@ -90,6 +90,9 @@ class AlertsActivity : ComponentActivity() {
         }.toList()
         val reportsList = allReports
 
+        val count = reportsList.size
+        findViewById<TextView>(R.id.tvAlertsHeaderTitle)?.text = "Submitted Flood Alerts ($count)"
+
         if (reportsList.isEmpty()) {
             val emptyText = TextView(this).apply {
                 text = "No community flood alerts at this moment."

@@ -120,6 +120,23 @@ def run_db_migrations():
     try:
         with engine.connect() as conn:
             conn.execute(text("DROP INDEX IF EXISTS ix_users_email"))
+            # Safely resolve any pre-existing duplicate mobile numbers before creating unique index
+            try:
+                users_rows = conn.execute(text("SELECT id, mobile, username FROM users")).fetchall()
+                seen_mobiles = {}
+                for uid, mob, uname in users_rows:
+                    clean = normalize_ph_mobile(mob)
+                    if clean:
+                        if clean in seen_mobiles:
+                            conn.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": uid})
+                            print(f"Deduplicated user id={uid} ({uname}) with repeated mobile={mob}")
+                        else:
+                            seen_mobiles[clean] = uid
+                conn.commit()
+            except Exception as e:
+                print(f"Mobile deduplication note: {e}")
+
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_mobile_unique ON users(mobile)"))
             conn.commit()
     except Exception as e:
         print(f"Database migration note: {e}")
@@ -132,7 +149,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     fullName = Column(String, nullable=False)
     gender = Column(String, nullable=True)
-    mobile = Column(String, nullable=True)
+    mobile = Column(String, unique=True, index=True, nullable=True)
     email = Column(String, nullable=True, default="")
     username = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)
@@ -354,16 +371,17 @@ def register_user(user: UserRegister, db: Session = Depends(get_db)):
         all_users = db.query(User).all()
         for u in all_users:
             if u.mobile and normalize_ph_mobile(u.mobile) == clean_target:
-                if u.username.strip().lower() != user.username.strip().lower():
-                    raise HTTPException(
-                        status_code=400,
-                        detail="This mobile number is already registered to another user account. Please use a different number or log in."
-                    )
+                raise HTTPException(
+                    status_code=400,
+                    detail="This mobile number is already registered to an existing account. Each account must have a unique mobile number."
+                )
 
     existing = db.query(User).filter(func.lower(User.username) == user.username.strip().lower()).first()
     if existing:
-        print(f"⚠️ User '{user.username}' already exists in SQLite database!")
-        return {"success": True, "message": "User already registered", "user": user.dict()}
+        raise HTTPException(
+            status_code=400,
+            detail=f"Username '{user.username}' is already taken. Please choose another username."
+        )
     
     user_data = user.dict()
     # Hash password if not already SHA-256 (64 hex characters)
@@ -454,7 +472,7 @@ def update_profile(profile: UserProfileUpdate, db: Session = Depends(get_db)):
                 if u.id != user.id and u.mobile and normalize_ph_mobile(u.mobile) == clean_target:
                     raise HTTPException(
                         status_code=400,
-                        detail="This mobile number is already registered to another user account."
+                        detail="This mobile number is already registered to another user account. Each account must have a unique mobile number."
                     )
     if profile.mobile and not validate_contact_number(profile.mobile):
         raise HTTPException(

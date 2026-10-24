@@ -808,5 +808,13 @@ data class FloodBroadcast(
     val smsProvider: String = "Textbelt Free SMS API",
     val smsRecipientsCount: Int = 1,
     val recipientPhones: List<String> = emptyList(),
-)
+) {
+    fun isAuthoredBy(username: String, fullName: String = ""): Boolean {
+        val u = username.trim()
+        val f = fullName.trim()
+        if (u.isNotEmpty() && authorUsername.trim().equals(u, ignoreCase = true)) return true
+        if (f.isNotEmpty() && reporterName.trim().equals(f, ignoreCase = true)) return true
+        return false
+    }
+}
 

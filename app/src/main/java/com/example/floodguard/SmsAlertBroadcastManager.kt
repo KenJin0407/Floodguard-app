@@ -230,7 +230,13 @@ object SmsAlertBroadcastManager {
                 sendSmsViaFreeApi(phone, smsMessage)
             }
             onBroadcastTriggered?.invoke(broadcast)
-            FloatingAlertManager.deliverBroadcastIfNearby(context, broadcast, forcePopUp = true)
+            val currentUsername = UserSession.getUsername(context)
+            val currentFullName = UserSession.getUserName(context)
+            if (!broadcast.isAuthoredBy(currentUsername, currentFullName)) {
+                FloatingAlertManager.deliverBroadcastIfNearby(context, broadcast, forcePopUp = false)
+            } else {
+                markBroadcastSeen(context, broadcast.id)
+            }
         }
     }
 

@@ -308,7 +308,15 @@ class RegisterActivity : ComponentActivity() {
     /** Finalizes user registration, saves records in SQLite and the backend, and initializes session */
     private fun completeRegistration(user: UserEntity) {
         val db = FloodGuardDatabase.getInstance(this)
-        db.registerUser(user)
+        val success = db.registerUser(user)
+        if (!success) {
+            Toast.makeText(
+                this,
+                "⚠️ Registration failed: This mobile number or username is already registered to another account.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         FloodGuardApiService.registerUserInBackend(user)
 
         UserSession.setLoggedIn(

@@ -257,13 +257,11 @@ object ReportRepository {
             val effectiveBroadcast = backendStatus.smsBroadcast ?: localBroadcast
             if (backendStatus.smsBroadcast != null) {
                 SmsAlertBroadcastManager.saveBroadcastLocally(context.applicationContext, backendStatus.smsBroadcast)
-                if (similarActive.size < 2) {
-                    FloatingAlertManager.deliverBroadcastIfNearby(
-                        context.applicationContext,
-                        backendStatus.smsBroadcast,
-                        forcePopUp = true
-                    )
-                }
+                // Author has just submitted this report, so mark it seen silently
+                SmsAlertBroadcastManager.markBroadcastSeen(context.applicationContext, backendStatus.smsBroadcast.id)
+            }
+            if (localBroadcast != null) {
+                SmsAlertBroadcastManager.markBroadcastSeen(context.applicationContext, localBroadcast!!.id)
             }
             onSubmitted(
                 ReportSubmissionStatus(
