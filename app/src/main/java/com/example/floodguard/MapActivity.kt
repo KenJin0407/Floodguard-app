@@ -447,23 +447,6 @@ class MapActivity : ComponentActivity() {
         findViewById<ImageView>(R.id.menuIcon)?.setOnClickListener { view ->
             NavigationMenuHelper.showMenu(this, view)
         }
-        findViewById<LinearLayout>(R.id.navHome)?.setOnClickListener {
-            val intent = Intent(this, DashboardActivity::class.java)
-            startActivity(intent)
-            finish()
-        }
-        findViewById<LinearLayout>(R.id.navMap)?.setOnClickListener {
-            // Already on Map
-        }
-        findViewById<LinearLayout>(R.id.navAlerts)?.setOnClickListener {
-            val intent = Intent(this, AlertsActivity::class.java)
-            startActivity(intent)
-            finish()
-        }
-        findViewById<LinearLayout>(R.id.navProfile)?.setOnClickListener {
-            val intent = Intent(this, ProfileActivity::class.java)
-            startActivity(intent)
-            finish()
-        }
+        EdgeNavigationHelper.attachEdgeNavigation(this, EdgeNavigationHelper.NavTab.MAP)
     }
 }

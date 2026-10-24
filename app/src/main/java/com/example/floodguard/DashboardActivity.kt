@@ -605,21 +605,6 @@ class DashboardActivity : ComponentActivity() {
         findViewById<LinearLayout>(R.id.logoLayout)?.setOnClickListener {
             Toast.makeText(this, "You are on Home Screen", Toast.LENGTH_SHORT).show()
         }
-        findViewById<LinearLayout>(R.id.navHome)?.setOnClickListener {
-            // Already on Home
-        }
-        findViewById<LinearLayout>(R.id.navMap)?.setOnClickListener {
-            val intent = Intent(this, MapActivity::class.java)
-            startActivity(intent)
-        }
-        findViewById<LinearLayout>(R.id.navAlerts)?.setOnClickListener {
-            val intent = Intent(this, AlertsActivity::class.java)
-            startActivity(intent)
-        }
-        findViewById<LinearLayout>(R.id.navProfile)?.setOnClickListener {
-            val intent = Intent(this, ProfileActivity::class.java)
-            startActivity(intent)
-        }
         findViewById<ImageView>(R.id.bellIcon)?.setOnClickListener {
             val intent = Intent(this, AlertsActivity::class.java)
             startActivity(intent)
@@ -627,6 +612,7 @@ class DashboardActivity : ComponentActivity() {
         findViewById<ImageView>(R.id.menuIcon)?.setOnClickListener { view ->
             NavigationMenuHelper.showMenu(this, view)
         }
+        EdgeNavigationHelper.attachEdgeNavigation(this, EdgeNavigationHelper.NavTab.HOME)
     }
 
     private fun fetchRealTimeWeather() {
