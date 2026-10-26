@@ -807,10 +807,43 @@ class ReportFloodActivity : ComponentActivity() {
         showGeminiVerifyingDialog()
 
         thread {
-            val aiResult = if (photoBitmap != null) {
-                GeminiPhotoVerifier.verifyPhoto(photoBitmap)
-            } else {
-                GeminiVerificationResult(
+            var syncedCloudReports: List<FloodReport> = emptyList()
+            val latch = java.util.concurrent.CountDownLatch(1)
+            FloodGuardApiService.syncReportsFromBackend { reports ->
+                syncedCloudReports = reports
+                latch.countDown()
+            }
+            try {
+                latch.await(4, java.util.concurrent.TimeUnit.SECONDS)
+            } catch (_: Exception) {
+            }
+
+            val duplicateReport = if (photoBitmap != null) {
+                ReportPhotoHelper.findDuplicateReportByPhoto(
+                    this@ReportFloodActivity,
+                    photoBitmap,
+                    newReport.photoUri,
+                    syncedCloudReports
+                )
+            } else null
+
+            val aiResult = when {
+                duplicateReport != null -> {
+                    val reporterDisplay = duplicateReport.reporterName.ifBlank {
+                        duplicateReport.authorUsername.ifBlank { "another user" }
+                    }
+                    GeminiVerificationResult(
+                        isValid = false,
+                        isFlood = false,
+                        confidence = 1.0,
+                        estimatedSeverity = "Duplicate",
+                        reason = "This flood photo has already been submitted by '$reporterDisplay' for ${duplicateReport.location}. Re-uploading or sharing the same photo across accounts is not allowed. Please take a new, original photo.",
+                        isErrorOrTimeout = false,
+                        rejectionCategory = "DUPLICATE_PHOTO"
+                    )
+                }
+                photoBitmap != null -> GeminiPhotoVerifier.verifyPhoto(photoBitmap)
+                else -> GeminiVerificationResult(
                     isValid = true,
                     isFlood = true,
                     confidence = 0.5,
@@ -914,11 +947,33 @@ class ReportFloodActivity : ComponentActivity() {
         if (!result.isValid) {
             layoutStatusBadge.setBackgroundResource(R.drawable.badge_ai_warning)
             ivStatusIcon.setImageResource(R.drawable.ic_alert)
-            tvStatusBadgeText.text = "⚠️ Flood Conditions Not Detected"
             tvStatusBadgeText.setTextColor(Color.parseColor("#B91C1C"))
-            tvVerdict.text = "Photo Verification Declined"
-            tvConfidence.text = "Model: Gemini 1.5 Flash • ${(result.confidence * 100).toInt()}% Confidence"
-            tvSeverity.text = "Detected Severity: None / Non-Flood"
+            when (result.rejectionCategory) {
+                "DUPLICATE_PHOTO" -> {
+                    tvStatusBadgeText.text = "🚫 Duplicate Photo Detected"
+                    tvVerdict.text = "Duplicate Photo Declined"
+                    tvConfidence.text = "Perceptual Hash & Cloud Verification • 100% Match"
+                    tvSeverity.text = "Status: Photo Already Used in System"
+                }
+                "AI_GENERATED" -> {
+                    tvStatusBadgeText.text = "🚫 AI-Generated Image Detected"
+                    tvVerdict.text = "Synthetic / AI Image Declined"
+                    tvConfidence.text = "Model: Gemini Flash • ${(result.confidence * 100).toInt()}% Confidence"
+                    tvSeverity.text = "Authenticity: Failed (AI / Synthetic)"
+                }
+                "SCREENSHOT_OR_FAKE" -> {
+                    tvStatusBadgeText.text = "🚫 Non-Original Photo Detected"
+                    tvVerdict.text = "Screenshot / Stock Photo Declined"
+                    tvConfidence.text = "Model: Gemini Flash • ${(result.confidence * 100).toInt()}% Confidence"
+                    tvSeverity.text = "Authenticity: Failed (Not Original Camera Photo)"
+                }
+                else -> {
+                    tvStatusBadgeText.text = "⚠️ Flood Conditions Not Detected"
+                    tvVerdict.text = "Photo Verification Declined"
+                    tvConfidence.text = "Model: Gemini Flash • ${(result.confidence * 100).toInt()}% Confidence"
+                    tvSeverity.text = "Detected Severity: None / Non-Flood"
+                }
+            }
             tvReason.text = result.reason
             btnAction.text = if (photoBitmap != null) "Choose Another Photo" else "Attach Flood Photo"
         } else {
