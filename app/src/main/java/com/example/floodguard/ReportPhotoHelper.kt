@@ -695,5 +695,97 @@ object ReportPhotoHelper {
 
         dialog.show()
     }
+
+    /**
+     * Computes a 64-bit Perceptual Difference Hash (dHash) of a Bitmap.
+     * Scales the image to 9x8 grayscale and compares adjacent horizontal pixel intensities.
+     * Resilient against resizing, JPEG re-compression, and minor compression artifacts.
+     */
+    fun computePerceptualHash(bitmap: Bitmap): Long {
+        val scaled = Bitmap.createScaledBitmap(bitmap, 9, 8, true)
+        var hash = 0L
+        var bitIndex = 0
+        for (y in 0 until 8) {
+            for (x in 0 until 8) {
+                val p1 = scaled.getPixel(x, y)
+                val p2 = scaled.getPixel(x + 1, y)
+                val lum1 = (Color.red(p1) * 299 + Color.green(p1) * 587 + Color.blue(p1) * 114) / 1000
+                val lum2 = (Color.red(p2) * 299 + Color.green(p2) * 587 + Color.blue(p2) * 114) / 1000
+                if (lum1 > lum2) {
+                    hash = hash or (1L shl bitIndex)
+                }
+                bitIndex++
+            }
+        }
+        return hash
+    }
+
+    fun hammingDistance(hash1: Long, hash2: Long): Int {
+        return java.lang.Long.bitCount(hash1 xor hash2)
+    }
+
+    private fun extractCleanBase64(dataUri: String?): String? {
+        if (dataUri.isNullOrBlank()) return null
+        val trimmed = dataUri.trim()
+        val raw = if (trimmed.contains("base64,")) {
+            trimmed.substringAfter("base64,").trim()
+        } else {
+            trimmed
+        }
+        return if (raw.length > 200) raw else null
+    }
+
+    /**
+     * Checks all existing flood reports (both local SQLite and synced cloud reports)
+     * to detect if the candidate photo is a duplicate or re-upload of an already submitted photo
+     * (whether by the same user or a different user).
+     */
+    fun findDuplicateReportByPhoto(
+        context: Context,
+        candidateBitmap: Bitmap,
+        candidateDataUri: String?,
+        remoteReports: List<FloodReport> = emptyList()
+    ): FloodReport? {
+        val candidateCleanB64 = extractCleanBase64(candidateDataUri)
+        val candidateDHash = computePerceptualHash(candidateBitmap)
+
+        val dbReports = try {
+            FloodGuardDatabase.getInstance(context).getAllReports()
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        val combined = LinkedHashMap<String, FloodReport>()
+        for (r in remoteReports) {
+            combined[r.id] = r
+        }
+        for (r in dbReports) {
+            if (!combined.containsKey(r.id)) {
+                combined[r.id] = r
+            }
+        }
+
+        for (existing in combined.values) {
+            val existingPhoto = existing.photoUri
+            if (existingPhoto.isNullOrBlank()) continue
+
+            // 1. Fast exact base64 payload match
+            val existingCleanB64 = extractCleanBase64(existingPhoto)
+            if (candidateCleanB64 != null && existingCleanB64 != null && candidateCleanB64 == existingCleanB64) {
+                return existing
+            }
+
+            // 2. Perceptual 64-bit dHash match (catches re-compressed / forwarded / slightly resized copies)
+            val existingBitmap = loadBitmap(context, existingPhoto)
+            if (existingBitmap != null) {
+                val existingDHash = computePerceptualHash(existingBitmap)
+                val dist = hammingDistance(candidateDHash, existingDHash)
+                if (dist <= 5) {
+                    return existing
+                }
+            }
+        }
+        return null
+    }
 }
 

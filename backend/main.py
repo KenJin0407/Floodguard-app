@@ -58,13 +58,27 @@ def verify_flood_photo_with_gemini(photo_uri: str) -> dict:
         }
 
     prompt = (
-        "You are an AI flood verification assistant for FloodGuard. Analyze the attached photo carefully. "
-        "Determine whether this photo shows real flood waters, waterlogged or submerged roads/streets, overflowing rivers, "
-        "storm inundation, or outdoor flood conditions. Reject selfies, portraits, memes, indoor rooms without flooding, "
-        "pets/animals, random objects, food, dry clear roads, or fake images. "
-        "Return ONLY valid JSON with this exact schema: "
-        "{\"is_flood\": true, \"confidence\": 0.95, \"estimated_severity\": \"Ankle-Deep\", \"reason\": \"Water covers road\"} "
-        "estimated_severity must be one of: \"Ankle-Deep\", \"Knee-Deep\", \"Waist-Deep\", \"Impassable\", or \"None\"."
+        "You are a strict forensic AI flood image verifier for the FloodGuard disaster response system in San Mateo, Rizal. "
+        "Analyze the attached image carefully for BOTH flood presence AND photographic authenticity.\n\n"
+        "1. AUTHENTICITY & ANTI-AI CHECK (CRITICAL):\n"
+        "- Carefully inspect if the image is AI-generated or synthetic (e.g., Midjourney, DALL-E, Stable Diffusion, Imagen, Flux, CGI, 3D render, digital art, painting, cartoon). "
+        "Look for AI artifacts: overly smooth/plastic or painterly textures, unnatural cinematic lighting, impossible water reflections, distorted/garbled text on signs or license plates, warped buildings/vehicles, deformed human figures/hands/umbrellas, or AI watermarks.\n"
+        "- Check if the image is a screenshot, a photo taken of another screen/monitor (moire pixel grid, screen glare, bezel), a meme, a news broadcast graphic, or a stock photo with watermarks/overlays.\n"
+        "- If the image is AI-generated, synthetic, CGI, a screenshot, or a photo of a screen, you MUST reject it.\n\n"
+        "2. FLOOD PRESENCE CHECK:\n"
+        "- Determine whether the photo depicts genuine outdoor flood waters, submerged/waterlogged streets, overflowing rivers/canals, or storm inundation.\n"
+        "- Reject selfies, portraits, indoor scenes, pets, food, dry clear roads, or unrelated objects.\n\n"
+        "Return ONLY valid JSON in this exact structure:\n"
+        "{\n"
+        "  \"is_flood\": boolean,\n"
+        "  \"is_ai_generated\": boolean,\n"
+        "  \"is_screenshot_or_fake\": boolean,\n"
+        "  \"is_authentic_camera_photo\": boolean,\n"
+        "  \"confidence\": float between 0.0 and 1.0,\n"
+        "  \"estimated_severity\": \"Ankle-Deep\"|\"Knee-Deep\"|\"Waist-Deep\"|\"Impassable\"|\"None\",\n"
+        "  \"rejection_category\": \"NONE\"|\"AI_GENERATED\"|\"SCREENSHOT_OR_FAKE\"|\"NOT_FLOOD\",\n"
+        "  \"reason\": \"clear 1-2 sentence explanation of why it was verified or rejected\"\n"
+        "}"
     )
 
     payload = {
@@ -597,9 +611,52 @@ def create_report(report: FloodReportCreate, db: Session = Depends(get_db)):
             detail="A flood-related photo is required to submit a report."
         )
 
-    # 3. Verify photo with Google Gemini AI
+    # 2b. Check for duplicate/reused photo across all existing reports (same user or different user)
+    clean_candidate = str(report.photoUri).strip()
+    if "base64," in clean_candidate:
+        clean_candidate = clean_candidate.split("base64,", 1)[1].strip()
+    if len(clean_candidate) > 200:
+        import hashlib
+        try:
+            cand_hash = hashlib.sha256(base64.b64decode(clean_candidate)).hexdigest()
+        except Exception:
+            cand_hash = hashlib.sha256(clean_candidate.encode("utf-8")).hexdigest()
+
+        for existing_rep in db.query(FloodReport).all():
+            if report.id and existing_rep.id == report.id:
+                continue
+            ex_uri = str(existing_rep.photoUri or "").strip()
+            if "base64," in ex_uri:
+                ex_uri = ex_uri.split("base64,", 1)[1].strip()
+            if len(ex_uri) > 200:
+                try:
+                    ex_hash = hashlib.sha256(base64.b64decode(ex_uri)).hexdigest()
+                except Exception:
+                    ex_hash = hashlib.sha256(ex_uri.encode("utf-8")).hexdigest()
+                if ex_uri == clean_candidate or ex_hash == cand_hash:
+                    prev_author = existing_rep.reporterName or existing_rep.reporterUsername or "another user"
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Duplicate Photo Detected: This flood photo was already submitted by '{prev_author}' for {existing_rep.location}. Re-uploading the same photo is prohibited."
+                    )
+
+    # 3. Verify photo with Google Gemini AI (including Anti-AI & Authenticity checks)
     ai_result = verify_flood_photo_with_gemini(report.photoUri)
-    if not ai_result.get("is_flood", True) and float(ai_result.get("confidence", 0.0)) >= 0.65:
+    is_ai_gen = ai_result.get("is_ai_generated", False) or str(ai_result.get("rejection_category", "")).upper() == "AI_GENERATED"
+    is_fake_screen = ai_result.get("is_screenshot_or_fake", False) or not ai_result.get("is_authentic_camera_photo", True)
+    if is_ai_gen:
+        reason = ai_result.get("reason", "AI-generated or synthetic flood image detected.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"AI-Generated Image Declined: {reason}"
+        )
+    if is_fake_screen:
+        reason = ai_result.get("reason", "Non-original image or screenshot detected.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Non-Original Photo Declined: {reason}"
+        )
+    if not ai_result.get("is_flood", True) and float(ai_result.get("confidence", 0.0)) >= 0.60:
         reason = ai_result.get("reason", "The uploaded photo does not show flood waters or flooded street conditions.")
         raise HTTPException(
             status_code=400,

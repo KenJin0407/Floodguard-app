@@ -18,12 +18,14 @@ data class GeminiVerificationResult(
     val confidence: Double,
     val estimatedSeverity: String,
     val reason: String,
-    val isErrorOrTimeout: Boolean = false
+    val isErrorOrTimeout: Boolean = false,
+    val rejectionCategory: String = "NONE" // "NONE", "AI_GENERATED", "SCREENSHOT_OR_FAKE", "DUPLICATE_PHOTO", "NOT_FLOOD"
 )
 
 /**
- * AI Photo Verifier powered by Google Gemini Vision models.
- * Examines uploaded photos to verify genuine flooding and prevent false or inappropriate reports.
+ * Forensic AI Photo Verifier powered by Google Gemini Vision models.
+ * Examines uploaded photos to verify genuine flooding AND strictly blocks AI-generated/synthetic images,
+ * screenshots, internet downloads, and non-flood photos.
  */
 object GeminiPhotoVerifier {
     private const val TAG = "GeminiPhotoVerifier"
@@ -44,11 +46,27 @@ object GeminiPhotoVerifier {
     )
 
     private const val VERIFICATION_PROMPT =
-        "You are an AI flood verification assistant for FloodGuard. Analyze the attached photo carefully. " +
-        "Determine whether this photo depicts actual flood waters, waterlogged/submerged roads, storm inundation, overflowing canals/rivers, or flood damage. " +
-        "Reject selfies, portraits, people indoors, memes, screenshots, pets/animals, dry clear roads, food, random objects, or completely unrelated scenes. " +
-        "Return ONLY valid JSON in this exact structure: " +
-        "{\"is_flood\": boolean, \"confidence\": float between 0.0 and 1.0, \"estimated_severity\": \"Ankle-Deep\"|\"Knee-Deep\"|\"Waist-Deep\"|\"Impassable\"|\"None\", \"reason\": \"clear short 1-2 sentence explanation\"}"
+        "You are a strict forensic AI flood image verifier for the FloodGuard disaster response system in San Mateo, Rizal. " +
+        "Analyze the attached image carefully for BOTH flood presence AND photographic authenticity.\n\n" +
+        "1. AUTHENTICITY & ANTI-AI CHECK (CRITICAL):\n" +
+        "- Carefully inspect if the image is AI-generated or synthetic (e.g., Midjourney, DALL-E, Stable Diffusion, Imagen, Flux, CGI, 3D render, digital art, painting, cartoon). " +
+        "Look for AI artifacts: overly smooth/plastic or painterly textures, unnatural cinematic lighting, impossible water reflections, distorted/garbled text on signs or license plates, warped buildings/vehicles, deformed human figures/hands/umbrellas, or AI watermarks.\n" +
+        "- Check if the image is a screenshot, a photo taken of another screen/monitor (moire pixel grid, screen glare, bezel), a meme, a news broadcast graphic, or a stock photo with watermarks/overlays.\n" +
+        "- If the image is AI-generated, synthetic, CGI, a screenshot, or a photo of a screen, you MUST reject it.\n\n" +
+        "2. FLOOD PRESENCE CHECK:\n" +
+        "- Determine whether the photo depicts genuine outdoor flood waters, submerged/waterlogged streets, overflowing rivers/canals, or storm inundation.\n" +
+        "- Reject selfies, portraits, indoor scenes, pets, food, dry clear roads, or unrelated objects.\n\n" +
+        "Return ONLY valid JSON in this exact structure:\n" +
+        "{\n" +
+        "  \"is_flood\": boolean,\n" +
+        "  \"is_ai_generated\": boolean,\n" +
+        "  \"is_screenshot_or_fake\": boolean,\n" +
+        "  \"is_authentic_camera_photo\": boolean,\n" +
+        "  \"confidence\": float between 0.0 and 1.0,\n" +
+        "  \"estimated_severity\": \"Ankle-Deep\"|\"Knee-Deep\"|\"Waist-Deep\"|\"Impassable\"|\"None\",\n" +
+        "  \"rejection_category\": \"NONE\"|\"AI_GENERATED\"|\"SCREENSHOT_OR_FAKE\"|\"NOT_FLOOD\",\n" +
+        "  \"reason\": \"clear 1-2 sentence explanation of why it was verified or rejected\"\n" +
+        "}"
 
     fun verifyPhoto(bitmap: Bitmap): GeminiVerificationResult {
         val scaled = scaleForInference(bitmap, 512)
@@ -115,7 +133,7 @@ object GeminiPhotoVerifier {
                             val text = parts.getJSONObject(0).optString("text")
                             val parsed = parseGeminiJson(text)
                             if (parsed != null) {
-                                Log.d(TAG, "Gemini ($model) result: isFlood=${parsed.isFlood}, severity=${parsed.estimatedSeverity}, reason=${parsed.reason}")
+                                Log.d(TAG, "Gemini ($model) result: isValid=${parsed.isValid}, cat=${parsed.rejectionCategory}, reason=${parsed.reason}")
                                 return parsed
                             }
                         }
@@ -137,7 +155,8 @@ object GeminiPhotoVerifier {
             confidence = 0.5,
             estimatedSeverity = "Unknown",
             reason = "Verification service unreachable; fallback to heuristic verification.",
-            isErrorOrTimeout = true
+            isErrorOrTimeout = true,
+            rejectionCategory = "NONE"
         )
     }
 
@@ -150,18 +169,60 @@ object GeminiPhotoVerifier {
                 .trim()
             val json = JSONObject(clean)
             val isFlood = json.optBoolean("is_flood", false)
+            val isAiGenerated = json.optBoolean("is_ai_generated", false)
+            val isScreenshotOrFake = json.optBoolean("is_screenshot_or_fake", false)
+            val isAuthentic = json.optBoolean("is_authentic_camera_photo", true)
             val confidence = json.optDouble("confidence", 0.0)
             val severity = json.optString("estimated_severity", "None")
-            val reason = json.optString("reason", if (isFlood) "Flood detected" else "No flood detected in image")
+            val rawCategory = json.optString("rejection_category", "NONE")
+            val rawReason = json.optString("reason", if (isFlood) "Flood detected" else "No flood detected in image")
 
-            GeminiVerificationResult(
-                isValid = isFlood || confidence < 0.65, // only invalidate if AI is confident it's NOT flood
-                isFlood = isFlood,
-                confidence = confidence,
-                estimatedSeverity = severity,
-                reason = reason,
-                isErrorOrTimeout = false
-            )
+            when {
+                isAiGenerated || rawCategory.equals("AI_GENERATED", ignoreCase = true) -> {
+                    GeminiVerificationResult(
+                        isValid = false,
+                        isFlood = false,
+                        confidence = confidence.coerceAtLeast(0.92),
+                        estimatedSeverity = "None (AI / Synthetic)",
+                        reason = "AI-generated or synthetic flood image detected. $rawReason Please capture an authentic, real-time photo using your camera.",
+                        isErrorOrTimeout = false,
+                        rejectionCategory = "AI_GENERATED"
+                    )
+                }
+                isScreenshotOrFake || !isAuthentic || rawCategory.equals("SCREENSHOT_OR_FAKE", ignoreCase = true) -> {
+                    GeminiVerificationResult(
+                        isValid = false,
+                        isFlood = false,
+                        confidence = confidence.coerceAtLeast(0.90),
+                        estimatedSeverity = "None (Non-Original)",
+                        reason = "Non-original image, screenshot, or screen photo detected. $rawReason Please take a real camera photo of the flooded street.",
+                        isErrorOrTimeout = false,
+                        rejectionCategory = "SCREENSHOT_OR_FAKE"
+                    )
+                }
+                !isFlood && confidence >= 0.60 -> {
+                    GeminiVerificationResult(
+                        isValid = false,
+                        isFlood = false,
+                        confidence = confidence,
+                        estimatedSeverity = "None",
+                        reason = rawReason,
+                        isErrorOrTimeout = false,
+                        rejectionCategory = "NOT_FLOOD"
+                    )
+                }
+                else -> {
+                    GeminiVerificationResult(
+                        isValid = true,
+                        isFlood = true,
+                        confidence = confidence,
+                        estimatedSeverity = severity,
+                        reason = rawReason,
+                        isErrorOrTimeout = false,
+                        rejectionCategory = "NONE"
+                    )
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing Gemini response: $rawText", e)
             null
