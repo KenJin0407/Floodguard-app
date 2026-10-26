@@ -196,8 +196,8 @@ object FloodGuardApiService {
                     val conn = url.openConnection() as HttpURLConnection
                     conn.requestMethod = "POST"
                     conn.setRequestProperty("Content-Type", "application/json")
-                    conn.connectTimeout = 4000
-                    conn.readTimeout = 4000
+                    conn.connectTimeout = if (baseUrl.contains("onrender.com")) 15000 else 4000
+                    conn.readTimeout = if (baseUrl.contains("onrender.com")) 25000 else 4000
                     conn.doOutput = true
 
                     val authorUser = report.authorUsername.ifBlank { report.reporterUsername.ifBlank { "anonymous" } }
@@ -242,6 +242,23 @@ object FloodGuardApiService {
                                 pushAccepted = notificationAccepted || parsedBroadcast != null,
                                 smsBroadcastTriggered = parsedBroadcast != null,
                                 smsBroadcast = parsedBroadcast,
+                            )
+                        )
+                        return@thread
+                    } else if (code in 400..499) {
+                        val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: "{}"
+                        val detailMsg = try {
+                            JSONObject(errBody).optString("detail", "Report rejected by FloodGuard server.")
+                        } catch (_: Exception) {
+                            "Report rejected by FloodGuard server."
+                        }
+                        conn.disconnect()
+                        onResult(
+                            ReportSubmissionStatus(
+                                submittedToServer = false,
+                                pushAccepted = false,
+                                rejectedByServer = true,
+                                serverErrorMessage = detailMsg
                             )
                         )
                         return@thread
@@ -790,6 +807,8 @@ data class ReportSubmissionStatus(
     val pushAccepted: Boolean,
     val smsBroadcastTriggered: Boolean = false,
     val smsBroadcast: FloodBroadcast? = null,
+    val rejectedByServer: Boolean = false,
+    val serverErrorMessage: String? = null,
 )
 
 data class FloodBroadcast(

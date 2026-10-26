@@ -68,6 +68,12 @@ object GeminiPhotoVerifier {
         "  \"reason\": \"clear 1-2 sentence explanation of why it was verified or rejected\"\n" +
         "}"
 
+    private val BACKEND_VERIFY_URLS = listOf(
+        "https://floodguard-app-90dp.onrender.com/api/reports/verify-photo",
+        "http://10.0.2.2:8000/api/reports/verify-photo",
+        "http://127.0.0.1:8000/api/reports/verify-photo"
+    )
+
     fun verifyPhoto(bitmap: Bitmap): GeminiVerificationResult {
         val scaled = scaleForInference(bitmap, 512)
         val stream = ByteArrayOutputStream()
@@ -75,6 +81,44 @@ object GeminiPhotoVerifier {
         val jpegBytes = stream.toByteArray()
         val base64Data = Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
 
+        // 1. Primary path: Verify via FloodGuard Cloud Backend (Render US Cloud -> Gemini API).
+        // Avoids local ISP/IPv6 routing timeouts when calling generativelanguage.googleapis.com directly from device/emulator.
+        for (verifyUrl in BACKEND_VERIFY_URLS) {
+            try {
+                val url = URL(verifyUrl)
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.connectTimeout = if (verifyUrl.contains("onrender.com")) 15000 else 3000
+                conn.readTimeout = if (verifyUrl.contains("onrender.com")) 25000 else 5000
+                conn.doOutput = true
+
+                val reqPayload = JSONObject().apply {
+                    put("photo", "data:image/jpeg;base64,$base64Data")
+                }
+                OutputStreamWriter(conn.outputStream).use { writer ->
+                    writer.write(reqPayload.toString())
+                    writer.flush()
+                }
+
+                val code = conn.responseCode
+                if (code == 200) {
+                    val responseStr = conn.inputStream.bufferedReader().use { it.readText() }
+                    conn.disconnect()
+                    val parsed = parseGeminiJson(responseStr)
+                    if (parsed != null && !parsed.reason.contains("AI verification skipped", ignoreCase = true)) {
+                        Log.d(TAG, "Backend Gemini ($verifyUrl) result: isValid=${parsed.isValid}, cat=${parsed.rejectionCategory}, reason=${parsed.reason}")
+                        return parsed
+                    }
+                } else {
+                    conn.disconnect()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Backend verify ($verifyUrl) error: ${e.message}")
+            }
+        }
+
+        // 2. Secondary fallback path: Direct device-to-Google Gemini API call
         for (model in MODELS) {
             try {
                 val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$API_KEY")
