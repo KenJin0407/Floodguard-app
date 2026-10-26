@@ -254,6 +254,14 @@ object ReportRepository {
         }
 
         FloodGuardApiService.submitReportToBackend(report) { backendStatus ->
+            if (backendStatus.rejectedByServer) {
+                db.deleteReport(report.id)
+                synchronized(this) {
+                    cachedReports?.removeAll { it.id == report.id }
+                }
+                onSubmitted(backendStatus)
+                return@submitReportToBackend
+            }
             val effectiveBroadcast = backendStatus.smsBroadcast ?: localBroadcast
             if (backendStatus.smsBroadcast != null) {
                 SmsAlertBroadcastManager.saveBroadcastLocally(context.applicationContext, backendStatus.smsBroadcast)

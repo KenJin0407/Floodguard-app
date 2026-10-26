@@ -870,6 +870,8 @@ class ReportFloodActivity : ComponentActivity() {
                 ReportRepository.addReport(applicationContext, newReport) { result ->
                     runOnUiThread {
                         val message = when {
+                            result.rejectedByServer ->
+                                result.serverErrorMessage ?: "Report was rejected by the FloodGuard verification server."
                             result.smsBroadcastTriggered ->
                                 "Multiple similar reports verified! Free SMS API warning broadcasted to nearby users."
                             result.submittedToServer ->

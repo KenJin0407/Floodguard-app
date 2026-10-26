@@ -28,6 +28,7 @@ import base64
 _ENCODED_GEMINI_KEY = "QVEuQWI4Uk42S3hsamtGSW9Rd09ibDBValc2MjZJV0RwclE0a0VxRjR3RURldkMxNWxZbnc="
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or base64.b64decode(_ENCODED_GEMINI_KEY).decode("utf-8")
 GEMINI_MODELS = ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.8-flash"]
+_VERIFIED_PHOTO_CACHE = {}
 
 def verify_flood_photo_with_gemini(photo_uri: str) -> dict:
     if not photo_uri or not str(photo_uri).strip():
@@ -56,6 +57,11 @@ def verify_flood_photo_with_gemini(photo_uri: str) -> dict:
             "estimated_severity": "Unknown",
             "reason": "Local photo reference without inline base64."
         }
+
+    import hashlib
+    cache_key = hashlib.sha256(clean_data[:4096].encode("utf-8")).hexdigest()
+    if cache_key in _VERIFIED_PHOTO_CACHE:
+        return _VERIFIED_PHOTO_CACHE[cache_key]
 
     prompt = (
         "You are a strict forensic AI flood image verifier for the FloodGuard disaster response system in San Mateo, Rizal. "
@@ -102,7 +108,8 @@ def verify_flood_photo_with_gemini(photo_uri: str) -> dict:
                 text_content = result_json["candidates"][0]["content"]["parts"][0]["text"].strip()
                 clean_text = text_content.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
                 parsed = json.loads(clean_text)
-                print(f"✅ Gemini AI Verification ({model}): is_flood={parsed.get('is_flood')}, reason={parsed.get('reason')}")
+                print(f"✅ Gemini AI Verification ({model}): is_flood={parsed.get('is_flood')}, is_ai={parsed.get('is_ai_generated')}, reason={parsed.get('reason')}")
+                _VERIFIED_PHOTO_CACHE[cache_key] = parsed
                 return parsed
             else:
                 print(f"⚠️ Gemini API {model} HTTP {r.status_code}: {r.text[:200]}")
