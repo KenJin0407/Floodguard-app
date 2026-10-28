@@ -220,4 +220,40 @@ object FloodGuardThemedDialog {
 
         dialog.show()
     }
+
+    /** Displays the themed Report Content / Validation Warning dialog adhering to FloodGuard aesthetic */
+    fun showReportContentWarning(
+        activity: Activity,
+        message: String,
+        title: String = "Inappropriate or Invalid Report",
+        subtitle: String = "Community Reporting Standards",
+        badgeText: String = "⚠️ Revision Needed",
+        buttonText: String = "Edit & Fix Report",
+        onAction: (() -> Unit)? = null
+    ) {
+        if (activity.isFinishing || activity.isDestroyed) return
+
+        val dialogView = LayoutInflater.from(activity).inflate(R.layout.dialog_report_content_warning, null)
+        dialogView.findViewById<TextView>(R.id.tvReportWarningTitle)?.text = title
+        dialogView.findViewById<TextView>(R.id.tvReportWarningSubtitle)?.text = subtitle
+        dialogView.findViewById<TextView>(R.id.tvReportWarningBadge)?.text = badgeText
+        dialogView.findViewById<TextView>(R.id.tvReportWarningReason)?.text = message
+
+        val btnFix = dialogView.findViewById<Button>(R.id.btnFixReport)
+        btnFix?.text = buttonText
+
+        val dialog = AlertDialog.Builder(activity)
+            .setView(dialogView)
+            .setCancelable(true)
+            .create()
+
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        btnFix?.setOnClickListener {
+            dialog.dismiss()
+            onAction?.invoke()
+        }
+
+        dialog.show()
+    }
 }

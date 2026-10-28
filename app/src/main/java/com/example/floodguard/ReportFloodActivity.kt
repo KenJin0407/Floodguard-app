@@ -141,14 +141,16 @@ class ReportFloodActivity : ComponentActivity() {
             val bitmap = ReportPhotoHelper.loadBitmap(this, photoData ?: uri.toString())
             val validation = ReportPhotoHelper.validateFloodPhoto(bitmap)
             if (!validation.isValid) {
-                AlertDialog.Builder(this)
-                    .setTitle("Invalid Flood Photo")
-                    .setMessage(validation.errorMessage ?: "Hindi valid ang napiling litrato ng baha.")
-                    .setPositiveButton("Pumili ng Ibang Litrato") { _, _ ->
-                        selectImageLauncher.launch("image/*")
-                    }
-                    .setNegativeButton("OK", null)
-                    .show()
+                FloodGuardThemedDialog.showReportContentWarning(
+                    activity = this,
+                    message = validation.errorMessage ?: "The selected image appears invalid, blank, or corrupted. Please attach a clear photo of the flooded street.",
+                    title = "Invalid Flood Photo",
+                    subtitle = "Photo Quality Verification",
+                    badgeText = "⚠️ Invalid Image",
+                    buttonText = "Choose Another Photo"
+                ) {
+                    selectImageLauncher.launch("image/*")
+                }
                 selectedImageUri = null
                 persistedPhotoData = null
                 photoPreview.setImageDrawable(null)
@@ -690,7 +692,7 @@ class ReportFloodActivity : ComponentActivity() {
         for (badWord in profanityWords) {
             val regex = Regex("\\b${Regex.escape(badWord)}\\b", RegexOption.IGNORE_CASE)
             if (regex.containsMatchIn(combined) || combined.contains(badWord)) {
-                return "Hindi appropriate ang iyong report dahil may nakitang bastos o hindi magandang salita. Mangyaring maglagay ng maayos na impormasyon."
+                return "Your report contains inappropriate or offensive language. Please provide respectful, clear, and accurate flood details."
             }
         }
 
@@ -759,11 +761,14 @@ class ReportFloodActivity : ComponentActivity() {
         // 2. Validate report content (Profanity & Nonsense Filter)
         val validationError = validateReportContent(loc, notes)
         if (validationError != null) {
-            AlertDialog.Builder(this)
-                .setTitle("Hindi Appropriate ang Report")
-                .setMessage(validationError)
-                .setPositiveButton("Ayusin ang Report", null)
-                .show()
+            FloodGuardThemedDialog.showReportContentWarning(
+                activity = this,
+                message = validationError,
+                title = "Inappropriate or Invalid Report",
+                subtitle = "Community Reporting Standards",
+                badgeText = "⚠️ Revision Needed",
+                buttonText = "Edit & Fix Report"
+            )
             return
         }
 
