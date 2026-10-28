@@ -41,6 +41,11 @@
             android:background="@color/text_secondary"
             android:hint="Full Name"
             android:inputType="textPersonName"
+            android:singleLine="true"
+            android:maxLines="1"
+            android:imeOptions="actionNext"
+            android:textColor="@android:color/white"
+            android:textColorHint="#CBD5E1"
             android:padding="12dp" />
 
         <!-- Mobile Number -->
@@ -52,6 +57,11 @@
             android:background="@color/text_secondary"
             android:hint="Contact Number (09... or +63...)"
             android:inputType="phone"
+            android:singleLine="true"
+            android:maxLines="1"
+            android:imeOptions="actionNext"
+            android:textColor="@android:color/white"
+            android:textColorHint="#CBD5E1"
             android:padding="12dp" />
 
         <!-- Gender Selection -->
@@ -106,6 +116,12 @@
             android:layout_marginTop="12dp"
             android:background="@color/text_secondary"
             android:hint="Username"
+            android:inputType="textNoSuggestions"
+            android:singleLine="true"
+            android:maxLines="1"
+            android:imeOptions="actionNext"
+            android:textColor="@android:color/white"
+            android:textColorHint="#CBD5E1"
             android:padding="12dp" />
 
         <!-- Password -->
@@ -121,6 +137,11 @@
                 android:background="@color/text_secondary"
                 android:hint="Password (min. 6 chars, A-Z, a-z, 0-9, symbol)"
                 android:inputType="textPassword"
+                android:singleLine="true"
+                android:maxLines="1"
+                android:imeOptions="actionNext"
+                android:textColor="@android:color/white"
+                android:textColorHint="#CBD5E1"
                 android:paddingStart="12dp"
                 android:paddingTop="12dp"
                 android:paddingEnd="46dp"
@@ -162,6 +183,11 @@
                 android:background="@color/text_secondary"
                 android:hint="Confirm Password"
                 android:inputType="textPassword"
+                android:singleLine="true"
+                android:maxLines="1"
+                android:imeOptions="actionDone"
+                android:textColor="@android:color/white"
+                android:textColorHint="#CBD5E1"
                 android:paddingStart="12dp"
                 android:paddingTop="12dp"
                 android:paddingEnd="46dp"
