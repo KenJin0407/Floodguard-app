@@ -26,12 +26,15 @@ class InputScrollView @JvmOverloads constructor(
         isFillViewport = true
         clipToPadding = false
         ViewCompat.setOnApplyWindowInsetsListener(this) { view, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val bottomInset = if (imeBottom > 0) imeBottom else systemBars.bottom
+
             view.setPadding(
                 initialPaddingLeft,
-                initialPaddingTop,
+                initialPaddingTop + systemBars.top,
                 initialPaddingRight,
-                initialPaddingBottom + imeBottom,
+                initialPaddingBottom + bottomInset,
             )
 
             if (insets.isVisible(WindowInsetsCompat.Type.ime())) {

@@ -17,7 +17,7 @@ import java.util.Locale
 
 /**
  * Activity for user account creation.
- * Collects Full Name, Contact Number, Gender, Username, and Password.
+ * Collects First Name, Last Name, Contact Number, Gender, Username, and Password.
  * Triggers Google Firebase SMS OTP verification before persisting account data to SQLite & backend.
  */
 class RegisterActivity : ComponentActivity() {
@@ -26,7 +26,12 @@ class RegisterActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_register)
 
-        val fullNameField = findViewById<EditText>(R.id.fullNameField)
+        window.statusBarColor = Color.parseColor("#111827")
+        androidx.core.view.WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false
+
+        val btnBackToLogin = findViewById<ImageView>(R.id.btnBackToLogin)
+        val firstNameField = findViewById<EditText>(R.id.firstNameField)
+        val lastNameField = findViewById<EditText>(R.id.lastNameField)
         val mobileField = findViewById<EditText>(R.id.mobileField)
         val btnRegMale = findViewById<Button>(R.id.btnRegMale)
         val btnRegFemale = findViewById<Button>(R.id.btnRegFemale)
@@ -37,6 +42,10 @@ class RegisterActivity : ComponentActivity() {
         val toggleConfirmPassword = findViewById<ImageView>(R.id.toggleConfirmPassword)
         val registerButton = findViewById<Button>(R.id.registerButton)
         val loginLink = findViewById<TextView>(R.id.loginLink)
+
+        btnBackToLogin?.setOnClickListener {
+            finish()
+        }
 
         var isRegPwVisible = false
         toggleRegPassword?.setOnClickListener {
@@ -83,18 +92,47 @@ class RegisterActivity : ComponentActivity() {
         }
 
         registerButton?.setOnClickListener {
-            val fullName = fullNameField?.text?.toString().orEmpty().trim()
+            val firstName = firstNameField?.text?.toString().orEmpty().trim()
+            val lastName = lastNameField?.text?.toString().orEmpty().trim()
             val mobile = mobileField?.text?.toString().orEmpty().trim()
             val username = regUsernameField?.text?.toString().orEmpty().trim()
             val password = regPasswordField?.text?.toString().orEmpty()
             val confirmPassword = confirmPasswordField?.text?.toString().orEmpty()
 
-            val contactError = UserSession.getContactValidationError(mobile)
-
-            if (fullName.isEmpty() || mobile.isEmpty() || username.isEmpty() || password.isEmpty()) {
-                Toast.makeText(this, "Please fill in all required fields", Toast.LENGTH_SHORT).show()
+            if (firstName.isEmpty()) {
+                firstNameField?.error = "First name is required"
+                firstNameField?.requestFocus()
+                Toast.makeText(this, "Please enter your first name", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+            if (lastName.isEmpty()) {
+                lastNameField?.error = "Last name is required"
+                lastNameField?.requestFocus()
+                Toast.makeText(this, "Please enter your last name", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (mobile.isEmpty()) {
+                mobileField?.error = "Contact number is required"
+                mobileField?.requestFocus()
+                Toast.makeText(this, "Please enter your contact number", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (username.isEmpty()) {
+                regUsernameField?.error = "Username is required"
+                regUsernameField?.requestFocus()
+                Toast.makeText(this, "Please choose a username", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (password.isEmpty()) {
+                regPasswordField?.error = "Password is required"
+                regPasswordField?.requestFocus()
+                Toast.makeText(this, "Please enter a password", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val fullName = "$firstName $lastName".trim()
+
+            val contactError = UserSession.getContactValidationError(mobile)
             if (contactError != null) {
                 mobileField?.error = contactError
                 mobileField?.requestFocus()
@@ -251,12 +289,17 @@ class RegisterActivity : ComponentActivity() {
                         tvStatus.setTextColor(Color.parseColor("#DC2626"))
                     }
 
-                    override fun onFallbackCodeGenerated(code: String) {
+                    override fun onFallbackCodeGenerated(code: String, reason: String?) {
                         runOnUiThread {
+                            val noticeMsg = if (!reason.isNullOrBlank()) {
+                                "Firebase: $reason. Valid for 5 minutes."
+                            } else {
+                                "Firebase SMS is not yet activated on Firebase Console. Valid for 5 minutes."
+                            }
                             FloodGuardThemedDialog.showSecurityCode(
                                 activity = this@RegisterActivity,
                                 code = code,
-                                notice = "Firebase SMS is not yet activated on Firebase Console. Valid for 5 minutes."
+                                notice = noticeMsg
                             ) { enteredCode ->
                                 etOtp.setText(enteredCode)
                             }

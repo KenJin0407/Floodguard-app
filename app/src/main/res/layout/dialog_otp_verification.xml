@@ -61,6 +61,7 @@
             </LinearLayout>
 
             <TextView
+                android:id="@+id/tvOtpSubtitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
@@ -170,33 +171,45 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center_vertical"
                 android:orientation="horizontal">
 
                 <Button
                     android:id="@+id/btnOtpCancel"
                     android:layout_width="0dp"
-                    android:layout_height="46dp"
-                    android:layout_marginEnd="8dp"
-                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="0.8"
                     android:background="@drawable/btn_severity_default"
                     android:text="Cancel"
                     android:textAllCaps="false"
                     android:textColor="#4B5563"
                     android:textSize="14sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp" />
 
                 <Button
                     android:id="@+id/btnOtpVerify"
                     android:layout_width="0dp"
-                    android:layout_height="46dp"
-                    android:layout_marginStart="8dp"
-                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1.4"
                     android:background="@drawable/btn_yellow"
                     android:text="Verify &amp; Register"
                     android:textAllCaps="false"
                     android:textColor="#0A192F"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
+                    android:textSize="13.5sp"
+                    android:textStyle="bold"
+                    android:gravity="center"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp" />
             </LinearLayout>
 
         </LinearLayout>

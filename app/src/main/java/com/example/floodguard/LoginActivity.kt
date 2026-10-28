@@ -238,12 +238,17 @@ class LoginActivity : ComponentActivity() {
                             userStatusText.setTextColor(Color.parseColor("#DC2626"))
                         }
 
-                        override fun onFallbackCodeGenerated(code: String) {
+                        override fun onFallbackCodeGenerated(code: String, reason: String?) {
                             runOnUiThread {
+                                val noticeMsg = if (!reason.isNullOrBlank()) {
+                                    "Firebase: $reason. Valid for 5 minutes."
+                                } else {
+                                    "Firebase SMS is not yet activated on Firebase Console. Valid for 5 minutes."
+                                }
                                 FloodGuardThemedDialog.showSecurityCode(
                                     activity = this@LoginActivity,
                                     code = code,
-                                    notice = "Firebase SMS is not yet activated on Firebase Console. Valid for 5 minutes."
+                                    notice = noticeMsg
                                 ) { enteredCode ->
                                     inputOtp.setText(enteredCode)
                                 }

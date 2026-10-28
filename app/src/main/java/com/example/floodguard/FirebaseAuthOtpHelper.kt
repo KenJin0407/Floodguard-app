@@ -41,6 +41,9 @@ object FirebaseAuthOtpHelper {
         fun onAutoVerified()
         fun onError(message: String)
         fun onFallbackCodeGenerated(code: String) {}
+        fun onFallbackCodeGenerated(code: String, reason: String?) {
+            onFallbackCodeGenerated(code)
+        }
     }
 
     /** Normalizes Philippine mobile numbers (09xx / 9xx) to standard E.164 (+639xx) format */
@@ -91,9 +94,9 @@ object FirebaseAuthOtpHelper {
                         }
 
                         override fun onVerificationFailed(e: FirebaseException) {
-                            Log.w(TAG, "Firebase verification failed: ${e.message}", e)
+                            Log.e(TAG, "🚨 FIREBASE PHONE AUTH FAILED: [${e.javaClass.simpleName}] ${e.message}", e)
                             // Fallback to local OTP dispatch so user is not blocked
-                            fallbackToLocalOtp(activity, formattedNumber, callback, e.localizedMessage)
+                            fallbackToLocalOtp(activity, formattedNumber, callback, e.localizedMessage ?: e.message)
                         }
 
                         override fun onCodeSent(
@@ -131,10 +134,11 @@ object FirebaseAuthOtpHelper {
         val generatedCode = String.format(Locale.US, "%06d", Random.nextInt(100000, 999999))
         localOtpCode = generatedCode
 
+        Log.w(TAG, "Triggering local fallback OTP code ($generatedCode) for $formattedNumber. Reason: $reason")
         showOtpNotification(context, formattedNumber, generatedCode)
 
         Handler(Looper.getMainLooper()).post {
-            callback.onFallbackCodeGenerated(generatedCode)
+            callback.onFallbackCodeGenerated(generatedCode, reason)
             callback.onCodeSent(formattedNumber)
         }
     }

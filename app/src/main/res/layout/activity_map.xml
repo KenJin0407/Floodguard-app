@@ -8,10 +8,13 @@
     <RelativeLayout
         android:id="@+id/headerBar"
         android:layout_width="match_parent"
-        android:layout_height="64dp"
+        android:layout_height="wrap_content"
+        android:minHeight="76dp"
         android:background="#0A192F"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
+        android:paddingTop="36dp"
+        android:paddingBottom="12dp"
         android:layout_alignParentTop="true">
 
         <!-- Logo & Title -->
@@ -19,9 +22,11 @@
             android:id="@+id/logoLayout"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerVertical="true"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
+            android:paddingTop="8dp"
             android:clickable="true"
             android:focusable="true">
 
@@ -55,27 +60,32 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Screen Title -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:text="Road Map"
-            android:textColor="@android:color/white"
-            android:textSize="18sp"
-            android:textStyle="bold" />
-
         <!-- Menu Icon -->
         <ImageView
             android:id="@+id/menuIcon"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"
-            android:layout_centerVertical="true"
+            android:layout_alignTop="@id/logoLayout"
+            android:layout_alignBottom="@id/logoLayout"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
             android:src="@drawable/ic_menu"
             android:contentDescription="Menu"
             android:clickable="true"
             android:focusable="true" />
+
+        <!-- Screen Title -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/logoLayout"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="6dp"
+            android:text="Road Map"
+            android:textColor="@android:color/white"
+            android:textSize="18sp"
+            android:textStyle="bold" />
     </RelativeLayout>
 
     <!-- Map Search & Control Header Bar -->
@@ -145,9 +155,86 @@
                 android:textColor="#000000"
                 android:textSize="12sp"
                 android:textStyle="bold"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp" />
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp" />
 
+            <!-- Safe Route Toggle Button -->
+            <Button
+                android:id="@+id/btnToggleSafeRoute"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_chip_unselected"
+                android:text="🧭 Route"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp" />
+
+        </LinearLayout>
+
+        <!-- Safe Route Planner Panel (Collapsible) -->
+        <LinearLayout
+            android:id="@+id/routePlannerPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/card_bg_dark"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:visibility="gone">
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentStart="true"
+                    android:layout_centerVertical="true"
+                    android:text="🧭 Flood-Aware Safe Route Planner"
+                    android:textColor="#38BDF8"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <ImageView
+                    android:id="@+id/btnCloseRoutePanel"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:src="@drawable/ic_clear"
+                    android:contentDescription="Close Route Panel" />
+            </RelativeLayout>
+
+            <TextView
+                android:id="@+id/tvRouteOrigin"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="📍 Origin: San Mateo Town Center"
+                android:textColor="#E2E8F0"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tvRouteDestination"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:text="🎯 Destination: Tap preset below or tap map"
+                android:textColor="#FDE047"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Select a barangay below or tap anywhere on the map to find a flood-free route."
+                android:textColor="#94A3B8"
+                android:textSize="11sp" />
         </LinearLayout>
 
         <!-- Location Preset Chips Bar -->
@@ -259,5 +346,115 @@
         android:layout_height="match_parent"
         android:layout_below="@id/mapControlBar"
         android:layout_alignParentBottom="true" />
+
+    <!-- Floating Safe Route Status Card -->
+    <LinearLayout
+        android:id="@+id/cardRouteResult"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="24dp"
+        android:background="@drawable/bg_alerts_panel"
+        android:elevation="10dp"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:visibility="gone">
+
+        <!-- Header: Badge + Close button -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/tvRouteStatusBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentStart="true"
+                android:layout_centerVertical="true"
+                android:background="@drawable/badge_verified_green"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:text="🛡️ FLOOD-SAFE ROUTE"
+                android:textColor="#047857"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:id="@+id/btnDismissRouteResult"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_clear"
+                android:contentDescription="Dismiss Route" />
+        </RelativeLayout>
+
+        <!-- Route Title -->
+        <TextView
+            android:id="@+id/tvRouteTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Town Center → Banaba"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <!-- Hazard Detour Notice (Shown when flood hazard was avoided) -->
+        <TextView
+            android:id="@+id/tvRouteHazardWarning"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="#FEF2F2"
+            android:padding="8dp"
+            android:text="⚠️ Avoided 1 active flood hazard at Banaba (Waist-Deep). Detoured safely via alternate roads."
+            android:textColor="#991B1B"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <!-- Route Metrics: ETA, Distance, Status -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tvRouteEta"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="⏱️ 12 mins"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvRouteDistance"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="📏 3.8 km"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/tvRouteSafetyStatus"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.2"
+                android:text="🛡️ 0 Hazards on path"
+                android:textColor="#047857"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
 
 </RelativeLayout>

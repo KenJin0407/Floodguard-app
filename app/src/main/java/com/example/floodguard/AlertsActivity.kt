@@ -1,6 +1,7 @@
 package com.example.floodguard
 
 import android.content.Intent
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
@@ -17,9 +18,19 @@ import androidx.activity.ComponentActivity
  */
 class AlertsActivity : ComponentActivity() {
 
+    enum class AlertFilter {
+        ALL, NOT_PASSABLE, CAUTION, CLEARED
+    }
+    private var currentFilter: AlertFilter = AlertFilter.ALL
+
     private lateinit var alertsContainer: LinearLayout
     private lateinit var callHotlineButton: LinearLayout
     private lateinit var addReportButton: TextView
+
+    private lateinit var chipAlertsAll: TextView
+    private lateinit var chipAlertsNotPassable: TextView
+    private lateinit var chipAlertsCaution: TextView
+    private lateinit var chipAlertsCleared: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,6 +62,41 @@ class AlertsActivity : ComponentActivity() {
         alertsContainer = findViewById(R.id.alertsContainer)
         callHotlineButton = findViewById(R.id.callHotlineButton)
         addReportButton = findViewById(R.id.addReportButton)
+
+        chipAlertsAll = findViewById(R.id.chipAlertsAll)
+        chipAlertsNotPassable = findViewById(R.id.chipAlertsNotPassable)
+        chipAlertsCaution = findViewById(R.id.chipAlertsCaution)
+        chipAlertsCleared = findViewById(R.id.chipAlertsCleared)
+
+        chipAlertsAll.setOnClickListener { setAlertsFilter(AlertFilter.ALL) }
+        chipAlertsNotPassable.setOnClickListener { setAlertsFilter(AlertFilter.NOT_PASSABLE) }
+        chipAlertsCaution.setOnClickListener { setAlertsFilter(AlertFilter.CAUTION) }
+        chipAlertsCleared.setOnClickListener { setAlertsFilter(AlertFilter.CLEARED) }
+    }
+
+    private fun setAlertsFilter(filter: AlertFilter) {
+        currentFilter = filter
+        updateAlertsChipStyles()
+        populateAlerts()
+    }
+
+    private fun updateAlertsChipStyles() {
+        val selectedBg = R.drawable.bg_chip_selected
+        val unselectedBg = R.drawable.bg_chip_unselected
+        val selectedColor = Color.WHITE
+        val unselectedColor = Color.parseColor("#475569")
+
+        chipAlertsAll.setBackgroundResource(if (currentFilter == AlertFilter.ALL) selectedBg else unselectedBg)
+        chipAlertsAll.setTextColor(if (currentFilter == AlertFilter.ALL) selectedColor else unselectedColor)
+
+        chipAlertsNotPassable.setBackgroundResource(if (currentFilter == AlertFilter.NOT_PASSABLE) selectedBg else unselectedBg)
+        chipAlertsNotPassable.setTextColor(if (currentFilter == AlertFilter.NOT_PASSABLE) selectedColor else unselectedColor)
+
+        chipAlertsCaution.setBackgroundResource(if (currentFilter == AlertFilter.CAUTION) selectedBg else unselectedBg)
+        chipAlertsCaution.setTextColor(if (currentFilter == AlertFilter.CAUTION) selectedColor else unselectedColor)
+
+        chipAlertsCleared.setBackgroundResource(if (currentFilter == AlertFilter.CLEARED) selectedBg else unselectedBg)
+        chipAlertsCleared.setTextColor(if (currentFilter == AlertFilter.CLEARED) selectedColor else unselectedColor)
     }
 
     private fun setupListeners() {
@@ -88,17 +134,42 @@ class AlertsActivity : ComponentActivity() {
         val allReports = ReportRepository.loadReports(this) {
             runOnUiThread { populateAlerts() }
         }.toList()
-        val reportsList = allReports
+
+        // Update live counts on filter chips
+        val notPassableCount = allReports.count { it.severityLevel == SeverityLevel.NOT_PASSABLE }
+        val cautionCount = allReports.count { it.severityLevel == SeverityLevel.HEAVY_VEHICLES_ONLY }
+        val clearedCount = allReports.count { it.severityLevel == SeverityLevel.CLEARED }
+
+        chipAlertsAll.text = "All (${allReports.size})"
+        chipAlertsNotPassable.text = "🔴 Not Passable ($notPassableCount)"
+        chipAlertsCaution.text = "🟡 Caution ($cautionCount)"
+        chipAlertsCleared.text = "🟢 Cleared ($clearedCount)"
+
+        val reportsList = allReports.filter { report ->
+            when (currentFilter) {
+                AlertFilter.ALL -> true
+                AlertFilter.NOT_PASSABLE -> report.severityLevel == SeverityLevel.NOT_PASSABLE
+                AlertFilter.CAUTION -> report.severityLevel == SeverityLevel.HEAVY_VEHICLES_ONLY
+                AlertFilter.CLEARED -> report.severityLevel == SeverityLevel.CLEARED
+            }
+        }
 
         val count = reportsList.size
         findViewById<TextView>(R.id.tvAlertsHeaderTitle)?.text = "Submitted Flood Alerts ($count)"
 
         if (reportsList.isEmpty()) {
             val emptyText = TextView(this).apply {
-                text = "No community flood alerts at this moment."
-                setTextColor(resources.getColor(android.R.color.darker_gray, theme))
+                val filterDesc = when (currentFilter) {
+                    AlertFilter.ALL -> "community flood alerts"
+                    AlertFilter.NOT_PASSABLE -> "Not Passable alerts"
+                    AlertFilter.CAUTION -> "Caution alerts"
+                    AlertFilter.CLEARED -> "Cleared alerts"
+                }
+                text = "No $filterDesc at this moment."
+                setTextColor(Color.parseColor("#94A3B8"))
                 textSize = 13f
-                setPadding(12, 12, 12, 12)
+                gravity = android.view.Gravity.CENTER
+                setPadding(16, 48, 16, 48)
             }
             alertsContainer.addView(emptyText)
             return
@@ -106,15 +177,16 @@ class AlertsActivity : ComponentActivity() {
 
         for (report in reportsList) {
             val similarReports = SmsAlertBroadcastManager.findSimilarActiveReports(report, allReports)
-            val cardView = RelativeLayout(this).apply {
+            val cardView = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
                 val params = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    bottomMargin = (12 * resources.displayMetrics.density).toInt()
+                    bottomMargin = (14 * resources.displayMetrics.density).toInt()
                 }
                 layoutParams = params
-                val paddingPx = (16 * resources.displayMetrics.density).toInt()
+                val paddingPx = (15 * resources.displayMetrics.density).toInt()
                 setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
 
                 val bgDrawable = when (report.severityLevel) {
@@ -125,55 +197,96 @@ class AlertsActivity : ComponentActivity() {
                 setBackgroundResource(bgDrawable)
             }
 
-            val timeText = TextView(this).apply {
-                id = View.generateViewId()
-                text = report.getFormattedTimeAgo()
-                setTextColor(resources.getColor(android.R.color.darker_gray, theme))
-                textSize = 12f
-                val params = RelativeLayout.LayoutParams(
-                    RelativeLayout.LayoutParams.WRAP_CONTENT,
-                    RelativeLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    addRule(RelativeLayout.ALIGN_PARENT_END)
-                }
+            // 1. Header Row: Status Badge (Left) + Time Ago (Right)
+            val headerRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                val params = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
                 layoutParams = params
             }
 
-            val textLayout = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                val params = RelativeLayout.LayoutParams(
-                    RelativeLayout.LayoutParams.MATCH_PARENT,
-                    RelativeLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    addRule(RelativeLayout.ALIGN_PARENT_START)
-                    addRule(RelativeLayout.START_OF, timeText.id)
-                }
-                layoutParams = params
+            val (badgeBg, badgeText, badgeColor) = when (report.severityLevel) {
+                SeverityLevel.NOT_PASSABLE -> Triple(R.drawable.badge_status_red, "⛔ NOT PASSABLE", Color.parseColor("#B91C1C"))
+                SeverityLevel.HEAVY_VEHICLES_ONLY -> Triple(R.drawable.badge_status_yellow, "⚠️ CAUTION", Color.parseColor("#B45309"))
+                SeverityLevel.CLEARED -> Triple(R.drawable.badge_status_green, "🟢 WATER SUBSIDED • CLEARED", Color.parseColor("#15803D"))
             }
 
-            val titleText = TextView(this).apply {
-                text = "${report.location} - ${report.statusText}"
-                setTextColor(resources.getColor(android.R.color.black, theme))
-                textSize = 14f
+            val badgeView = TextView(this).apply {
+                text = badgeText
+                setTextColor(badgeColor)
+                textSize = 10.5f
                 paint.isFakeBoldText = true
+                setBackgroundResource(badgeBg)
+                val padH = (8 * resources.displayMetrics.density).toInt()
+                val padV = (3 * resources.displayMetrics.density).toInt()
+                setPadding(padH, padV, padH, padV)
             }
 
-            val reporterLabel = report.getDisplayReporter(currentUsername, currentFullName)
-            val subtitleText = TextView(this).apply {
-                text = "${report.notes}\nReported by: $reporterLabel"
-                setTextColor(resources.getColor(android.R.color.darker_gray, theme))
-                textSize = 12f
+            val spacerHeader = View(this).apply {
+                val params = LinearLayout.LayoutParams(0, 0, 1f)
+                layoutParams = params
+            }
+
+            val timeText = TextView(this).apply {
+                val timeAgo = report.getFormattedTimeAgo()
+                val ttl = report.getTimeRemainingTtl()
+                text = "⏱️ $timeAgo • $ttl"
+                setTextColor(Color.parseColor("#64748B"))
+                textSize = 11.5f
+            }
+
+            headerRow.addView(badgeView)
+            headerRow.addView(spacerHeader)
+            headerRow.addView(timeText)
+            cardView.addView(headerRow)
+
+            // 2. Location Title
+            val titleText = TextView(this).apply {
+                text = "📍 ${report.location}"
+                setTextColor(Color.parseColor("#0F172A"))
+                textSize = 15f
+                paint.isFakeBoldText = true
+                val topMarginPx = (10 * resources.displayMetrics.density).toInt()
+                setPadding(0, topMarginPx, 0, 0)
+            }
+            cardView.addView(titleText)
+
+            // 3. Water Depth & Notes
+            val detailText = TextView(this).apply {
+                val depthLabel = if (report.severity.isNotBlank()) "Depth: ${report.severity}" else ""
+                val notesText = report.notes.trim()
+                val fullText = when {
+                    depthLabel.isNotEmpty() && notesText.isNotEmpty() -> "$depthLabel • $notesText"
+                    depthLabel.isNotEmpty() -> depthLabel
+                    else -> notesText
+                }
+                text = fullText
+                setTextColor(Color.parseColor("#334155"))
+                textSize = 13f
                 val topMarginPx = (4 * resources.displayMetrics.density).toInt()
                 setPadding(0, topMarginPx, 0, 0)
             }
+            cardView.addView(detailText)
 
-            textLayout.addView(titleText)
-            textLayout.addView(subtitleText)
+            // 4. Reporter Meta
+            val reporterLabel = report.getDisplayReporter(currentUsername, currentFullName)
+            val reporterMeta = TextView(this).apply {
+                text = "👤 Reported by $reporterLabel"
+                setTextColor(Color.parseColor("#64748B"))
+                textSize = 11.5f
+                val topMarginPx = (4 * resources.displayMetrics.density).toInt()
+                setPadding(0, topMarginPx, 0, 0)
+            }
+            cardView.addView(reporterMeta)
 
+            // 5. SMS Broadcast Banner (if corroborated by 2+ reports)
             if (similarReports.size >= 2) {
                 val smsBadgeBtn = TextView(this).apply {
                     text = "🚨 SMS Broadcast Active (${similarReports.size} similar reports near area) • View Alert"
-                    setTextColor(android.graphics.Color.parseColor("#DC2626"))
+                    setTextColor(Color.parseColor("#DC2626"))
                     textSize = 11.5f
                     paint.isFakeBoldText = true
                     val topMarginPx = (6 * resources.displayMetrics.density).toInt()
@@ -206,13 +319,14 @@ class AlertsActivity : ComponentActivity() {
                         FloatingAlertManager.showSmsWarningPopUpDialog(this@AlertsActivity, broadcast)
                     }
                 }
-                textLayout.addView(smsBadgeBtn)
+                cardView.addView(smsBadgeBtn)
             }
 
+            // 6. Attached Photo (if any)
             if (!report.photoUri.isNullOrBlank()) {
                 val photoBtn = TextView(this).apply {
-                    text = "View Flood Photo"
-                    setTextColor(resources.getColor(android.R.color.holo_blue_dark, theme))
+                    text = "📷 View Attached Flood Photo"
+                    setTextColor(Color.parseColor("#0284C7"))
                     textSize = 12f
                     paint.isFakeBoldText = true
                     val topMarginPx = (6 * resources.displayMetrics.density).toInt()
@@ -221,11 +335,21 @@ class AlertsActivity : ComponentActivity() {
                         ReportPhotoHelper.showFloodPhotoDialog(this@AlertsActivity, report.photoUri!!, report.location)
                     }
                 }
-                textLayout.addView(photoBtn)
+                cardView.addView(photoBtn)
             }
 
-            cardView.addView(textLayout)
-            cardView.addView(timeText)
+            // Corroboration Badge (if corroborated by multiple citizen reports)
+            if (report.reportCount > 1) {
+                val corroborationBadge = TextView(this).apply {
+                    text = "👥 Corroborated by ${report.reportCount} citizen reports"
+                    setTextColor(Color.parseColor("#0369A1"))
+                    textSize = 11.5f
+                    paint.isFakeBoldText = true
+                    val topMarginPx = (6 * resources.displayMetrics.density).toInt()
+                    setPadding(0, topMarginPx, 0, 0)
+                }
+                cardView.addView(corroborationBadge)
+            }
 
             alertsContainer.addView(cardView)
         }

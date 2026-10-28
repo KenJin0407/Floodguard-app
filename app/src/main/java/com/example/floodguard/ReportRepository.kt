@@ -3,13 +3,24 @@ package com.example.floodguard
 import android.content.Context
 import java.util.UUID
 
+enum class VoteType {
+    STILL_FLOODED,
+    WATER_SUBSIDED
+}
+
+data class VoteResult(
+    val report: FloodReport,
+    val autoResolved: Boolean,
+    val message: String
+)
+
 data class FloodReport(
     val id: String = UUID.randomUUID().toString(),
     var location: String,
     var severity: String,
     var statusText: String,
     var notes: String,
-    val timestamp: Long = System.currentTimeMillis(),
+    var timestamp: Long = System.currentTimeMillis(),
     var severityLevel: SeverityLevel,
     var photoUri: String? = null,
     var lat: Double = 14.6958,
@@ -17,6 +28,9 @@ data class FloodReport(
     var authorUsername: String = "",
     var reporterName: String = "",
     var reporterUsername: String = "",
+    var stillFloodedCount: Int = 0,
+    var waterSubsidedCount: Int = 0,
+    var reportCount: Int = 1,
 ) {
     init {
         if (authorUsername.isBlank() && reporterUsername.isNotBlank()) {
@@ -33,10 +47,24 @@ data class FloodReport(
         val diffDays = diffHours / 24
 
         return when {
-            diffMins < 1 -> "Submitted just now"
-            diffMins < 60 -> "Submitted $diffMins ${if (diffMins == 1L) "minute" else "minutes"} ago"
-            diffHours < 24 -> "Submitted $diffHours ${if (diffHours == 1L) "hour" else "hours"} ago"
-            else -> "Submitted $diffDays ${if (diffDays == 1L) "day" else "days"} ago"
+            diffMins < 1 -> "Updated just now"
+            diffMins < 60 -> "Updated ${diffMins}m ago"
+            diffHours < 24 -> "Updated ${diffHours}h ago"
+            else -> "Updated ${diffDays}d ago"
+        }
+    }
+
+    fun getTimeRemainingTtl(): String {
+        val ttlMs = 2 * 60 * 60 * 1000L // 2-Hour Rolling Heartbeat TTL
+        val remainingMs = (timestamp + ttlMs) - System.currentTimeMillis()
+        if (remainingMs <= 0) return "Expires soon"
+        val remMins = remainingMs / (1000 * 60)
+        return if (remMins < 60) {
+            "${remMins}m left"
+        } else {
+            val h = remMins / 60
+            val m = remMins % 60
+            "${h}h ${m}m left"
         }
     }
 
@@ -102,6 +130,70 @@ object ReportRepository {
     fun loadReports(context: Context, onSynced: (() -> Unit)? = null): List<FloodReport> {
         val db = FloodGuardDatabase.getInstance(context)
         val loaded = db.getAllReports().toMutableList()
+
+        if (loaded.isEmpty()) {
+            val defaultSeedReports = listOf(
+                FloodReport(
+                    location = "Banaba, San Mateo",
+                    severity = "Waist-Deep",
+                    statusText = "Not Passable",
+                    notes = "Severe road flooding near riverbank. Water waist deep, not passable to light vehicles.",
+                    severityLevel = SeverityLevel.NOT_PASSABLE,
+                    lat = 14.6750,
+                    lon = 121.1080,
+                    reporterName = "MDRRMO San Mateo",
+                    authorUsername = "mdrrmo"
+                ),
+                FloodReport(
+                    location = "Banaba Riverside, San Mateo",
+                    severity = "Knee-Deep",
+                    statusText = "Caution",
+                    notes = "Flooding spilling over from Banaba road. Heavy vehicles only.",
+                    severityLevel = SeverityLevel.HEAVY_VEHICLES_ONLY,
+                    lat = 14.6770,
+                    lon = 121.1095,
+                    reporterName = "Barangay Banaba Desk",
+                    authorUsername = "banaba_desk"
+                ),
+                FloodReport(
+                    location = "Ampid 1 (Near Puregold)",
+                    severity = "Knee-Deep",
+                    statusText = "Caution",
+                    notes = "Gutter overflowing into traffic lane. Passable to SUVs and trucks only.",
+                    severityLevel = SeverityLevel.HEAVY_VEHICLES_ONLY,
+                    lat = 14.6885,
+                    lon = 121.1120,
+                    reporterName = "Traffic Marshal Leo",
+                    authorUsername = "traffic_leo"
+                ),
+                FloodReport(
+                    location = "Ampid 2 (J.P. Rizal St.)",
+                    severity = "Ankle-Deep",
+                    statusText = "Cleared",
+                    notes = "Water receded significantly. Passable to all vehicles.",
+                    severityLevel = SeverityLevel.CLEARED,
+                    lat = 14.6905,
+                    lon = 121.1140,
+                    reporterName = "Rizal Commuter Group",
+                    authorUsername = "commuter_rizal"
+                ),
+                FloodReport(
+                    location = "Dulong Bayan 2, San Mateo",
+                    severity = "Ankle-Deep",
+                    statusText = "Cleared",
+                    notes = "Drainage clearing completed. Road fully open.",
+                    severityLevel = SeverityLevel.CLEARED,
+                    lat = 14.7120,
+                    lon = 121.1280,
+                    reporterName = "San Mateo Rescue 911",
+                    authorUsername = "sm_rescue"
+                )
+            )
+            for (seed in defaultSeedReports) {
+                db.insertReport(seed)
+                loaded.add(seed)
+            }
+        }
 
         val previousCache = synchronized(this) { cachedReports?.toList() ?: emptyList() }
         for (cached in previousCache) {
@@ -228,36 +320,103 @@ object ReportRepository {
         }
 
         val db = FloodGuardDatabase.getInstance(context)
-        db.insertReport(report)
-        synchronized(this) {
-            if (cachedReports == null) {
-                loadReports(context)
-            } else {
-                val list = cachedReports?.toMutableList() ?: mutableListOf()
-                list.removeAll { it.id == report.id }
-                list.add(0, report)
-                cachedReports = list
-            }
+        val allCurrentReports = (cachedReports?.toList() ?: db.getAllReports()).toMutableList()
+
+        // 1. Rolling Heartbeat & Pin Consolidation: Check for an active report in the same flood area
+        val existingNearby = allCurrentReports.find { candidate ->
+            candidate.id != report.id &&
+            candidate.severityLevel != SeverityLevel.CLEARED &&
+            SmsAlertBroadcastManager.areReportsSimilar(report, candidate)
         }
 
-        val allCurrentReports = cachedReports?.toList() ?: db.getAllReports()
-        val similarActive = SmsAlertBroadcastManager.findSimilarActiveReports(report, allCurrentReports)
+        val effectiveReport: FloodReport
+        if (existingNearby != null) {
+            // Heartbeat extension: Refresh timestamp to now (+2 hours life)
+            val now = System.currentTimeMillis()
+            existingNearby.timestamp = now
+            existingNearby.reportCount += 1
+            existingNearby.stillFloodedCount += 1
+
+            // Escalate severity if new report is more severe
+            val isNewMoreSevere = when {
+                report.severityLevel == SeverityLevel.NOT_PASSABLE -> true
+                report.severityLevel == SeverityLevel.HEAVY_VEHICLES_ONLY && existingNearby.severityLevel == SeverityLevel.CLEARED -> true
+                else -> false
+            }
+            if (isNewMoreSevere || existingNearby.severityLevel == SeverityLevel.CLEARED) {
+                existingNearby.severity = report.severity
+                existingNearby.severityLevel = report.severityLevel
+                existingNearby.statusText = report.statusText
+            }
+
+            if (report.notes.isNotBlank()) {
+                existingNearby.notes = report.notes
+            }
+            if (!report.photoUri.isNullOrBlank()) {
+                existingNearby.photoUri = report.photoUri
+            }
+
+            db.updateReport(
+                existingNearby.id,
+                existingNearby.location,
+                existingNearby.severity,
+                existingNearby.statusText,
+                existingNearby.notes,
+                existingNearby.severityLevel,
+                existingNearby.authorUsername,
+                existingNearby.reporterName,
+                existingNearby.photoUri,
+                existingNearby.timestamp
+            )
+            db.updateReportVotes(
+                existingNearby.id,
+                existingNearby.stillFloodedCount,
+                existingNearby.waterSubsidedCount,
+                existingNearby.severityLevel.name,
+                existingNearby.statusText,
+                existingNearby.severity,
+                existingNearby.timestamp
+            )
+
+            // Re-order so updated hazard is at the top
+            allCurrentReports.removeAll { it.id == existingNearby.id }
+            allCurrentReports.add(0, existingNearby)
+            synchronized(this) {
+                cachedReports = allCurrentReports
+            }
+            effectiveReport = existingNearby
+        } else {
+            db.insertReport(report)
+            synchronized(this) {
+                if (cachedReports == null) {
+                    loadReports(context)
+                } else {
+                    val list = cachedReports?.toMutableList() ?: mutableListOf()
+                    list.removeAll { it.id == report.id }
+                    list.add(0, report)
+                    cachedReports = list
+                }
+            }
+            effectiveReport = report
+        }
+
+        val similarActive = SmsAlertBroadcastManager.findSimilarActiveReports(effectiveReport, cachedReports?.toList() ?: allCurrentReports)
         var localBroadcast: FloodBroadcast? = null
         if (similarActive.size >= 2) {
             SmsAlertBroadcastManager.evaluateAndBroadcastIfCorroborated(
                 context.applicationContext,
-                report,
-                allCurrentReports
+                effectiveReport,
+                cachedReports?.toList() ?: allCurrentReports
             ) { triggeredBroadcast ->
                 localBroadcast = triggeredBroadcast
             }
         }
 
-        FloodGuardApiService.submitReportToBackend(report) { backendStatus ->
+        FloodGuardApiService.submitReportToBackend(effectiveReport) { backendStatus ->
             if (backendStatus.rejectedByServer) {
-                db.deleteReport(report.id)
+                db.deleteReport(effectiveReport.id)
                 synchronized(this) {
-                    cachedReports?.removeAll { it.id == report.id }
+                    cachedReports?.removeAll { it.id == effectiveReport.id }
                 }
                 onSubmitted(backendStatus)
                 return@submitReportToBackend
@@ -265,7 +424,6 @@ object ReportRepository {
             val effectiveBroadcast = backendStatus.smsBroadcast ?: localBroadcast
             if (backendStatus.smsBroadcast != null) {
                 SmsAlertBroadcastManager.saveBroadcastLocally(context.applicationContext, backendStatus.smsBroadcast)
-                // Author has just submitted this report, so mark it seen silently
                 SmsAlertBroadcastManager.markBroadcastSeen(context.applicationContext, backendStatus.smsBroadcast.id)
             }
             if (localBroadcast != null) {
@@ -326,5 +484,86 @@ object ReportRepository {
 
         FloodGuardApiService.updateReportInBackend(id, location, severity, notes, currentUsername)
         return true
+    }
+
+    @Synchronized
+    fun voteReport(
+        context: Context,
+        reportId: String,
+        voteType: VoteType,
+        username: String
+    ): VoteResult? {
+        val previousVote = UserVotesManager.getUserVote(context, reportId, username)
+        val db = FloodGuardDatabase.getInstance(context)
+        val all = loadReports(context)
+        val report = all.find { it.id == reportId } ?: return null
+
+        if (previousVote == voteType) {
+            val voteName = if (voteType == VoteType.STILL_FLOODED) "Still Flooded" else "Water Subsided"
+            return VoteResult(report, false, "You already marked this report as $voteName.")
+        }
+
+        // Adjust counts when switching vote
+        if (previousVote == VoteType.STILL_FLOODED) {
+            report.stillFloodedCount = maxOf(0, report.stillFloodedCount - 1)
+        } else if (previousVote == VoteType.WATER_SUBSIDED) {
+            report.waterSubsidedCount = maxOf(0, report.waterSubsidedCount - 1)
+        }
+
+        if (voteType == VoteType.STILL_FLOODED) {
+            report.stillFloodedCount += 1
+        } else {
+            report.waterSubsidedCount += 1
+        }
+
+        UserVotesManager.recordVote(context, reportId, username, voteType)
+
+        var autoResolved = false
+        val msg: String
+
+        // Auto-resolve check:
+        // When water subsided votes reach 2+ and exceed still-flooded votes, or reach 3+
+        if (voteType == VoteType.WATER_SUBSIDED &&
+            ((report.waterSubsidedCount >= 2 && report.waterSubsidedCount > report.stillFloodedCount) || report.waterSubsidedCount >= 3)
+        ) {
+            if (report.severityLevel != SeverityLevel.CLEARED) {
+                report.severityLevel = SeverityLevel.CLEARED
+                report.statusText = "Water Subsided • Cleared"
+                report.severity = "Cleared (Subsided)"
+                autoResolved = true
+                msg = "Consensus reached! Hazard at ${report.location} auto-resolved as Water Subsided."
+            } else {
+                msg = "Water subsided verified! (${report.waterSubsidedCount} community confirmations)"
+            }
+        } else if (voteType == VoteType.STILL_FLOODED) {
+            // Rolling Heartbeat: Tapping "Still Flooded" resets the hazard timer by +2 hours
+            report.timestamp = System.currentTimeMillis()
+
+            if (report.severityLevel == SeverityLevel.CLEARED &&
+                report.stillFloodedCount >= 2 && report.stillFloodedCount > report.waterSubsidedCount
+            ) {
+                report.severityLevel = SeverityLevel.NOT_PASSABLE
+                report.statusText = "Not Passable (Re-activated)"
+                report.severity = "Waist-Deep"
+                msg = "Alert re-activated: multiple citizens confirmed road is still flooded."
+            } else {
+                msg = "Marked as Still Flooded (${report.stillFloodedCount} confirmations • Hazard extended by 2 hours)"
+            }
+        } else {
+            val label = if (voteType == VoteType.STILL_FLOODED) "Still Flooded (${report.stillFloodedCount})" else "Water Subsided (${report.waterSubsidedCount})"
+            msg = "Vote recorded: $label"
+        }
+
+        db.updateReportVotes(
+            report.id,
+            report.stillFloodedCount,
+            report.waterSubsidedCount,
+            report.severityLevel.name,
+            report.statusText,
+            report.severity,
+            report.timestamp
+        )
+
+        return VoteResult(report, autoResolved, msg)
     }
 }

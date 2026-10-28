@@ -29,6 +29,8 @@ object EdgeNavigationHelper {
 
     @SuppressLint("ClickableViewAccessibility", "InflateParams")
     fun attachEdgeNavigation(activity: Activity, currentTab: NavTab) {
+        setupDarkStatusBar(activity)
+
         val rootViewGroup = activity.findViewById<ViewGroup>(android.R.id.content) ?: return
 
         // Inflate AssistiveTouch layout into the activity root
@@ -237,5 +239,30 @@ object EdgeNavigationHelper {
         }
 
         rootViewGroup.addView(edgeView)
+    }
+
+    /**
+     * Configures the status bar to dark navy (#0A192F) with crisp white system icons
+     * (time, notifications, battery percentage, wifi) and applies top padding to headerBar.
+     */
+    fun setupDarkStatusBar(activity: Activity, headerBar: View? = null) {
+        try {
+            activity.window.statusBarColor = Color.parseColor("#0A192F")
+            val insetsController = androidx.core.view.WindowInsetsControllerCompat(activity.window, activity.window.decorView)
+            insetsController.isAppearanceLightStatusBars = false
+
+            val bar = headerBar ?: activity.findViewById(R.id.headerBar)
+            if (bar != null) {
+                androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(bar) { v, insets ->
+                    val topInset = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars()).top
+                    val density = v.resources.displayMetrics.density
+                    val fallbackPad = if (v.paddingTop > 0) v.paddingTop else (36 * density).toInt()
+                    val padTop = if (topInset > 0) topInset + (8 * density).toInt() else fallbackPad
+                    v.setPadding(v.paddingLeft, padTop, v.paddingRight, v.paddingBottom)
+                    insets
+                }
+            }
+        } catch (_: Exception) {
+        }
     }
 }

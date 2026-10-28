@@ -22,9 +22,12 @@ object NavigationMenuHelper {
         val inflater = LayoutInflater.from(activity)
         val menuView = inflater.inflate(R.layout.nav_dropdown_menu, null)
 
+        val density = activity.resources.displayMetrics.density
+        val widthPx = (145 * density).toInt()
+
         val popupWindow = PopupWindow(
             menuView,
-            LinearLayout.LayoutParams.WRAP_CONTENT,
+            widthPx,
             LinearLayout.LayoutParams.WRAP_CONTENT,
             true,
         ).apply {
@@ -52,7 +55,9 @@ object NavigationMenuHelper {
             confirmLogout(activity)
         }
 
-        popupWindow.showAsDropDown(anchorView, -20, 8, Gravity.END)
+        val xOffset = (-8 * density).toInt()
+        val yOffset = (4 * density).toInt()
+        popupWindow.showAsDropDown(anchorView, xOffset, yOffset, Gravity.END)
     }
 
     private fun showAboutDialog(activity: Activity) {

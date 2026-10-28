@@ -245,6 +245,7 @@ class ReportFloodActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_report_flood)
+        EdgeNavigationHelper.setupDarkStatusBar(this)
 
         initViews()
         setupLocationDropdown()

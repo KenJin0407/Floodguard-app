@@ -8,22 +8,27 @@
     <RelativeLayout
         android:id="@+id/headerBar"
         android:layout_width="match_parent"
-        android:layout_height="64dp"
+        android:layout_height="wrap_content"
+        android:minHeight="76dp"
         android:background="#0A192F"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
+        android:paddingTop="36dp"
+        android:paddingBottom="12dp"
         android:layout_alignParentTop="true">
 
         <!-- Back Button -->
         <LinearLayout
             android:id="@+id/btnHeaderBack"
             android:layout_width="wrap_content"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingStart="4dp"
             android:paddingEnd="10dp"
+            android:paddingTop="8dp"
             android:background="?attr/selectableItemBackground"
             android:clickable="true"
             android:focusable="true">
@@ -44,25 +49,30 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
+        <!-- Menu Icon -->
+        <ImageView
+            android:id="@+id/menuIcon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_alignTop="@id/btnHeaderBack"
+            android:layout_alignBottom="@id/btnHeaderBack"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:src="@drawable/ic_menu"
+            android:contentDescription="Menu" />
+
         <!-- Screen Title -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
+            android:layout_below="@id/btnHeaderBack"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="6dp"
             android:text="Report Flood Level"
             android:textColor="@android:color/white"
             android:textSize="17sp"
             android:textStyle="bold" />
-
-        <!-- Menu Icon -->
-        <ImageView
-            android:id="@+id/menuIcon"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:layout_alignParentEnd="true"
-            android:layout_centerVertical="true"
-            android:src="@drawable/ic_menu"
-            android:contentDescription="Menu" />
     </RelativeLayout>
 
     <!-- Main Content -->

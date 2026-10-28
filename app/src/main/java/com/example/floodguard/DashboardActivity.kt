@@ -18,6 +18,8 @@ import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Intent
 import android.location.Geocoder
+import android.location.LocationManager
+import android.webkit.JavascriptInterface
 import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
@@ -49,7 +51,13 @@ import kotlin.math.roundToInt
 @SuppressLint("SetTextI18n")
 class DashboardActivity : ComponentActivity() {
 
+    enum class AlertFilter {
+        ALL, NOT_PASSABLE, CAUTION, CLEARED
+    }
+    private var currentFilter: AlertFilter = AlertFilter.ALL
+
     private lateinit var mapWebView: WebView
+    private var weatherAnimationView: WeatherAnimationView? = null
     private lateinit var mainTempText: TextView
     private lateinit var weatherDescriptionText: TextView
     private lateinit var rainMeterText: TextView
@@ -62,6 +70,18 @@ class DashboardActivity : ComponentActivity() {
     private lateinit var hourlyTemp4: TextView
     private lateinit var hourlyTemp5: TextView
     private lateinit var hourlyTemp6: TextView
+
+    private lateinit var chipDashboardAll: TextView
+    private lateinit var chipDashboardNotPassable: TextView
+    private lateinit var chipDashboardCaution: TextView
+    private lateinit var chipDashboardCleared: TextView
+    private lateinit var tvDashboardAlertsCountBadge: TextView
+
+    private var cardDashboardActiveRoute: LinearLayout? = null
+    private var tvDashboardRouteBadge: TextView? = null
+    private var tvDashboardRouteEtaDist: TextView? = null
+    private var tvDashboardRouteTitle: TextView? = null
+    private var tvDashboardRouteHazardAlert: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,21 +98,38 @@ class DashboardActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         FloatingAlertManager.onActivityResumed(this)
+        weatherAnimationView?.resumeAnimation()
         populateCommunityReports(searchLocationInput.text.toString().trim())
+        syncRoadMapWithState()
     }
 
     override fun onPause() {
         super.onPause()
         FloatingAlertManager.onActivityPaused(this)
+        weatherAnimationView?.pauseAnimation()
     }
 
     private fun initViews() {
         mapWebView = findViewById(R.id.mapWebView)
+        weatherAnimationView = findViewById(R.id.weatherAnimationView)
         mainTempText = findViewById(R.id.mainTempText)
         weatherDescriptionText = findViewById(R.id.weatherDescriptionText)
         rainMeterText = findViewById(R.id.rainMeterText)
         searchLocationInput = findViewById(R.id.searchLocationInput)
         clearSearchIcon = findViewById(R.id.clearSearchIcon)
+
+        cardDashboardActiveRoute = findViewById(R.id.cardDashboardActiveRoute)
+        tvDashboardRouteBadge = findViewById(R.id.tvDashboardRouteBadge)
+        tvDashboardRouteEtaDist = findViewById(R.id.tvDashboardRouteEtaDist)
+        tvDashboardRouteTitle = findViewById(R.id.tvDashboardRouteTitle)
+        tvDashboardRouteHazardAlert = findViewById(R.id.tvDashboardRouteHazardAlert)
+
+        cardDashboardActiveRoute?.setOnClickListener {
+            openFullMapFromDashboard()
+        }
+        findViewById<View>(R.id.dashboardMapContainer)?.setOnClickListener {
+            openFullMapFromDashboard()
+        }
 
         hourlyTemp1 = findViewById(R.id.hourlyTemp1)
         hourlyTemp2 = findViewById(R.id.hourlyTemp2)
@@ -131,6 +168,42 @@ class DashboardActivity : ComponentActivity() {
             val intent = Intent(this, AlertsActivity::class.java)
             startActivity(intent)
         }
+
+        chipDashboardAll = findViewById(R.id.chipDashboardAll)
+        chipDashboardNotPassable = findViewById(R.id.chipDashboardNotPassable)
+        chipDashboardCaution = findViewById(R.id.chipDashboardCaution)
+        chipDashboardCleared = findViewById(R.id.chipDashboardCleared)
+        tvDashboardAlertsCountBadge = findViewById(R.id.tvDashboardAlertsCountBadge)
+
+        chipDashboardAll.setOnClickListener { setDashboardFilter(AlertFilter.ALL) }
+        chipDashboardNotPassable.setOnClickListener { setDashboardFilter(AlertFilter.NOT_PASSABLE) }
+        chipDashboardCaution.setOnClickListener { setDashboardFilter(AlertFilter.CAUTION) }
+        chipDashboardCleared.setOnClickListener { setDashboardFilter(AlertFilter.CLEARED) }
+    }
+
+    private fun setDashboardFilter(filter: AlertFilter) {
+        currentFilter = filter
+        updateDashboardChipStyles()
+        populateCommunityReports(searchLocationInput.text.toString().trim())
+    }
+
+    private fun updateDashboardChipStyles() {
+        val selectedBg = R.drawable.bg_chip_selected
+        val unselectedBg = R.drawable.bg_chip_unselected
+        val selectedColor = Color.WHITE
+        val unselectedColor = Color.parseColor("#475569")
+
+        chipDashboardAll.setBackgroundResource(if (currentFilter == AlertFilter.ALL) selectedBg else unselectedBg)
+        chipDashboardAll.setTextColor(if (currentFilter == AlertFilter.ALL) selectedColor else unselectedColor)
+
+        chipDashboardNotPassable.setBackgroundResource(if (currentFilter == AlertFilter.NOT_PASSABLE) selectedBg else unselectedBg)
+        chipDashboardNotPassable.setTextColor(if (currentFilter == AlertFilter.NOT_PASSABLE) selectedColor else unselectedColor)
+
+        chipDashboardCaution.setBackgroundResource(if (currentFilter == AlertFilter.CAUTION) selectedBg else unselectedBg)
+        chipDashboardCaution.setTextColor(if (currentFilter == AlertFilter.CAUTION) selectedColor else unselectedColor)
+
+        chipDashboardCleared.setBackgroundResource(if (currentFilter == AlertFilter.CLEARED) selectedBg else unselectedBg)
+        chipDashboardCleared.setTextColor(if (currentFilter == AlertFilter.CLEARED) selectedColor else unselectedColor)
     }
 
     private fun populateCommunityReports(searchQuery: String = "") {
@@ -149,7 +222,7 @@ class DashboardActivity : ComponentActivity() {
         updateMapRadius(allReports)
         updateBellNotificationBadge(allReports)
 
-        val reportsList = if (searchQuery.isBlank()) {
+        val searchedReports = if (searchQuery.isBlank()) {
             allReports
         } else {
             allReports.filter {
@@ -159,27 +232,56 @@ class DashboardActivity : ComponentActivity() {
             }
         }
 
+        // Update live counts on filter chips
+        val notPassableCount = searchedReports.count { it.severityLevel == SeverityLevel.NOT_PASSABLE }
+        val cautionCount = searchedReports.count { it.severityLevel == SeverityLevel.HEAVY_VEHICLES_ONLY }
+        val clearedCount = searchedReports.count { it.severityLevel == SeverityLevel.CLEARED }
+
+        chipDashboardAll.text = "All (${searchedReports.size})"
+        chipDashboardNotPassable.text = "🔴 Not Passable ($notPassableCount)"
+        chipDashboardCaution.text = "🟡 Caution ($cautionCount)"
+        chipDashboardCleared.text = "🟢 Cleared ($clearedCount)"
+
+        val reportsList = searchedReports.filter { report ->
+            when (currentFilter) {
+                AlertFilter.ALL -> true
+                AlertFilter.NOT_PASSABLE -> report.severityLevel == SeverityLevel.NOT_PASSABLE
+                AlertFilter.CAUTION -> report.severityLevel == SeverityLevel.HEAVY_VEHICLES_ONLY
+                AlertFilter.CLEARED -> report.severityLevel == SeverityLevel.CLEARED
+            }
+        }
+
+        tvDashboardAlertsCountBadge.text = "${reportsList.size}"
+
         if (reportsList.isEmpty()) {
             val emptyText = TextView(this).apply {
-                text = if (searchQuery.isBlank()) "No community flood reports at this moment." else "No flood reports found for \"$searchQuery\"."
-                setTextColor(resources.getColor(android.R.color.darker_gray, theme))
+                val filterDesc = when (currentFilter) {
+                    AlertFilter.ALL -> "reports"
+                    AlertFilter.NOT_PASSABLE -> "Not Passable alerts"
+                    AlertFilter.CAUTION -> "Caution alerts"
+                    AlertFilter.CLEARED -> "Cleared alerts"
+                }
+                text = if (searchQuery.isBlank()) "No $filterDesc at this moment." else "No $filterDesc found for \"$searchQuery\"."
+                setTextColor(Color.parseColor("#94A3B8"))
                 textSize = 13f
-                setPadding(12, 12, 12, 12)
+                gravity = android.view.Gravity.CENTER
+                setPadding(16, 48, 16, 48)
             }
             container.addView(emptyText)
             return
         }
 
         for (report in reportsList) {
-            val cardView = RelativeLayout(this).apply {
+            val cardView = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
                 val params = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                 ).apply {
-                    bottomMargin = (12 * resources.displayMetrics.density).toInt()
+                    bottomMargin = (14 * resources.displayMetrics.density).toInt()
                 }
                 layoutParams = params
-                val paddingPx = (14 * resources.displayMetrics.density).toInt()
+                val paddingPx = (15 * resources.displayMetrics.density).toInt()
                 setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
 
                 val bgDrawable = when (report.severityLevel) {
@@ -195,55 +297,96 @@ class DashboardActivity : ComponentActivity() {
                 }
             }
 
-            val timeText = TextView(this).apply {
-                id = View.generateViewId()
-                text = report.getFormattedTimeAgo()
-                setTextColor(resources.getColor(android.R.color.darker_gray, theme))
-                textSize = 11f
-                val params = RelativeLayout.LayoutParams(
-                    RelativeLayout.LayoutParams.WRAP_CONTENT,
-                    RelativeLayout.LayoutParams.WRAP_CONTENT,
-                ).apply {
-                    addRule(RelativeLayout.ALIGN_PARENT_END)
-                }
+            // 1. Header Row: Status Badge (Left) + Time Ago (Right)
+            val headerRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                val params = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
                 layoutParams = params
             }
 
-            val textLayout = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                val params = RelativeLayout.LayoutParams(
-                    RelativeLayout.LayoutParams.MATCH_PARENT,
-                    RelativeLayout.LayoutParams.WRAP_CONTENT,
-                ).apply {
-                    addRule(RelativeLayout.ALIGN_PARENT_START)
-                    addRule(RelativeLayout.START_OF, timeText.id)
-                }
-                layoutParams = params
+            val (badgeBg, badgeText, badgeColor) = when (report.severityLevel) {
+                SeverityLevel.NOT_PASSABLE -> Triple(R.drawable.badge_status_red, "⛔ NOT PASSABLE", Color.parseColor("#B91C1C"))
+                SeverityLevel.HEAVY_VEHICLES_ONLY -> Triple(R.drawable.badge_status_yellow, "⚠️ CAUTION", Color.parseColor("#B45309"))
+                SeverityLevel.CLEARED -> Triple(R.drawable.badge_status_green, "🟢 WATER SUBSIDED • CLEARED", Color.parseColor("#15803D"))
             }
 
-            val titleText = TextView(this).apply {
-                text = "${report.location} - ${report.statusText}"
-                setTextColor(resources.getColor(android.R.color.black, theme))
-                textSize = 14f
+            val badgeView = TextView(this).apply {
+                text = badgeText
+                setTextColor(badgeColor)
+                textSize = 10.5f
                 paint.isFakeBoldText = true
+                setBackgroundResource(badgeBg)
+                val padH = (8 * resources.displayMetrics.density).toInt()
+                val padV = (3 * resources.displayMetrics.density).toInt()
+                setPadding(padH, padV, padH, padV)
             }
 
-            val reporterLabel = report.getDisplayReporter(currentUsername, currentFullName)
-            val subtitleText = TextView(this).apply {
-                text = "${report.notes}\nReported by: $reporterLabel"
-                setTextColor(resources.getColor(android.R.color.darker_gray, theme))
-                textSize = 12f
+            val spacerHeader = View(this).apply {
+                val params = LinearLayout.LayoutParams(0, 0, 1f)
+                layoutParams = params
+            }
+
+            val timeText = TextView(this).apply {
+                val timeAgo = report.getFormattedTimeAgo()
+                val ttl = report.getTimeRemainingTtl()
+                text = "⏱️ $timeAgo • $ttl"
+                setTextColor(Color.parseColor("#64748B"))
+                textSize = 11.5f
+            }
+
+            headerRow.addView(badgeView)
+            headerRow.addView(spacerHeader)
+            headerRow.addView(timeText)
+            cardView.addView(headerRow)
+
+            // 2. Location Title
+            val titleText = TextView(this).apply {
+                text = "📍 ${report.location}"
+                setTextColor(Color.parseColor("#0F172A"))
+                textSize = 15f
+                paint.isFakeBoldText = true
+                val topMarginPx = (10 * resources.displayMetrics.density).toInt()
+                setPadding(0, topMarginPx, 0, 0)
+            }
+            cardView.addView(titleText)
+
+            // 3. Water Depth & Notes
+            val detailText = TextView(this).apply {
+                val depthLabel = if (report.severity.isNotBlank()) "Depth: ${report.severity}" else ""
+                val notesText = report.notes.trim()
+                val fullText = when {
+                    depthLabel.isNotEmpty() && notesText.isNotEmpty() -> "$depthLabel • $notesText"
+                    depthLabel.isNotEmpty() -> depthLabel
+                    else -> notesText
+                }
+                text = fullText
+                setTextColor(Color.parseColor("#334155"))
+                textSize = 13f
                 val topMarginPx = (4 * resources.displayMetrics.density).toInt()
                 setPadding(0, topMarginPx, 0, 0)
             }
+            cardView.addView(detailText)
 
-            textLayout.addView(titleText)
-            textLayout.addView(subtitleText)
+            // 4. Reporter Meta
+            val reporterLabel = report.getDisplayReporter(currentUsername, currentFullName)
+            val reporterMeta = TextView(this).apply {
+                text = "👤 Reported by $reporterLabel"
+                setTextColor(Color.parseColor("#64748B"))
+                textSize = 11.5f
+                val topMarginPx = (4 * resources.displayMetrics.density).toInt()
+                setPadding(0, topMarginPx, 0, 0)
+            }
+            cardView.addView(reporterMeta)
 
+            // 5. Attached Photo (if any)
             if (!report.photoUri.isNullOrBlank()) {
                 val photoBtn = TextView(this).apply {
-                    text = "View Flood Photo"
-                    setTextColor(resources.getColor(android.R.color.holo_blue_dark, theme))
+                    text = "📷 View Attached Flood Photo"
+                    setTextColor(Color.parseColor("#0284C7"))
                     textSize = 12f
                     paint.isFakeBoldText = true
                     val topMarginPx = (6 * resources.displayMetrics.density).toInt()
@@ -253,11 +396,21 @@ class DashboardActivity : ComponentActivity() {
                         showReportPhotoDialog(report.photoUri!!, report.location)
                     }
                 }
-                textLayout.addView(photoBtn)
+                cardView.addView(photoBtn)
             }
 
-            cardView.addView(textLayout)
-            cardView.addView(timeText)
+            // Corroboration Badge (if corroborated by multiple citizen reports)
+            if (report.reportCount > 1) {
+                val corroborationBadge = TextView(this).apply {
+                    text = "👥 Corroborated by ${report.reportCount} citizen reports"
+                    setTextColor(Color.parseColor("#0369A1"))
+                    textSize = 11.5f
+                    paint.isFakeBoldText = true
+                    val topMarginPx = (6 * resources.displayMetrics.density).toInt()
+                    setPadding(0, topMarginPx, 0, 0)
+                }
+                cardView.addView(corroborationBadge)
+            }
 
             container.addView(cardView)
         }
@@ -338,21 +491,6 @@ class DashboardActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
     @Suppress("DEPRECATION")
     private fun setupRoadMap() {
-        val gestureDetector = GestureDetector(
-            this,
-            object : GestureDetector.SimpleOnGestureListener() {
-                override fun onDoubleTap(e: MotionEvent): Boolean {
-                    openFullMapFromDashboard()
-                    return true
-                }
-            }
-        )
-
-        mapWebView.setOnTouchListener { _, event ->
-            gestureDetector.onTouchEvent(event)
-            false
-        }
-
         mapWebView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -363,6 +501,8 @@ class DashboardActivity : ComponentActivity() {
             userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 FloodGuardApp/1.0"
         }
 
+        mapWebView.addJavascriptInterface(DashboardMapInterface(), "Android")
+
         mapWebView.webViewClient = object : WebViewClient() {
             @Deprecated("Deprecated in Java")
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
@@ -371,7 +511,7 @@ class DashboardActivity : ComponentActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                updateMapRadius(ReportRepository.loadReports(this@DashboardActivity))
+                syncRoadMapWithState()
             }
         }
 
@@ -381,8 +521,15 @@ class DashboardActivity : ComponentActivity() {
             <head>
                 <meta charset="utf-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+                <!-- Leaflet Core -->
                 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
                 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                
+                <!-- Leaflet MarkerCluster -->
+                <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+                <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+                <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
                 <style>
                     html, body, #map {
                         height: 100%;
@@ -392,6 +539,101 @@ class DashboardActivity : ComponentActivity() {
                     }
                     .leaflet-container {
                         background: #ffffff;
+                    }
+                    .leaflet-popup-content-wrapper {
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                        font-size: 12px;
+                        border-radius: 8px;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+                    }
+                    
+                    /* Custom Cluster Badges */
+                    .marker-cluster-custom {
+                        background: transparent;
+                    }
+                    .cluster-bubble {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        border-radius: 50%;
+                        color: #ffffff;
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                        text-align: center;
+                        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+                        border: 2px solid #ffffff;
+                        width: 38px;
+                        height: 38px;
+                    }
+                    .cluster-count {
+                        font-size: 13px;
+                        font-weight: 800;
+                        line-height: 1;
+                    }
+                    .cluster-sub {
+                        font-size: 8px;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        letter-spacing: 0.4px;
+                        opacity: 0.95;
+                    }
+                    .cluster-danger { background: linear-gradient(135deg, #DC2626, #7F1D1D); }
+                    .cluster-warning { background: linear-gradient(135deg, #EA580C, #9A3412); }
+                    .cluster-caution { background: linear-gradient(135deg, #EAB308, #A16207); }
+                    .cluster-safe { background: linear-gradient(135deg, #16A34A, #14532D); }
+
+                    /* Custom Pin for Individual Markers */
+                    .flood-pin-marker {
+                        background: transparent;
+                    }
+                    .flood-pin-badge {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 50%;
+                        border: 2px solid #ffffff;
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                        font-size: 14px;
+                    }
+                    .pin-danger { background: #DC2626; }
+                    .pin-warning { background: #EA580C; }
+                    .pin-caution { background: #EAB308; }
+                    .pin-safe { background: #16A34A; }
+
+                    /* User Live GPS Pulse Marker */
+                    .user-live-location-pin {
+                        background: transparent;
+                    }
+                    .user-live-pulse-container {
+                        position: relative;
+                        width: 26px;
+                        height: 26px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                    .user-live-pulse {
+                        position: absolute;
+                        width: 24px;
+                        height: 24px;
+                        border-radius: 50%;
+                        background: rgba(2, 132, 199, 0.45);
+                        animation: livePulse 2s infinite ease-out;
+                    }
+                    .user-live-core {
+                        position: absolute;
+                        width: 12px;
+                        height: 12px;
+                        border-radius: 50%;
+                        background: #0284C7;
+                        border: 2px solid #FFFFFF;
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                    }
+                    @keyframes livePulse {
+                        0% { transform: scale(0.6); opacity: 1; }
+                        100% { transform: scale(2.2); opacity: 0; }
                     }
                 </style>
             </head>
@@ -411,21 +653,90 @@ class DashboardActivity : ComponentActivity() {
                         subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
                     }).addTo(map);
 
-                    var activeMarker = L.marker([lat, lon]).addTo(map);
-                    activeMarker.bindPopup("<b>San Mateo, Rizal</b><br>Google Maps Traffic Navigation").openPopup();
-
                     var radiusLayer = L.layerGroup().addTo(map);
+                    var safeRouteLayer = L.layerGroup().addTo(map);
+                    var hazardRouteLayer = L.layerGroup().addTo(map);
+                    var routePinsLayer = L.layerGroup().addTo(map);
+
+                    // Marker Cluster Group setup with fallback
+                    var floodClusterGroup = (typeof L.markerClusterGroup === 'function') ? 
+                        L.markerClusterGroup({
+                            maxClusterRadius: 40,
+                            spiderfyOnMaxZoom: true,
+                            showCoverageOnHover: false,
+                            zoomToBoundsOnClick: false,
+                            iconCreateFunction: function(cluster) {
+                                var markers = cluster.getAllChildMarkers();
+                                var maxRank = 1;
+                                var count = markers.length;
+                                for (var i = 0; i < count; i++) {
+                                    var rank = markers[i].reportRank || 1;
+                                    if (rank > maxRank) maxRank = rank;
+                                }
+                                var cClass = "cluster-safe";
+                                if (maxRank >= 4) cClass = "cluster-danger";
+                                else if (maxRank === 3) cClass = "cluster-warning";
+                                else if (maxRank === 2) cClass = "cluster-caution";
+
+                                return L.divIcon({
+                                    html: '<div class="cluster-bubble ' + cClass + '">' +
+                                          '<span class="cluster-count">' + count + '</span>' +
+                                          '<span class="cluster-sub">alerts</span></div>',
+                                    className: 'marker-cluster-custom',
+                                    iconSize: [38, 38],
+                                    iconAnchor: [19, 19]
+                                });
+                            }
+                        }) : L.layerGroup();
+                    map.addLayer(floodClusterGroup);
+
+                    // User Live GPS Marker
+                    var userLocation = {
+                        lat: 14.6958,
+                        lon: 121.1207,
+                        title: "San Mateo Town Center",
+                        isLive: false
+                    };
+                    var userLiveMarker = null;
+
+                    window.setUserLocation = function(uLat, uLon, uTitle, isLive) {
+                        userLocation.lat = uLat;
+                        userLocation.lon = uLon;
+                        userLocation.title = uTitle || "My Current Location";
+                        userLocation.isLive = !!isLive;
+
+                        if (userLiveMarker) {
+                            map.removeLayer(userLiveMarker);
+                        }
+
+                        var liveHtml = '<div class="user-live-pulse-container">' +
+                                       '<div class="user-live-pulse"></div>' +
+                                       '<div class="user-live-core"></div>' +
+                                       '</div>';
+
+                        var userIcon = L.divIcon({
+                            className: 'user-live-location-pin',
+                            html: liveHtml,
+                            iconSize: [26, 26],
+                            iconAnchor: [13, 13]
+                        });
+
+                        userLiveMarker = L.marker([uLat, uLon], { icon: userIcon, zIndexOffset: 1000 }).addTo(map)
+                            .bindPopup("<b>📍 " + userLocation.title + "</b><br>" + (isLive ? "<span style='color:#0284C7;font-size:11px;font-weight:bold;'>● Real-time Device Location</span>" : "Default Town Center"));
+                    };
+
+                    var activeHazards = [];
 
                     function getSeverityStyle(waterDepth) {
                         var d = (waterDepth || "").toLowerCase();
                         if (d.indexOf("impassable") >= 0) {
-                            return { rank: 4, color: "#8B0000" }; // Dark Red
+                            return { rank: 4, color: "#8B0000", pinClass: "pin-danger", icon: "⛔" };
                         } else if (d.indexOf("waist") >= 0) {
-                            return { rank: 3, color: "#D32F2F" }; // Red
+                            return { rank: 3, color: "#DC2626", pinClass: "pin-warning", icon: "🌊" };
                         } else if (d.indexOf("knee") >= 0) {
-                            return { rank: 2, color: "#FFA000" }; // Yellow/Orange
+                            return { rank: 2, color: "#EA580C", pinClass: "pin-caution", icon: "⚠️" };
                         } else {
-                            return { rank: 1, color: "#388E3C" }; // Green (Ankle-Deep)
+                            return { rank: 1, color: "#16A34A", pinClass: "pin-safe", icon: "🟢" };
                         }
                     }
 
@@ -441,101 +752,71 @@ class DashboardActivity : ComponentActivity() {
 
                     window.renderFloodRadius = function(reports) {
                         radiusLayer.clearLayers();
+                        floodClusterGroup.clearLayers();
                         if (!reports || reports.length === 0) return;
 
+                        activeHazards = [];
                         var now = Date.now();
-                        var maxAgeMs = 24 * 60 * 60 * 1000;
-                        var clusters = [];
+                        var maxAgeMs = 2 * 60 * 60 * 1000; // 2-Hour Rolling Heartbeat TTL
 
                         for (var i = 0; i < reports.length; i++) {
                             var r = reports[i];
                             if (!r.lat || !r.lon) continue;
-                            if (r.timestamp && (now - r.timestamp > maxAgeMs)) {
-                                continue; // Auto-expire flood radius after 24 hours
+                            var elapsed = now - (r.timestamp || now);
+                            if (elapsed > maxAgeMs) {
+                                continue;
                             }
 
-                            // Cluster nearby reports within 300 meters into a single zone
-                            var matchedCluster = null;
-                            for (var c = 0; c < clusters.length; c++) {
-                                if (getDistanceM(r.lat, r.lon, clusters[c].lat, clusters[c].lon) <= 300) {
-                                    matchedCluster = clusters[c];
-                                    break;
-                                }
-                            }
+                            var style = getSeverityStyle(r.waterDepth);
+                            var stat = (r.statusText || "").toLowerCase();
 
-                            if (!matchedCluster) {
-                                matchedCluster = {
+                            if (style.rank >= 2 || stat.indexOf("not passable") >= 0 || stat.indexOf("caution") >= 0) {
+                                activeHazards.push({
                                     lat: r.lat,
                                     lon: r.lon,
                                     location: r.location,
-                                    reports: []
-                                };
-                                clusters.push(matchedCluster);
-                            }
-                            matchedCluster.reports.push(r);
-                        }
-
-                        for (var idx = 0; idx < clusters.length; idx++) {
-                            var cluster = clusters[idx];
-                            var repList = cluster.reports;
-                            if (repList.length === 0) continue;
-
-                            // Sort: newest first (Solusyon 1: Latest Report Priority)
-                            repList.sort(function(a, b) {
-                                return (b.timestamp || 0) - (a.timestamp || 0);
-                            });
-
-                            var latest = repList[0];
-                            var latestStyle = getSeverityStyle(latest.waterDepth);
-
-                            // Find highest severity in this cluster (Solusyon 2: Highest Severity Safety Priority)
-                            var maxReport = latest;
-                            var maxStyle = latestStyle;
-                            for (var j = 0; j < repList.length; j++) {
-                                var s = getSeverityStyle(repList[j].waterDepth);
-                                if (s.rank > maxStyle.rank) {
-                                    maxStyle = s;
-                                    maxReport = repList[j];
-                                }
+                                    waterDepth: r.waterDepth || "Flooded",
+                                    radius: 220
+                                });
                             }
 
-                            var count = repList.length;
-                            var hasConflict = (maxStyle.rank !== latestStyle.rank);
-
-                            // For public safety, severe danger (Waist/Impassable) dictates the warning color
-                            var circleColor = (maxStyle.rank >= 3) ? maxStyle.color : latestStyle.color;
-                            var fillOpacity = Math.min(0.24 + (count - 1) * 0.14, 0.78);
-                            var strokeWeight = Math.min(1.5 + (count - 1) * 1.0, 5.0);
-
-                            var circle = L.circle([cluster.lat, cluster.lon], {
+                            L.circle([r.lat, r.lon], {
                                 radius: 220,
-                                color: circleColor,
-                                fillColor: circleColor,
-                                fillOpacity: fillOpacity,
-                                weight: strokeWeight
+                                color: style.color,
+                                fillColor: style.color,
+                                fillOpacity: 0.32,
+                                weight: 1.5
                             }).addTo(radiusLayer);
 
-                            var minutesAgo = Math.max(0, Math.round((now - (latest.timestamp || now)) / 60000));
+                            var pinIcon = L.divIcon({
+                                className: 'flood-pin-marker',
+                                html: '<div class="flood-pin-badge ' + style.pinClass + '">' + style.icon + '</div>',
+                                iconSize: [28, 28],
+                                iconAnchor: [14, 14],
+                                popupAnchor: [0, -14]
+                            });
+
+                            var minutesAgo = Math.max(0, Math.round(elapsed / 60000));
                             var timeAgoText = minutesAgo < 1 ? "Just now" : (minutesAgo < 60 ? minutesAgo + "m ago" : Math.round(minutesAgo/60) + "h ago");
+                            var remainingMins = Math.max(0, Math.round((maxAgeMs - elapsed) / 60000));
+                            var ttlLabel = remainingMins < 60 ? remainingMins + "m left" : Math.floor(remainingMins/60) + "h " + (remainingMins%60) + "m left";
 
-                            var popupHtml = "<b>🚨 " + cluster.location + "</b><br>";
-                            popupHtml += "<b>Latest Status:</b> " + latest.waterDepth + " <span style='font-size:11px;color:#64748B;'>(" + timeAgoText + ")</span><br>";
-                            popupHtml += "<b>Reports:</b> " + count + " active report(s)<br>";
+                            var rId = r.id || "";
+                            var flooded = r.stillFloodedCount || 0;
+                            var subsided = r.waterSubsidedCount || 0;
+                            var isCleared = (r.severityLevel === "CLEARED") || (stat.indexOf("cleared") >= 0);
 
-                            if (hasConflict) {
-                                popupHtml += "<div style='background:#FEF2F2;border-left:3px solid #DC2626;padding:4px 6px;margin:5px 0;font-size:11px;color:#991B1B;'>" +
-                                    "⚠️ <b>Safety Notice (Mixed Reports):</b><br>" +
-                                    "Highest severity reported: <b>" + maxReport.waterDepth + "</b>.<br>" +
-                                    "Latest update: <i>" + latest.waterDepth + "</i>. Exercise extreme caution!" +
-                                    "</div>";
+                            var popupHtml = "<b>" + (isCleared ? "🟢 " : "🚨 ") + r.location + "</b><br>";
+                            popupHtml += "<b>Depth:</b> " + (r.waterDepth || "Reported") + " <span style='font-size:11px;color:#64748B;'>(" + timeAgoText + " • " + ttlLabel + ")</span><br>";
+                            popupHtml += "<b>Passability:</b> " + (r.statusText || "Active Alert") + "<br>";
+                            if (r.notes) {
+                                popupHtml += "<small style='color:#334155;'>" + r.notes + "</small>";
                             }
 
-                            popupHtml += "<span style='color:#0284C7;font-size:11px;font-weight:600;'>● Active Flood Zone (Last 24h)</span><br>";
-                            if (latest.notes) {
-                                popupHtml += "<small style='color:#334155;'>" + latest.notes + "</small>";
-                            }
-
-                            circle.bindPopup(popupHtml);
+                            var marker = L.marker([r.lat, r.lon], { icon: pinIcon });
+                            marker.reportRank = style.rank;
+                            marker.bindPopup(popupHtml);
+                            floodClusterGroup.addLayer(marker);
                         }
                     };
 
@@ -558,42 +839,264 @@ class DashboardActivity : ComponentActivity() {
                                 var html = "<b>🚨 " + (p.name || "Flood Zone") + "</b><br>";
                                 html += "<b>Latest Status:</b> " + (p.severity || "") + "<br>";
                                 html += "<b>Reports:</b> " + (p.reportCount || 1) + " active report(s)<br>";
-                                if (p.hasConflict) {
-                                    html += "<div style='background:#FEF2F2;border-left:3px solid #DC2626;padding:4px 6px;margin:5px 0;font-size:11px;color:#991B1B;'>" +
-                                        "⚠️ <b>Safety Notice (Mixed Reports):</b><br>" +
-                                        "Highest severity reported: <b>" + (p.highestSeverity || "") + "</b>.<br>" +
-                                        "Exercise extreme caution!" +
-                                        "</div>";
-                                }
-                                html += "<span style='color:#0284C7;font-size:11px;font-weight:600;'>● Active Flood Zone (Last 24h)</span><br>";
-                                if (p.notes) {
-                                    html += "<small style='color:#334155;'>" + p.notes + "</small>";
-                                }
                                 layer.bindPopup(html);
                             }
                         }).addTo(radiusLayer);
                     };
 
+                    // Navigation Route Synchronization
+                    window.clearRoute = function() {
+                        safeRouteLayer.clearLayers();
+                        hazardRouteLayer.clearLayers();
+                        routePinsLayer.clearLayers();
+                    };
+
+                    function checkCollisions(coords) {
+                        var collisions = [];
+                        for (var i = 0; i < coords.length; i++) {
+                            var ptLat = coords[i][1];
+                            var ptLon = coords[i][0];
+                            for (var h = 0; h < activeHazards.length; h++) {
+                                var hz = activeHazards[h];
+                                if (getDistanceM(ptLat, ptLon, hz.lat, hz.lon) <= (hz.radius + 60)) {
+                                    var found = collisions.some(function(c) { return c.location === hz.location; });
+                                    if (!found) collisions.push(hz);
+                                }
+                            }
+                        }
+                        return collisions;
+                    }
+
+                    function renderSafePolyline(coords) {
+                        safeRouteLayer.clearLayers();
+                        var latLngs = coords.map(function(c) { return [c[1], c[0]]; });
+                        var polyline = L.polyline(latLngs, {
+                            color: '#10B981',
+                            weight: 5,
+                            opacity: 0.9,
+                            lineJoin: 'round',
+                            lineCap: 'round'
+                        }).addTo(safeRouteLayer);
+
+                        map.fitBounds(polyline.getBounds(), { padding: [25, 25], maxZoom: 15 });
+                    }
+
+                    function renderHazardPolyline(coords, collisions) {
+                        hazardRouteLayer.clearLayers();
+                        if (!coords || coords.length === 0) return;
+                        var latLngs = coords.map(function(c) { return [c[1], c[0]]; });
+                        L.polyline(latLngs, {
+                            color: '#EF4444',
+                            weight: 4,
+                            opacity: 0.65,
+                            dashArray: '8, 8'
+                        }).addTo(hazardRouteLayer);
+
+                        for (var i = 0; i < collisions.length; i++) {
+                            var hz = collisions[i];
+                            L.marker([hz.lat, hz.lon], {
+                                icon: L.divIcon({
+                                    className: 'hazard-blocked-pin',
+                                    html: '<div style="background:#EF4444;color:white;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.35);font-size:11px;">⛔</div>',
+                                    iconSize: [24, 24],
+                                    iconAnchor: [12, 12]
+                                })
+                            }).addTo(hazardRouteLayer);
+                        }
+                    }
+
+                    window.findSafeRoute = function(destLat, destLon, destTitle) {
+                        safeRouteLayer.clearLayers();
+                        hazardRouteLayer.clearLayers();
+                        routePinsLayer.clearLayers();
+
+                        var startLat = userLocation.lat;
+                        var startLon = userLocation.lon;
+                        var originLabel = userLocation.isLive ? "My Current Location (Live GPS)" : "San Mateo Town Center";
+
+                        // Origin Pin
+                        L.marker([startLat, startLon], {
+                            icon: L.divIcon({
+                                className: 'route-nav-pin',
+                                html: '<div style="background:#0284C7;color:white;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 3px 8px rgba(0,0,0,0.4);font-size:12px;font-weight:bold;">📍</div>',
+                                iconSize: [26, 26],
+                                iconAnchor: [13, 26]
+                            })
+                        }).addTo(routePinsLayer).bindPopup("<b>Origin:</b> " + originLabel);
+
+                        // Destination Pin
+                        L.marker([destLat, destLon], {
+                            icon: L.divIcon({
+                                className: 'route-nav-pin',
+                                html: '<div style="background:#10B981;color:white;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 3px 8px rgba(0,0,0,0.4);font-size:12px;font-weight:bold;">🏁</div>',
+                                iconSize: [26, 26],
+                                iconAnchor: [13, 26]
+                            })
+                        }).addTo(routePinsLayer).bindPopup("<b>Destination:</b> " + (destTitle || "Target"));
+
+                        var osrmUrl = "https://router.project-osrm.org/route/v1/driving/" +
+                            startLon + "," + startLat + ";" + destLon + "," + destLat +
+                            "?overview=full&geometries=geojson&alternatives=true";
+
+                        fetch(osrmUrl)
+                            .then(function(res) { return res.json(); })
+                            .then(function(data) {
+                                if (data.routes && data.routes.length > 0) {
+                                    var directRoute = data.routes[0];
+                                    var directCoords = directRoute.geometry.coordinates;
+                                    var collisions = checkCollisions(directCoords);
+                                    if (collisions.length === 0) {
+                                        renderSafePolyline(directCoords);
+                                    } else {
+                                        var cleanAlt = null;
+                                        for (var a = 1; a < data.routes.length; a++) {
+                                            var altCoords = data.routes[a].geometry.coordinates;
+                                            if (checkCollisions(altCoords).length === 0) {
+                                                cleanAlt = data.routes[a];
+                                                break;
+                                            }
+                                        }
+                                        if (cleanAlt) {
+                                            renderHazardPolyline(directCoords, collisions);
+                                            renderSafePolyline(cleanAlt.geometry.coordinates);
+                                        } else {
+                                            var dx = destLon - startLon;
+                                            var dy = destLat - startLat;
+                                            var len = Math.sqrt(dx * dx + dy * dy) || 1.0;
+                                            var nx = -dy / len;
+                                            var ny = dx / len;
+                                            var offsetDeg = 0.007;
+                                            var detourLat = collisions[0].lat + ny * offsetDeg;
+                                            var detourLon = collisions[0].lon + nx * offsetDeg;
+                                            var detourUrl = "https://router.project-osrm.org/route/v1/driving/" +
+                                                startLon + "," + startLat + ";" + detourLon + "," + detourLat + ";" + destLon + "," + destLat +
+                                                "?overview=full&geometries=geojson";
+                                            fetch(detourUrl)
+                                                .then(function(r2) { return r2.json(); })
+                                                .then(function(d2) {
+                                                    if (d2.routes && d2.routes.length > 0) {
+                                                        renderHazardPolyline(directCoords, collisions);
+                                                        renderSafePolyline(d2.routes[0].geometry.coordinates);
+                                                    }
+                                                });
+                                        }
+                                    }
+                                }
+                            })
+                            .catch(function() {});
+                    };
+
                     function locateArea(newLat, newLon, title) {
                         map.setView([newLat, newLon], 15);
-                        if (activeMarker) {
-                            map.removeLayer(activeMarker);
-                        }
-                        activeMarker = L.marker([newLat, newLon]).addTo(map)
-                            .bindPopup("<b>" + title + "</b><br>San Mateo, Rizal")
-                            .openPopup();
                     }
+
+                    // Tap on map opens Road Map Activity
+                    map.on('click', function(e) {
+                        if (window.Android && window.Android.openFullMap) {
+                            window.Android.openFullMap();
+                        }
+                    });
                 </script>
             </body>
             </html>
         """.trimIndent()
 
-        mapWebView.loadDataWithBaseURL("https://basemaps.cartocdn.com", htmlContent, "text/html", "UTF-8", null)
+        mapWebView.loadDataWithBaseURL("https://unpkg.com", htmlContent, "text/html", "UTF-8", null)
+    }
+
+    private fun syncRoadMapWithState() {
+        if (!::mapWebView.isInitialized) return
+
+        // 1. Check if device location is available
+        try {
+            val fineGranted = ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            val coarseGranted = ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            if (fineGranted || coarseGranted) {
+                val lm = getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+                val loc = lm?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                    ?: lm?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                if (loc != null) {
+                    MapStateManager.updateUserLocation(loc.latitude, loc.longitude, "My Current Location", true)
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 2. Sync User Location on Map
+        val userLat = MapStateManager.userLat
+        val userLon = MapStateManager.userLon
+        val isLive = MapStateManager.isLiveGps
+        val userTitle = MapStateManager.userLocationName.replace("'", "\\'")
+        mapWebView.evaluateJavascript(
+            "javascript:if(window.setUserLocation) window.setUserLocation($userLat, $userLon, '$userTitle', $isLive);",
+            null
+        )
+
+        // 3. Sync Active Flood Reports & Marker Clusters
+        updateMapRadius(ReportRepository.loadReports(this))
+
+        // 4. Sync Active Safe Route
+        if (MapStateManager.isRouteActive && MapStateManager.destLat != null && MapStateManager.destLon != null) {
+            val dLat = MapStateManager.destLat!!
+            val dLon = MapStateManager.destLon!!
+            val dTitle = (MapStateManager.destTitle ?: "Destination").replace("'", "\\'")
+            mapWebView.evaluateJavascript(
+                "javascript:if(window.findSafeRoute) window.findSafeRoute($dLat, $dLon, '$dTitle');",
+                null
+            )
+            updateDashboardRouteBanner(true)
+        } else {
+            mapWebView.evaluateJavascript(
+                "javascript:if(window.clearRoute) window.clearRoute();",
+                null
+            )
+            updateDashboardRouteBanner(false)
+        }
+    }
+
+    private fun updateDashboardRouteBanner(isActive: Boolean) {
+        runOnUiThread {
+            if (isActive && MapStateManager.isRouteActive) {
+                cardDashboardActiveRoute?.visibility = View.VISIBLE
+                val originLabel = if (MapStateManager.isLiveGps) "My Location" else "Town Center"
+                val dest = MapStateManager.destTitle ?: "Destination"
+                tvDashboardRouteTitle?.text = "📍 $originLabel → $dest"
+                tvDashboardRouteEtaDist?.text = "⏱️ ${MapStateManager.durationMin.toInt()}m • 📏 ${String.format(Locale.US, "%.1f", MapStateManager.distanceKm)}km"
+                if (MapStateManager.hazardAvoided) {
+                    tvDashboardRouteBadge?.text = "⚠️ FLOOD HAZARD DETOURED"
+                    tvDashboardRouteBadge?.setBackgroundResource(R.drawable.badge_ai_warning)
+                    tvDashboardRouteBadge?.setTextColor(Color.parseColor("#9A3412"))
+                    tvDashboardRouteHazardAlert?.visibility = View.VISIBLE
+                    tvDashboardRouteHazardAlert?.text = "⚠️ ${MapStateManager.hazardSummary ?: "Hazard avoided"} - Safe alternate route active"
+                } else {
+                    tvDashboardRouteBadge?.text = "🛡️ FLOOD-SAFE ROUTE ACTIVE"
+                    tvDashboardRouteBadge?.setBackgroundResource(R.drawable.badge_verified_green)
+                    tvDashboardRouteBadge?.setTextColor(Color.parseColor("#047857"))
+                    tvDashboardRouteHazardAlert?.visibility = View.GONE
+                }
+            } else {
+                cardDashboardActiveRoute?.visibility = View.GONE
+            }
+        }
+    }
+
+    inner class DashboardMapInterface {
+        @JavascriptInterface
+        fun openFullMap() {
+            runOnUiThread {
+                openFullMapFromDashboard()
+            }
+        }
     }
 
     private fun updateMapRadius(reports: List<FloodReport>) {
         if (!::mapWebView.isInitialized) return
-        val activeWindowMs = 24 * 60 * 60 * 1000L
+        val activeWindowMs = 2 * 60 * 60 * 1000L // 2-Hour Rolling Heartbeat TTL
         val now = System.currentTimeMillis()
         val activeReports = reports.filter { r ->
             val age = now - r.timestamp
@@ -602,6 +1105,7 @@ class DashboardActivity : ComponentActivity() {
         val jsonArray = JSONArray()
         for (r in activeReports) {
             val obj = JSONObject().apply {
+                put("id", r.id)
                 put("location", r.location)
                 put("waterDepth", r.severity)
                 put("statusText", r.statusText)
@@ -609,6 +1113,8 @@ class DashboardActivity : ComponentActivity() {
                 put("lat", r.lat)
                 put("lon", r.lon)
                 put("timestamp", r.timestamp)
+                put("reportCount", r.reportCount)
+                put("severityLevel", r.severityLevel.name)
             }
             jsonArray.put(obj)
         }
@@ -677,26 +1183,36 @@ class DashboardActivity : ComponentActivity() {
                         val humidity = current.optInt("relative_humidity_2m", 80)
                         val weatherCode = current.optInt("weather_code", 0)
 
-                        val reports = ReportRepository.loadReports(this)
-                        val hasNotPassableReport = reports.any { it.severityLevel == SeverityLevel.NOT_PASSABLE }
-
                         val weatherCondition = getWeatherCondition(weatherCode)
                         val isSevereWeather = (precip >= 7.5 || weatherCode in listOf(65, 82, 95, 96, 99))
                         if (isSevereWeather) {
                             checkAndPromptSevereWeatherReport(weatherCondition, precip)
                         }
+
+                        // Traffic conditions are determined strictly by real-time meteorological data
                         val rainStatus = when {
-                            precip >= 25.0 -> String.format(Locale.US, "Heavy Rain: %.1f mm/h Critical Traffic Gridlock (Main Roads)", precip)
-                            hasNotPassableReport -> String.format(Locale.US, "Rainfall: %.1f mm/h Active Flood Reports (Main Roads Gridlock)", precip)
-                            precip >= 2.5 -> String.format(Locale.US, "Moderate Rain: %.1f mm/h Caution", precip)
-                            precip > 0.0 -> String.format(Locale.US, "Light Rain: %.1f mm/h Normal Flow", precip)
-                            else -> "No Rain (0.0 mm/h) Normal Traffic Flow"
+                            precip >= 15.0 || weatherCode in listOf(95, 96, 99, 65, 82) -> {
+                                val label = if (precip > 0.0) String.format(Locale.US, "Heavy Rain: %.1f mm/h", precip) else weatherCondition
+                                "$label • Expect Traffic Delays"
+                            }
+                            precip >= 2.5 -> String.format(Locale.US, "Moderate Rain: %.1f mm/h • Caution", precip)
+                            precip > 0.0 -> String.format(Locale.US, "Light Rain: %.1f mm/h • Normal Flow", precip)
+                            else -> "No Rain (0.0 mm/h) • Normal Traffic Flow"
                         }
 
                         val hourly = json.optJSONObject("hourly")
                         val temps = hourly?.optJSONArray("temperature_2m")
 
+                        val animCondition = when {
+                            weatherCondition.contains("Thunderstorm", ignoreCase = true) -> WeatherAnimationView.Condition.THUNDERSTORM
+                            weatherCondition.contains("Rain", ignoreCase = true) || weatherCondition.contains("Shower", ignoreCase = true) -> WeatherAnimationView.Condition.RAIN
+                            weatherCondition.contains("Drizzle", ignoreCase = true) -> WeatherAnimationView.Condition.DRIZZLE
+                            weatherCondition.contains("Cloud", ignoreCase = true) || weatherCondition.contains("Fog", ignoreCase = true) -> WeatherAnimationView.Condition.CLOUDY
+                            else -> WeatherAnimationView.Condition.CLEAR
+                        }
+
                         runOnUiThread {
+                            weatherAnimationView?.setCondition(animCondition)
                             mainTempText.text = "${temp.roundToInt()}°"
                             weatherDescriptionText.text = "$weatherCondition  Humidity: $humidity%  Air quality: Good"
                             rainMeterText.text = rainStatus
@@ -715,9 +1231,10 @@ class DashboardActivity : ComponentActivity() {
             } catch (e: Exception) {
                 e.printStackTrace()
                 runOnUiThread {
+                    weatherAnimationView?.setCondition(WeatherAnimationView.Condition.THUNDERSTORM)
                     mainTempText.text = "29°"
                     weatherDescriptionText.text = "Thunderstorm  Humidity: 82%  Air quality: Moderate"
-                    rainMeterText.text = "Rainfall: 0.0 mm/h Normal Traffic Flow"
+                    rainMeterText.text = "No Rain (0.0 mm/h) • Normal Traffic Flow"
                 }
             }
         }

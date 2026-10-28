@@ -5,6 +5,8 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.os.CountDownTimer
+import java.util.Locale
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -656,29 +658,184 @@ class ProfileActivity : ComponentActivity() {
                 return@setOnClickListener
             }
 
-            val hashedNew = UserSession.hashPassword(newText)
-            if (savedUser != null) {
-                db.updatePassword(username, hashedNew)
-            } else {
-                db.registerUser(
-                    UserEntity(
-                        fullName = UserSession.getUserName(this),
-                        gender = UserSession.getUserGender(this),
-                        mobile = UserSession.getUserContact(this),
-                        username = username,
-                        password = hashedNew,
-                    )
-                )
+            val mobileNumber = savedUser?.mobile?.ifBlank { null }
+                ?: UserSession.getUserContact(this).ifBlank { null }
+
+            if (mobileNumber.isNullOrBlank()) {
+                Toast.makeText(
+                    this,
+                    "No registered mobile number found for this account. Please update your contact number first.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@setOnClickListener
             }
 
-            // Also update password on the backend server
-            FloodGuardApiService.updatePasswordInBackend(username, currentText, newText)
-
-            Toast.makeText(this, "Password changed successfully!", Toast.LENGTH_SHORT).show()
             dialog.dismiss()
+            showPasswordChangeOtpDialog(username, mobileNumber, currentText, newText)
         }
 
         dialog.show()
+    }
+
+    /**
+     * Sends an OTP to the account's registered mobile number before authorizing a password change
+     */
+    private fun showPasswordChangeOtpDialog(
+        username: String,
+        mobileNumber: String,
+        currentPass: String,
+        newPass: String
+    ) {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_otp_verification, null)
+        val tvPhone = dialogView.findViewById<TextView>(R.id.tvOtpPhoneNumber)
+        val tvSubtitle = dialogView.findViewById<TextView>(R.id.tvOtpSubtitle)
+        val etOtp = dialogView.findViewById<EditText>(R.id.etOtpCode)
+        val tvStatus = dialogView.findViewById<TextView>(R.id.tvOtpStatusMessage)
+        val tvTimer = dialogView.findViewById<TextView>(R.id.tvOtpTimer)
+        val btnResend = dialogView.findViewById<TextView>(R.id.btnResendOtp)
+        val btnCancel = dialogView.findViewById<Button>(R.id.btnOtpCancel)
+        val btnVerify = dialogView.findViewById<Button>(R.id.btnOtpVerify)
+
+        tvSubtitle?.text = "Verify Password Change (OTP)"
+        val formattedPhone = FirebaseAuthOtpHelper.formatToE164(mobileNumber)
+        tvPhone.text = formattedPhone
+        btnVerify.text = "Verify & Change Password"
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        var countDownTimer: CountDownTimer? = null
+
+        fun startCountdown() {
+            countDownTimer?.cancel()
+            btnResend.isEnabled = false
+            btnResend.setTextColor(Color.parseColor("#94A3B8"))
+
+            countDownTimer = object : CountDownTimer(60000, 1000) {
+                override fun onTick(millisUntilFinished: Long) {
+                    val sec = millisUntilFinished / 1000
+                    tvTimer.text = String.format(Locale.US, "Resend code in %02d:%02d", sec / 60, sec % 60)
+                }
+
+                override fun onFinish() {
+                    tvTimer.text = "Didn't receive SMS code?"
+                    btnResend.isEnabled = true
+                    btnResend.setTextColor(Color.parseColor("#FFA500"))
+                }
+            }.start()
+        }
+
+        fun sendVerificationCode() {
+            tvStatus.text = "Sending security verification code via SMS..."
+            tvStatus.setTextColor(Color.parseColor("#0284C7"))
+            startCountdown()
+
+            FirebaseAuthOtpHelper.sendOtp(
+                activity = this,
+                mobileNumber = mobileNumber,
+                callback = object : FirebaseAuthOtpHelper.OtpCallback {
+                    override fun onCodeSent(formattedPhone: String) {
+                        tvStatus.text = "Verification SMS sent to $formattedPhone. Enter the 6-digit code above to authorize password change."
+                        tvStatus.setTextColor(Color.parseColor("#0284C7"))
+                    }
+
+                    override fun onAutoVerified() {
+                        countDownTimer?.cancel()
+                        dialog.dismiss()
+                        applyPasswordChange(username, currentPass, newPass)
+                    }
+
+                    override fun onError(message: String) {
+                        tvStatus.text = message
+                        tvStatus.setTextColor(Color.parseColor("#DC2626"))
+                    }
+
+                    override fun onFallbackCodeGenerated(code: String, reason: String?) {
+                        runOnUiThread {
+                            if (!reason.isNullOrBlank()) {
+                                tvStatus.text = "Firebase: $reason (Using local security code)"
+                                tvStatus.setTextColor(Color.parseColor("#D97706"))
+                            }
+                            FloodGuardThemedDialog.showSecurityCode(
+                                activity = this@ProfileActivity,
+                                code = code,
+                                notice = "Password Change Security Code for $formattedPhone. Valid for 5 minutes."
+                            ) { enteredCode ->
+                                etOtp.setText(enteredCode)
+                            }
+                        }
+                    }
+                }
+            )
+        }
+
+        btnResend.setOnClickListener {
+            sendVerificationCode()
+        }
+
+        btnCancel.setOnClickListener {
+            countDownTimer?.cancel()
+            dialog.dismiss()
+            Toast.makeText(this, "Password change cancelled.", Toast.LENGTH_SHORT).show()
+        }
+
+        btnVerify.setOnClickListener {
+            val code = etOtp.text.toString().trim()
+            if (code.length < 6) {
+                tvStatus.text = "Please enter the full 6-digit verification code."
+                tvStatus.setTextColor(Color.parseColor("#DC2626"))
+                return@setOnClickListener
+            }
+
+            btnVerify.isEnabled = false
+            tvStatus.text = "Verifying code..."
+            tvStatus.setTextColor(Color.parseColor("#0284C7"))
+
+            FirebaseAuthOtpHelper.verifyCode(
+                enteredCode = code,
+                onSuccess = {
+                    countDownTimer?.cancel()
+                    dialog.dismiss()
+                    applyPasswordChange(username, currentPass, newPass)
+                },
+                onError = { errMsg ->
+                    btnVerify.isEnabled = true
+                    tvStatus.text = errMsg
+                    tvStatus.setTextColor(Color.parseColor("#DC2626"))
+                }
+            )
+        }
+
+        dialog.show()
+        sendVerificationCode()
+    }
+
+    private fun applyPasswordChange(username: String, currentPass: String, newPass: String) {
+        val db = FloodGuardDatabase.getInstance(this)
+        val savedUser = db.getUserByUsername(username)
+        val hashedNew = UserSession.hashPassword(newPass)
+
+        if (savedUser != null) {
+            db.updatePassword(username, hashedNew)
+        } else {
+            db.registerUser(
+                UserEntity(
+                    fullName = UserSession.getUserName(this),
+                    gender = UserSession.getUserGender(this),
+                    mobile = UserSession.getUserContact(this),
+                    username = username,
+                    password = hashedNew,
+                )
+            )
+        }
+
+        // Also update password on the backend server
+        FloodGuardApiService.updatePasswordInBackend(username, currentPass, newPass)
+
+        Toast.makeText(this, "✅ Password changed successfully!", Toast.LENGTH_LONG).show()
     }
 
     private fun confirmLogout() {

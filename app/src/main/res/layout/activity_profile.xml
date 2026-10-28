@@ -9,10 +9,13 @@
     <RelativeLayout
         android:id="@+id/headerBar"
         android:layout_width="match_parent"
-        android:layout_height="64dp"
+        android:layout_height="wrap_content"
+        android:minHeight="76dp"
         android:background="#0A192F"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
+        android:paddingTop="36dp"
+        android:paddingBottom="12dp"
         android:layout_alignParentTop="true">
 
         <!-- Logo & Brand Title -->
@@ -20,9 +23,11 @@
             android:id="@+id/logoLayout"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerVertical="true"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
+            android:paddingTop="8dp"
             android:clickable="true"
             android:focusable="true">
 
@@ -56,27 +61,32 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Screen Title -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:text="Profile"
-            android:textColor="@android:color/white"
-            android:textSize="18sp"
-            android:textStyle="bold" />
-
         <!-- Menu Icon (Hamburger) -->
         <ImageView
             android:id="@+id/menuIcon"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"
-            android:layout_centerVertical="true"
+            android:layout_alignTop="@id/logoLayout"
+            android:layout_alignBottom="@id/logoLayout"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
             android:src="@drawable/ic_menu"
             android:contentDescription="Menu"
             android:clickable="true"
             android:focusable="true" />
+
+        <!-- Screen Title -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/logoLayout"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="6dp"
+            android:text="Profile"
+            android:textColor="@android:color/white"
+            android:textSize="18sp"
+            android:textStyle="bold" />
     </RelativeLayout>
 
     <!-- Main Content -->

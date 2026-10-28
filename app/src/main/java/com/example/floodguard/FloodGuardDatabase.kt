@@ -49,6 +49,8 @@ class FloodGuardDatabase(context: Context) :
         const val COLUMN_AUTHOR_USERNAME = "author_username"
         const val COLUMN_REPORTER_NAME = "reporter_name"
         const val COLUMN_REPORTER_USERNAME = "reporter_username"
+        const val COLUMN_STILL_FLOODED_COUNT = "still_flooded_count"
+        const val COLUMN_WATER_SUBSIDED_COUNT = "water_subsided_count"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -76,7 +78,9 @@ class FloodGuardDatabase(context: Context) :
                 $COLUMN_LAT REAL,
                 $COLUMN_LON REAL,
                 $COLUMN_AUTHOR_USERNAME TEXT DEFAULT '',
-                $COLUMN_REPORTER_NAME TEXT DEFAULT ''
+                $COLUMN_REPORTER_NAME TEXT DEFAULT '',
+                $COLUMN_STILL_FLOODED_COUNT INTEGER DEFAULT 0,
+                $COLUMN_WATER_SUBSIDED_COUNT INTEGER DEFAULT 0
             )
         """.trimIndent()
 
@@ -280,6 +284,18 @@ class FloodGuardDatabase(context: Context) :
             } catch (_: Exception) {
             }
         }
+        if (existingColumns.isNotEmpty() && !existingColumns.contains(COLUMN_STILL_FLOODED_COUNT)) {
+            try {
+                db.execSQL("ALTER TABLE $TABLE_REPORTS ADD COLUMN $COLUMN_STILL_FLOODED_COUNT INTEGER DEFAULT 0")
+            } catch (_: Exception) {
+            }
+        }
+        if (existingColumns.isNotEmpty() && !existingColumns.contains(COLUMN_WATER_SUBSIDED_COUNT)) {
+            try {
+                db.execSQL("ALTER TABLE $TABLE_REPORTS ADD COLUMN $COLUMN_WATER_SUBSIDED_COUNT INTEGER DEFAULT 0")
+            } catch (_: Exception) {
+            }
+        }
     }
 
     fun insertReport(report: FloodReport): Boolean {
@@ -298,6 +314,8 @@ class FloodGuardDatabase(context: Context) :
             val author = report.authorUsername.ifBlank { report.reporterUsername }
             put(COLUMN_AUTHOR_USERNAME, author)
             put(COLUMN_REPORTER_NAME, report.reporterName)
+            put(COLUMN_STILL_FLOODED_COUNT, report.stillFloodedCount)
+            put(COLUMN_WATER_SUBSIDED_COUNT, report.waterSubsidedCount)
         }
         val result = db.insertWithOnConflict(TABLE_REPORTS, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
         return result != -1L
@@ -325,6 +343,11 @@ class FloodGuardDatabase(context: Context) :
                 val reporterIdx = cursor.getColumnIndex(COLUMN_REPORTER_NAME)
                 val reporterName = if (reporterIdx >= 0 && !cursor.isNull(reporterIdx)) cursor.getString(reporterIdx) else ""
 
+                val stillIdx = cursor.getColumnIndex(COLUMN_STILL_FLOODED_COUNT)
+                val stillCount = if (stillIdx >= 0 && !cursor.isNull(stillIdx)) cursor.getInt(stillIdx) else 0
+                val subIdx = cursor.getColumnIndex(COLUMN_WATER_SUBSIDED_COUNT)
+                val subCount = if (subIdx >= 0 && !cursor.isNull(subIdx)) cursor.getInt(subIdx) else 0
+
                 val severityLevel = try {
                     SeverityLevel.valueOf(severityLevelStr)
                 } catch (_: Exception) {
@@ -346,12 +369,44 @@ class FloodGuardDatabase(context: Context) :
                         authorUsername = authorUsername,
                         reporterName = reporterName,
                         reporterUsername = authorUsername,
+                        stillFloodedCount = stillCount,
+                        waterSubsidedCount = subCount,
                     )
                 )
             } while (cursor.moveToNext())
         }
         cursor.close()
         return reportList
+    }
+
+    fun updateReportVotes(
+        id: String,
+        stillFloodedCount: Int,
+        waterSubsidedCount: Int,
+        severityLevelStr: String?,
+        statusText: String?,
+        severity: String?,
+        timestamp: Long? = null,
+    ): Boolean {
+        val db = writableDatabase
+        val cv = ContentValues().apply {
+            put(COLUMN_STILL_FLOODED_COUNT, stillFloodedCount)
+            put(COLUMN_WATER_SUBSIDED_COUNT, waterSubsidedCount)
+            if (!severityLevelStr.isNullOrBlank()) {
+                put(COLUMN_SEVERITY_LEVEL, severityLevelStr)
+            }
+            if (!statusText.isNullOrBlank()) {
+                put(COLUMN_STATUS_TEXT, statusText)
+            }
+            if (!severity.isNullOrBlank()) {
+                put(COLUMN_SEVERITY, severity)
+            }
+            if (timestamp != null && timestamp > 0L) {
+                put(COLUMN_TIMESTAMP, timestamp)
+            }
+        }
+        val rows = db.update(TABLE_REPORTS, cv, "$COLUMN_REPORT_ID = ?", arrayOf(id))
+        return rows > 0
     }
 
     fun updateReport(
@@ -364,6 +419,7 @@ class FloodGuardDatabase(context: Context) :
         authorUsername: String? = null,
         reporterName: String? = null,
         photoUri: String? = null,
+        timestamp: Long? = null,
     ): Boolean {
         val db = writableDatabase
         val cv = ContentValues().apply {
@@ -380,6 +436,9 @@ class FloodGuardDatabase(context: Context) :
             }
             if (!photoUri.isNullOrBlank()) {
                 put(COLUMN_PHOTO_URI, photoUri)
+            }
+            if (timestamp != null && timestamp > 0L) {
+                put(COLUMN_TIMESTAMP, timestamp)
             }
         }
         val result = db.update(TABLE_REPORTS, cv, "$COLUMN_REPORT_ID=?", arrayOf(id))
