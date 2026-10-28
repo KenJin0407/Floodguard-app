@@ -47,14 +47,14 @@ object ReportPhotoHelper {
         if (bitmap == null) {
             return PhotoValidationResult(
                 isValid = false,
-                errorMessage = "Hindi mabasa ang litrato o corrupted ang file. Mangyaring mag-attach ng panibagong litrato ng baha."
+                errorMessage = "The image file could not be read or appears corrupted. Please attach a clear photo of the flood."
             )
         }
 
         if (bitmap.width < 50 || bitmap.height < 50) {
             return PhotoValidationResult(
                 isValid = false,
-                errorMessage = "Masyadong maliit ang resolution ng larawan. Mangyaring mag-attach ng malinaw na litrato ng binabahang kalsada."
+                errorMessage = "The image resolution is too small. Please attach a clear photo of the flooded street or area."
             )
         }
 
@@ -96,7 +96,7 @@ object ReportPhotoHelper {
         if (stdDev < 6.0) {
             return PhotoValidationResult(
                 isValid = false,
-                errorMessage = "Ang napiling larawan ay tila blangko o iisang kulay lamang. Kinakailangan mag-attach ng totoong litrato ng binabahang kalsada o lugar."
+                errorMessage = "The selected image appears blank or single-colored. Please attach a real photo showing the flooded street or area."
             )
         }
 
