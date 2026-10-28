@@ -103,6 +103,27 @@ object ReportPhotoHelper {
         return PhotoValidationResult(isValid = true, errorMessage = null)
     }
 
+    fun persistCapturedBitmap(context: Context, original: Bitmap): String? {
+        return try {
+            val scaled = scaleDownBitmap(original, 720)
+            val output = ByteArrayOutputStream()
+            scaled.compress(Bitmap.CompressFormat.JPEG, 75, output)
+            val jpegBytes = output.toByteArray()
+
+            try {
+                val dir = File(context.filesDir, "flood_photos")
+                if (!dir.exists()) dir.mkdirs()
+                val file = File(dir, "flood_cam_${System.currentTimeMillis()}.jpg")
+                FileOutputStream(file).use { it.write(jpegBytes) }
+            } catch (_: Exception) {
+            }
+
+            "data:image/jpeg;base64," + Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     fun persistPickedPhoto(context: Context, sourceUri: Uri): String? {
         return try {
             val bytes = context.contentResolver.openInputStream(sourceUri)?.use { it.readBytes() }
