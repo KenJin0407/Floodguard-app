@@ -280,55 +280,158 @@ class ProfileActivity : ComponentActivity() {
             return
         }
 
-        val layout = LinearLayout(this).apply {
+        val density = resources.displayMetrics.density
+        val pad = (18 * density).toInt()
+
+        val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(50, 20, 50, 20)
+            setBackgroundResource(R.drawable.dropdown_menu_bg)
         }
 
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.dialog_header_bg)
+            setPadding(pad, pad, pad, pad)
+        }
+
+        val titleView = TextView(this).apply {
+            text = "Edit Flood Report"
+            setTextColor(Color.WHITE)
+            textSize = 18f
+            paint.isFakeBoldText = true
+        }
+
+        val subtitleView = TextView(this).apply {
+            text = "Update location, water severity level, or situational notes"
+            setTextColor(Color.parseColor("#FFA500"))
+            textSize = 12f
+            setPadding(0, (3 * density).toInt(), 0, 0)
+        }
+
+        header.addView(titleView)
+        header.addView(subtitleView)
+        root.addView(header)
+
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+        }
+
+        val fieldPad = (12 * density).toInt()
         val locationEdit = EditText(this).apply {
-            hint = "Location"
+            hint = "Location in San Mateo"
             setText(report.location)
+            setBackgroundResource(R.drawable.edittext_bg)
+            setPadding(fieldPad, fieldPad, fieldPad, fieldPad)
+            setTextColor(Color.parseColor("#0A192F"))
+            textSize = 14f
         }
 
         val severitySpinner = Spinner(this).apply {
             val options = arrayOf("Ankle-Deep", "Knee-Deep", "Waist-Deep", "Impassable")
             adapter = ArrayAdapter(this@ProfileActivity, android.R.layout.simple_spinner_dropdown_item, options)
+            setBackgroundResource(R.drawable.edittext_bg)
             val index = options.indexOf(report.severity)
             if (index >= 0) setSelection(index)
         }
 
         val notesEdit = EditText(this).apply {
-            hint = "Notes"
+            hint = "Situational notes"
             setText(report.notes)
+            setBackgroundResource(R.drawable.edittext_bg)
+            setPadding(fieldPad, fieldPad, fieldPad, fieldPad)
+            setTextColor(Color.parseColor("#0A192F"))
+            textSize = 14f
         }
 
-        layout.addView(TextView(this).apply { text = "Location:"; setPadding(0, 10, 0, 4) })
-        layout.addView(locationEdit)
-        layout.addView(TextView(this).apply { text = "Severity:"; setPadding(0, 10, 0, 4) })
-        layout.addView(severitySpinner)
-        layout.addView(TextView(this).apply { text = "Notes:"; setPadding(0, 10, 0, 4) })
-        layout.addView(notesEdit)
+        body.addView(TextView(this).apply {
+            text = "LOCATION"
+            setTextColor(Color.parseColor("#475569"))
+            textSize = 11f
+            paint.isFakeBoldText = true
+            setPadding(0, 0, 0, (4 * density).toInt())
+        })
+        body.addView(locationEdit)
 
-        AlertDialog.Builder(this)
-            .setTitle("Edit Flood Report")
-            .setView(layout)
-            .setPositiveButton("Save") { _, _ ->
-                val newLoc = locationEdit.text.toString().trim()
-                val newSev = severitySpinner.selectedItem.toString()
-                val newNotes = notesEdit.text.toString().trim()
+        body.addView(TextView(this).apply {
+            text = "WATER SEVERITY LEVEL"
+            setTextColor(Color.parseColor("#475569"))
+            textSize = 11f
+            paint.isFakeBoldText = true
+            setPadding(0, (12 * density).toInt(), 0, (4 * density).toInt())
+        })
+        body.addView(severitySpinner)
 
-                if (newLoc.isNotEmpty()) {
-                    val updated = ReportRepository.updateReport(this, report.id, newLoc, newSev, newNotes)
-                    populateProfileReports()
-                    if (updated) {
-                        Toast.makeText(this, "Report updated successfully!", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(this, "Only the author can edit this report.", Toast.LENGTH_SHORT).show()
-                    }
-                }
+        body.addView(TextView(this).apply {
+            text = "NOTES"
+            setTextColor(Color.parseColor("#475569"))
+            textSize = 11f
+            paint.isFakeBoldText = true
+            setPadding(0, (12 * density).toInt(), 0, (4 * density).toInt())
+        })
+        body.addView(notesEdit)
+
+        val btnRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, (18 * density).toInt(), 0, 0)
+        }
+
+        val btnCancel = Button(this).apply {
+            text = "Cancel"
+            isAllCaps = false
+            setTextColor(Color.parseColor("#4B5563"))
+            setBackgroundResource(R.drawable.btn_severity_default)
+            layoutParams = LinearLayout.LayoutParams(0, (44 * density).toInt(), 1f).apply {
+                marginEnd = (8 * density).toInt()
             }
-            .setNegativeButton("Cancel", null)
-            .show()
+        }
+
+        val btnSave = Button(this).apply {
+            text = "Save Changes"
+            isAllCaps = false
+            setTextColor(Color.parseColor("#0A192F"))
+            paint.isFakeBoldText = true
+            setBackgroundResource(R.drawable.btn_yellow)
+            layoutParams = LinearLayout.LayoutParams(0, (44 * density).toInt(), 1.2f).apply {
+                marginStart = (8 * density).toInt()
+            }
+        }
+
+        btnRow.addView(btnCancel)
+        btnRow.addView(btnSave)
+        body.addView(btnRow)
+        root.addView(body)
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(root)
+            .create()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        btnCancel.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        btnSave.setOnClickListener {
+            val newLoc = locationEdit.text.toString().trim()
+            val newSev = severitySpinner.selectedItem.toString()
+            val newNotes = notesEdit.text.toString().trim()
+
+            if (newLoc.length < 3) {
+                Toast.makeText(this, "Please enter a valid location name.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            dialog.dismiss()
+            val updated = ReportRepository.updateReport(this, report.id, newLoc, newSev, newNotes)
+            populateProfileReports()
+            if (updated) {
+                Toast.makeText(this, "Report updated successfully!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Only the author can edit this report.", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        dialog.show()
     }
 
     private fun showDeleteReportDialog(report: FloodReport) {

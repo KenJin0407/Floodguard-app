@@ -933,9 +933,9 @@ class ReportFloodActivity : ComponentActivity() {
                             result.smsBroadcastTriggered ->
                                 "Multiple similar reports verified! Free SMS API warning broadcasted to nearby users."
                             result.submittedToServer ->
-                                "Flood report submitted successfully! Natitirang report ngayong araw: $remainingAfter / ${UserSession.MAX_DAILY_REPORTS}"
+                                "Flood report submitted successfully! Remaining reports today: $remainingAfter / ${UserSession.MAX_DAILY_REPORTS}"
                             else ->
-                                "Report saved on this device. Natitirang report ngayong araw: $remainingAfter / ${UserSession.MAX_DAILY_REPORTS}"
+                                "Report saved on this device. Remaining reports today: $remainingAfter / ${UserSession.MAX_DAILY_REPORTS}"
                         }
                         Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
                     }
