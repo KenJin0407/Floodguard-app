@@ -87,7 +87,7 @@
             android:paddingEnd="20dp"
             android:paddingBottom="100dp">
 
-            <!-- Photo Upload Box Header -->
+            <!-- Live Camera Flood Photo Box Header -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -98,7 +98,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="FLOOD PHOTO"
+                    android:text="LIVE FLOOD PHOTO"
                     android:textColor="@color/text_primary"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -107,17 +107,17 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="6dp"
-                    android:text="* (REQUIRED)"
+                    android:text="* (CAMERA REQUIRED)"
                     android:textColor="#D32F2F"
                     android:textSize="11sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
-            <!-- Photo Upload Box -->
+            <!-- Camera Capture Box -->
             <FrameLayout
                 android:id="@+id/photoPickerBox"
                 android:layout_width="match_parent"
-                android:layout_height="140dp"
+                android:layout_height="145dp"
                 android:background="@drawable/dashed_border"
                 android:clickable="true"
                 android:focusable="true"
@@ -129,7 +129,7 @@
                     android:layout_height="match_parent"
                     android:scaleType="centerCrop"
                     android:visibility="gone"
-                    android:contentDescription="Photo Preview" />
+                    android:contentDescription="Captured Photo Preview" />
 
                 <TextView
                     android:id="@+id/tvPhotoBadge"
@@ -142,7 +142,7 @@
                     android:paddingTop="5dp"
                     android:paddingEnd="12dp"
                     android:paddingBottom="5dp"
-                    android:text="✓ Flood Photo Attached • Tap to Change"
+                    android:text="📷 Camera Photo Attached • Tap to Retake"
                     android:textColor="@android:color/white"
                     android:textSize="11sp"
                     android:textStyle="bold"
@@ -159,14 +159,14 @@
                     <ImageView
                         android:layout_width="48dp"
                         android:layout_height="48dp"
-                        android:src="@drawable/ic_add_circle"
-                        android:contentDescription="Add Photo" />
+                        android:src="@drawable/ic_camera"
+                        android:contentDescription="Capture Photo" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:text="Tap to attach flood photo (Required)"
+                        android:text="Tap to capture live flood photo"
                         android:textColor="@color/text_primary"
                         android:textSize="13sp"
                         android:textStyle="bold" />
@@ -175,7 +175,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="Litrato ng baha o lubog na kalsada ang kailangan"
+                        android:text="Live camera photo required (Gallery upload disabled)"
                         android:textColor="#64748B"
                         android:textSize="11sp" />
                 </LinearLayout>
