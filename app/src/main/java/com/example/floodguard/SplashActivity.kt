@@ -31,6 +31,15 @@ class SplashActivity : AppCompatActivity() {
         } catch (_: Exception) {
         }
 
+        // Pre-fetch live community reports and registered users from Render Cloud during splash
+        kotlin.concurrent.thread {
+            try {
+                ReportRepository.loadReports(applicationContext)
+                FloodGuardApiService.syncUsersFromBackend {}
+            } catch (_: Exception) {
+            }
+        }
+
         Handler(Looper.getMainLooper()).postDelayed({
             val targetActivity = if (UserSession.isLoggedIn(this)) {
                 DashboardActivity::class.java
