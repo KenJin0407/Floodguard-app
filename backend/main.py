@@ -327,9 +327,10 @@ def get_db():
         db.close()
 
 # --- ROUTES ---
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
+@app.api_route("/health", methods=["GET", "HEAD"])
 def root():
-    return {"message": "KAYA MO YAN! FloodGuard API is running."}
+    return {"message": "KAYA MO YAN! FloodGuard API is running.", "status": "ok"}
 
 # AUTHENTICATION ROUTES (Required by Android App)
 def hash_password(plain_pw: str) -> str:
