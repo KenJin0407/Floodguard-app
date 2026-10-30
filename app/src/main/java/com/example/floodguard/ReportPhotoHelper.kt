@@ -26,11 +26,103 @@ import android.widget.TextView
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+/**
+ * Image processing and validation utility for flood reports and avatars.
+ * Handles bitmap downscaling, heuristic image quality checks, circular avatar cropping,
+ * and base64 persistence.
+ */
 object ReportPhotoHelper {
+
+    data class PhotoValidationResult(
+        val isValid: Boolean,
+        val errorMessage: String? = null
+    )
+
+    fun validateFloodPhoto(bitmap: Bitmap?): PhotoValidationResult {
+        if (bitmap == null) {
+            return PhotoValidationResult(
+                isValid = false,
+                errorMessage = "The image file could not be read or appears corrupted. Please attach a clear photo of the flood."
+            )
+        }
+
+        if (bitmap.width < 50 || bitmap.height < 50) {
+            return PhotoValidationResult(
+                isValid = false,
+                errorMessage = "The image resolution is too small. Please attach a clear photo of the flooded street or area."
+            )
+        }
+
+        val sampleGrid = 16
+        val stepX = (bitmap.width / sampleGrid).coerceAtLeast(1)
+        val stepY = (bitmap.height / sampleGrid).coerceAtLeast(1)
+
+        val pixels = ArrayList<Int>(sampleGrid * sampleGrid)
+        var totalR = 0L
+        var totalG = 0L
+        var totalB = 0L
+
+        for (x in 0 until sampleGrid) {
+            for (y in 0 until sampleGrid) {
+                val px = (x * stepX).coerceIn(0, bitmap.width - 1)
+                val py = (y * stepY).coerceIn(0, bitmap.height - 1)
+                val pixel = bitmap.getPixel(px, py)
+                pixels.add(pixel)
+                totalR += Color.red(pixel)
+                totalG += Color.green(pixel)
+                totalB += Color.blue(pixel)
+            }
+        }
+
+        val count = pixels.size
+        val avgR = totalR.toDouble() / count
+        val avgG = totalG.toDouble() / count
+        val avgB = totalB.toDouble() / count
+
+        var varianceSum = 0.0
+        for (p in pixels) {
+            val dr = Color.red(p) - avgR
+            val dg = Color.green(p) - avgG
+            val db = Color.blue(p) - avgB
+            varianceSum += (dr * dr + dg * dg + db * db) / 3.0
+        }
+        val stdDev = Math.sqrt(varianceSum / count)
+
+        if (stdDev < 6.0) {
+            return PhotoValidationResult(
+                isValid = false,
+                errorMessage = "The selected image appears blank or single-colored. Please attach a real photo showing the flooded street or area."
+            )
+        }
+
+        return PhotoValidationResult(isValid = true, errorMessage = null)
+    }
+
+    fun persistCapturedBitmap(context: Context, original: Bitmap): String? {
+        return try {
+            val scaled = scaleDownBitmap(original, 720)
+            val output = ByteArrayOutputStream()
+            scaled.compress(Bitmap.CompressFormat.JPEG, 75, output)
+            val jpegBytes = output.toByteArray()
+
+            try {
+                val dir = File(context.filesDir, "flood_photos")
+                if (!dir.exists()) dir.mkdirs()
+                val file = File(dir, "flood_cam_${System.currentTimeMillis()}.jpg")
+                FileOutputStream(file).use { it.write(jpegBytes) }
+            } catch (_: Exception) {
+            }
+
+            "data:image/jpeg;base64," + Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     fun persistPickedPhoto(context: Context, sourceUri: Uri): String? {
         return try {
@@ -196,7 +288,7 @@ object ReportPhotoHelper {
             updatingSliderFromPinch = true
             val progress = ((currentZoom - 1.0f) / 3.0f * 100f).roundToInt().coerceIn(0, 100)
             zoomSeekBar.progress = progress
-            zoomValueText.text = String.format("%.1fx", currentZoom)
+            zoomValueText.text = String.format(Locale.US, "%.1fx", currentZoom)
             updatingSliderFromPinch = false
         }.apply {
             layoutParams = LinearLayout.LayoutParams(cropViewSizePx, cropViewSizePx).apply {
@@ -263,7 +355,7 @@ object ReportPhotoHelper {
                     if (!updatingSliderFromPinch) {
                         val zoom = 1.0f + (progress / 100f) * 3.0f
                         cropView.setZoomFactor(zoom)
-                        zoomValueText.text = String.format("%.1fx", zoom)
+                        zoomValueText.text = String.format(Locale.US, "%.1fx", zoom)
                     }
                 }
 
@@ -623,6 +715,98 @@ object ReportPhotoHelper {
         }
 
         dialog.show()
+    }
+
+    /**
+     * Computes a 64-bit Perceptual Difference Hash (dHash) of a Bitmap.
+     * Scales the image to 9x8 grayscale and compares adjacent horizontal pixel intensities.
+     * Resilient against resizing, JPEG re-compression, and minor compression artifacts.
+     */
+    fun computePerceptualHash(bitmap: Bitmap): Long {
+        val scaled = Bitmap.createScaledBitmap(bitmap, 9, 8, true)
+        var hash = 0L
+        var bitIndex = 0
+        for (y in 0 until 8) {
+            for (x in 0 until 8) {
+                val p1 = scaled.getPixel(x, y)
+                val p2 = scaled.getPixel(x + 1, y)
+                val lum1 = (Color.red(p1) * 299 + Color.green(p1) * 587 + Color.blue(p1) * 114) / 1000
+                val lum2 = (Color.red(p2) * 299 + Color.green(p2) * 587 + Color.blue(p2) * 114) / 1000
+                if (lum1 > lum2) {
+                    hash = hash or (1L shl bitIndex)
+                }
+                bitIndex++
+            }
+        }
+        return hash
+    }
+
+    fun hammingDistance(hash1: Long, hash2: Long): Int {
+        return java.lang.Long.bitCount(hash1 xor hash2)
+    }
+
+    private fun extractCleanBase64(dataUri: String?): String? {
+        if (dataUri.isNullOrBlank()) return null
+        val trimmed = dataUri.trim()
+        val raw = if (trimmed.contains("base64,")) {
+            trimmed.substringAfter("base64,").trim()
+        } else {
+            trimmed
+        }
+        return if (raw.length > 200) raw else null
+    }
+
+    /**
+     * Checks all existing flood reports (both local SQLite and synced cloud reports)
+     * to detect if the candidate photo is a duplicate or re-upload of an already submitted photo
+     * (whether by the same user or a different user).
+     */
+    fun findDuplicateReportByPhoto(
+        context: Context,
+        candidateBitmap: Bitmap,
+        candidateDataUri: String?,
+        remoteReports: List<FloodReport> = emptyList()
+    ): FloodReport? {
+        val candidateCleanB64 = extractCleanBase64(candidateDataUri)
+        val candidateDHash = computePerceptualHash(candidateBitmap)
+
+        val dbReports = try {
+            FloodGuardDatabase.getInstance(context).getAllReports()
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        val combined = LinkedHashMap<String, FloodReport>()
+        for (r in remoteReports) {
+            combined[r.id] = r
+        }
+        for (r in dbReports) {
+            if (!combined.containsKey(r.id)) {
+                combined[r.id] = r
+            }
+        }
+
+        for (existing in combined.values) {
+            val existingPhoto = existing.photoUri
+            if (existingPhoto.isNullOrBlank()) continue
+
+            // 1. Fast exact base64 payload match
+            val existingCleanB64 = extractCleanBase64(existingPhoto)
+            if (candidateCleanB64 != null && existingCleanB64 != null && candidateCleanB64 == existingCleanB64) {
+                return existing
+            }
+
+            // 2. Perceptual 64-bit dHash match (catches re-compressed / forwarded / slightly resized copies)
+            val existingBitmap = loadBitmap(context, existingPhoto)
+            if (existingBitmap != null) {
+                val existingDHash = computePerceptualHash(existingBitmap)
+                val dist = hammingDistance(candidateDHash, existingDHash)
+                if (dist <= 5) {
+                    return existing
+                }
+            }
+        }
+        return null
     }
 }
 

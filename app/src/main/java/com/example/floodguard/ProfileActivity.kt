@@ -5,6 +5,8 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.os.CountDownTimer
+import java.util.Locale
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -16,10 +18,17 @@ import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import android.widget.Spinner
 import android.widget.TextView
+import android.text.method.HideReturnsTransformationMethod
+import android.text.method.PasswordTransformationMethod
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 
+/**
+ * Activity for displaying and editing the current user's profile.
+ * Supports updating Full Name, Gender, Mobile Number, profile photo avatar,
+ * password changes, viewing user's submitted reports, and logging out.
+ */
 class ProfileActivity : ComponentActivity() {
 
     private lateinit var avatarImage: ImageView
@@ -273,55 +282,158 @@ class ProfileActivity : ComponentActivity() {
             return
         }
 
-        val layout = LinearLayout(this).apply {
+        val density = resources.displayMetrics.density
+        val pad = (18 * density).toInt()
+
+        val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(50, 20, 50, 20)
+            setBackgroundResource(R.drawable.dropdown_menu_bg)
         }
 
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.dialog_header_bg)
+            setPadding(pad, pad, pad, pad)
+        }
+
+        val titleView = TextView(this).apply {
+            text = "Edit Flood Report"
+            setTextColor(Color.WHITE)
+            textSize = 18f
+            paint.isFakeBoldText = true
+        }
+
+        val subtitleView = TextView(this).apply {
+            text = "Update location, water severity level, or situational notes"
+            setTextColor(Color.parseColor("#FFA500"))
+            textSize = 12f
+            setPadding(0, (3 * density).toInt(), 0, 0)
+        }
+
+        header.addView(titleView)
+        header.addView(subtitleView)
+        root.addView(header)
+
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+        }
+
+        val fieldPad = (12 * density).toInt()
         val locationEdit = EditText(this).apply {
-            hint = "Location"
+            hint = "Location in San Mateo"
             setText(report.location)
+            setBackgroundResource(R.drawable.edittext_bg)
+            setPadding(fieldPad, fieldPad, fieldPad, fieldPad)
+            setTextColor(Color.parseColor("#0A192F"))
+            textSize = 14f
         }
 
         val severitySpinner = Spinner(this).apply {
             val options = arrayOf("Ankle-Deep", "Knee-Deep", "Waist-Deep", "Impassable")
             adapter = ArrayAdapter(this@ProfileActivity, android.R.layout.simple_spinner_dropdown_item, options)
+            setBackgroundResource(R.drawable.edittext_bg)
             val index = options.indexOf(report.severity)
             if (index >= 0) setSelection(index)
         }
 
         val notesEdit = EditText(this).apply {
-            hint = "Notes"
+            hint = "Situational notes"
             setText(report.notes)
+            setBackgroundResource(R.drawable.edittext_bg)
+            setPadding(fieldPad, fieldPad, fieldPad, fieldPad)
+            setTextColor(Color.parseColor("#0A192F"))
+            textSize = 14f
         }
 
-        layout.addView(TextView(this).apply { text = "Location:"; setPadding(0, 10, 0, 4) })
-        layout.addView(locationEdit)
-        layout.addView(TextView(this).apply { text = "Severity:"; setPadding(0, 10, 0, 4) })
-        layout.addView(severitySpinner)
-        layout.addView(TextView(this).apply { text = "Notes:"; setPadding(0, 10, 0, 4) })
-        layout.addView(notesEdit)
+        body.addView(TextView(this).apply {
+            text = "LOCATION"
+            setTextColor(Color.parseColor("#475569"))
+            textSize = 11f
+            paint.isFakeBoldText = true
+            setPadding(0, 0, 0, (4 * density).toInt())
+        })
+        body.addView(locationEdit)
 
-        AlertDialog.Builder(this)
-            .setTitle("Edit Flood Report")
-            .setView(layout)
-            .setPositiveButton("Save") { _, _ ->
-                val newLoc = locationEdit.text.toString().trim()
-                val newSev = severitySpinner.selectedItem.toString()
-                val newNotes = notesEdit.text.toString().trim()
+        body.addView(TextView(this).apply {
+            text = "WATER SEVERITY LEVEL"
+            setTextColor(Color.parseColor("#475569"))
+            textSize = 11f
+            paint.isFakeBoldText = true
+            setPadding(0, (12 * density).toInt(), 0, (4 * density).toInt())
+        })
+        body.addView(severitySpinner)
 
-                if (newLoc.isNotEmpty()) {
-                    val updated = ReportRepository.updateReport(this, report.id, newLoc, newSev, newNotes)
-                    populateProfileReports()
-                    if (updated) {
-                        Toast.makeText(this, "Report updated successfully!", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(this, "Only the author can edit this report.", Toast.LENGTH_SHORT).show()
-                    }
-                }
+        body.addView(TextView(this).apply {
+            text = "NOTES"
+            setTextColor(Color.parseColor("#475569"))
+            textSize = 11f
+            paint.isFakeBoldText = true
+            setPadding(0, (12 * density).toInt(), 0, (4 * density).toInt())
+        })
+        body.addView(notesEdit)
+
+        val btnRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, (18 * density).toInt(), 0, 0)
+        }
+
+        val btnCancel = Button(this).apply {
+            text = "Cancel"
+            isAllCaps = false
+            setTextColor(Color.parseColor("#4B5563"))
+            setBackgroundResource(R.drawable.btn_severity_default)
+            layoutParams = LinearLayout.LayoutParams(0, (44 * density).toInt(), 1f).apply {
+                marginEnd = (8 * density).toInt()
             }
-            .setNegativeButton("Cancel", null)
-            .show()
+        }
+
+        val btnSave = Button(this).apply {
+            text = "Save Changes"
+            isAllCaps = false
+            setTextColor(Color.parseColor("#0A192F"))
+            paint.isFakeBoldText = true
+            setBackgroundResource(R.drawable.btn_yellow)
+            layoutParams = LinearLayout.LayoutParams(0, (44 * density).toInt(), 1.2f).apply {
+                marginStart = (8 * density).toInt()
+            }
+        }
+
+        btnRow.addView(btnCancel)
+        btnRow.addView(btnSave)
+        body.addView(btnRow)
+        root.addView(body)
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(root)
+            .create()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        btnCancel.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        btnSave.setOnClickListener {
+            val newLoc = locationEdit.text.toString().trim()
+            val newSev = severitySpinner.selectedItem.toString()
+            val newNotes = notesEdit.text.toString().trim()
+
+            if (newLoc.length < 3) {
+                Toast.makeText(this, "Please enter a valid location name.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            dialog.dismiss()
+            val updated = ReportRepository.updateReport(this, report.id, newLoc, newSev, newNotes)
+            populateProfileReports()
+            if (updated) {
+                Toast.makeText(this, "Report updated successfully!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Only the author can edit this report.", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        dialog.show()
     }
 
     private fun showDeleteReportDialog(report: FloodReport) {
@@ -330,20 +442,15 @@ class ProfileActivity : ComponentActivity() {
             return
         }
 
-        AlertDialog.Builder(this)
-            .setTitle("Remove Report")
-            .setMessage("Are you sure you want to remove the report for \"${report.location}\"?")
-            .setPositiveButton("Remove") { _, _ ->
-                val removed = ReportRepository.removeReport(this, report.id)
-                populateProfileReports()
-                if (removed) {
-                    Toast.makeText(this, "Report removed successfully!", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, "Only the author can remove this report.", Toast.LENGTH_SHORT).show()
-                }
+        FloodGuardThemedDialog.showDeleteReport(this, report.location) {
+            val removed = ReportRepository.removeReport(this, report.id)
+            populateProfileReports()
+            if (removed) {
+                Toast.makeText(this, "Report removed successfully!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Only the author can remove this report.", Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Cancel", null)
-            .show()
+        }
     }
 
     private fun setupListeners() {
@@ -419,17 +526,36 @@ class ProfileActivity : ComponentActivity() {
         btnSave.setOnClickListener {
             val newName = nameEdit.text.toString().trim()
             val newContact = contactEdit.text.toString().trim()
+            val contactError = UserSession.getContactValidationError(newContact)
 
             if (newName.isEmpty() || newContact.isEmpty()) {
                 Toast.makeText(this, "Name and contact cannot be empty", Toast.LENGTH_SHORT).show()
+            } else if (contactError != null) {
+                contactEdit.error = contactError
+                contactEdit.requestFocus()
+                Toast.makeText(this, contactError, Toast.LENGTH_LONG).show()
             } else {
                 val username = UserSession.getUsername(this)
+                val db = FloodGuardDatabase.getInstance(this)
+                val existingWithContact = db.getUserByMobile(newContact)
+                if (existingWithContact != null && !existingWithContact.username.equals(username, ignoreCase = true)) {
+                    contactEdit.error = "This mobile number is already in use by another user."
+                    contactEdit.requestFocus()
+                    Toast.makeText(this, "⚠️ This mobile number is already assigned to another account.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                val updated = db.updateUserProfile(username, newName, selectedGender, newContact)
+                if (!updated) {
+                    contactEdit.error = "This mobile number is already in use by another user."
+                    contactEdit.requestFocus()
+                    Toast.makeText(this, "⚠️ Failed to update: This mobile number is already assigned to another account.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
                 profileNameInput.setText(newName)
                 profileGenderInput.setText(selectedGender)
                 profileContactInput.setText(newContact)
 
                 UserSession.updateProfile(this, newName, selectedGender, newContact)
-                FloodGuardDatabase(this).updateUserProfile(username, newName, selectedGender, newContact)
                 FloodGuardApiService.updateUserProfileInBackend(username, newName, selectedGender, newContact)
                 populateProfileReports()
                 Toast.makeText(this, "Profile information updated successfully!", Toast.LENGTH_SHORT).show()
@@ -443,10 +569,52 @@ class ProfileActivity : ComponentActivity() {
     private fun showChangePasswordDialog() {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_change_password, null)
         val currentPass = dialogView.findViewById<EditText>(R.id.dialogCurrentPassInput)
+        val toggleCurrentPass = dialogView.findViewById<ImageView>(R.id.toggleCurrentPassVisibility)
         val newPass = dialogView.findViewById<EditText>(R.id.dialogNewPassInput)
+        val toggleNewPass = dialogView.findViewById<ImageView>(R.id.toggleNewPassVisibility)
         val confirmPass = dialogView.findViewById<EditText>(R.id.dialogConfirmPassInput)
+        val toggleConfirmPass = dialogView.findViewById<ImageView>(R.id.toggleConfirmPassVisibility)
         val btnCancel = dialogView.findViewById<Button>(R.id.btnPasswordCancel)
         val btnSave = dialogView.findViewById<Button>(R.id.btnPasswordSave)
+
+        var isCurrentPassVisible = false
+        toggleCurrentPass?.setOnClickListener {
+            isCurrentPassVisible = !isCurrentPassVisible
+            if (isCurrentPassVisible) {
+                currentPass.transformationMethod = HideReturnsTransformationMethod.getInstance()
+                toggleCurrentPass.setImageResource(R.drawable.ic_visibility)
+            } else {
+                currentPass.transformationMethod = PasswordTransformationMethod.getInstance()
+                toggleCurrentPass.setImageResource(R.drawable.ic_visibility_off)
+            }
+            currentPass.setSelection(currentPass.text.length)
+        }
+
+        var isNewPassVisible = false
+        toggleNewPass?.setOnClickListener {
+            isNewPassVisible = !isNewPassVisible
+            if (isNewPassVisible) {
+                newPass.transformationMethod = HideReturnsTransformationMethod.getInstance()
+                toggleNewPass.setImageResource(R.drawable.ic_visibility)
+            } else {
+                newPass.transformationMethod = PasswordTransformationMethod.getInstance()
+                toggleNewPass.setImageResource(R.drawable.ic_visibility_off)
+            }
+            newPass.setSelection(newPass.text.length)
+        }
+
+        var isConfirmPassVisible = false
+        toggleConfirmPass?.setOnClickListener {
+            isConfirmPassVisible = !isConfirmPassVisible
+            if (isConfirmPassVisible) {
+                confirmPass.transformationMethod = HideReturnsTransformationMethod.getInstance()
+                toggleConfirmPass.setImageResource(R.drawable.ic_visibility)
+            } else {
+                confirmPass.transformationMethod = PasswordTransformationMethod.getInstance()
+                toggleConfirmPass.setImageResource(R.drawable.ic_visibility_off)
+            }
+            confirmPass.setSelection(confirmPass.text.length)
+        }
 
         val dialog = AlertDialog.Builder(this)
             .setView(dialogView)
@@ -458,44 +626,227 @@ class ProfileActivity : ComponentActivity() {
         }
 
         btnSave.setOnClickListener {
-            val currentText = currentPass.text.toString()
-            val newText = newPass.text.toString()
-            val confirmText = confirmPass.text.toString()
+            val currentText = currentPass.text.toString().trim()
+            val newText = newPass.text.toString().trim()
+            val confirmText = confirmPass.text.toString().trim()
 
             when {
                 currentText.isEmpty() || newText.isEmpty() || confirmText.isEmpty() -> {
                     Toast.makeText(this, "Please fill in all password fields", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
                 }
-                newText.length < 6 -> {
-                    Toast.makeText(this, "Password must be at least 6 characters", Toast.LENGTH_SHORT).show()
+                UserSession.getPasswordValidationError(newText) != null -> {
+                    val err = UserSession.getPasswordValidationError(newText)!!
+                    newPass.error = err
+                    newPass.requestFocus()
+                    Toast.makeText(this, "⚠️ $err", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
                 }
                 newText != confirmText -> {
                     Toast.makeText(this, "New passwords do not match", Toast.LENGTH_SHORT).show()
-                }
-                else -> {
-                    Toast.makeText(this, "Password changed successfully!", Toast.LENGTH_SHORT).show()
-                    dialog.dismiss()
+                    return@setOnClickListener
                 }
             }
+
+            val username = UserSession.getUsername(this)
+            val db = FloodGuardDatabase.getInstance(this)
+            val savedUser = db.getUserByUsername(username)
+            val hashedCurrent = UserSession.hashPassword(currentText)
+
+            if (savedUser != null && savedUser.password != hashedCurrent && savedUser.password != currentText) {
+                Toast.makeText(this, "Current password is incorrect", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val mobileNumber = savedUser?.mobile?.ifBlank { null }
+                ?: UserSession.getUserContact(this).ifBlank { null }
+
+            if (mobileNumber.isNullOrBlank()) {
+                Toast.makeText(
+                    this,
+                    "No registered mobile number found for this account. Please update your contact number first.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@setOnClickListener
+            }
+
+            dialog.dismiss()
+            showPasswordChangeOtpDialog(username, mobileNumber, currentText, newText)
         }
 
         dialog.show()
     }
 
-    private fun confirmLogout() {
-        AlertDialog.Builder(this)
-            .setTitle("Log Out")
-            .setMessage("Are you sure you want to log out of FloodGuard?")
-            .setPositiveButton("Log Out") { _, _ ->
-                UserSession.logout(this)
-                val intent = Intent(this, LoginActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+    /**
+     * Sends an OTP to the account's registered mobile number before authorizing a password change
+     */
+    private fun showPasswordChangeOtpDialog(
+        username: String,
+        mobileNumber: String,
+        currentPass: String,
+        newPass: String
+    ) {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_otp_verification, null)
+        val tvPhone = dialogView.findViewById<TextView>(R.id.tvOtpPhoneNumber)
+        val tvSubtitle = dialogView.findViewById<TextView>(R.id.tvOtpSubtitle)
+        val etOtp = dialogView.findViewById<EditText>(R.id.etOtpCode)
+        val tvStatus = dialogView.findViewById<TextView>(R.id.tvOtpStatusMessage)
+        val tvTimer = dialogView.findViewById<TextView>(R.id.tvOtpTimer)
+        val btnResend = dialogView.findViewById<TextView>(R.id.btnResendOtp)
+        val btnCancel = dialogView.findViewById<Button>(R.id.btnOtpCancel)
+        val btnVerify = dialogView.findViewById<Button>(R.id.btnOtpVerify)
+
+        tvSubtitle?.text = "Verify Password Change (OTP)"
+        val formattedPhone = FirebaseAuthOtpHelper.formatToE164(mobileNumber)
+        tvPhone.text = formattedPhone
+        btnVerify.text = "Verify & Change Password"
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        var countDownTimer: CountDownTimer? = null
+
+        fun startCountdown() {
+            countDownTimer?.cancel()
+            btnResend.isEnabled = false
+            btnResend.setTextColor(Color.parseColor("#94A3B8"))
+
+            countDownTimer = object : CountDownTimer(60000, 1000) {
+                override fun onTick(millisUntilFinished: Long) {
+                    val sec = millisUntilFinished / 1000
+                    tvTimer.text = String.format(Locale.US, "Resend code in %02d:%02d", sec / 60, sec % 60)
                 }
-                startActivity(intent)
-                finish()
+
+                override fun onFinish() {
+                    tvTimer.text = "Didn't receive SMS code?"
+                    btnResend.isEnabled = true
+                    btnResend.setTextColor(Color.parseColor("#FFA500"))
+                }
+            }.start()
+        }
+
+        fun sendVerificationCode() {
+            tvStatus.text = "Sending security verification code via SMS..."
+            tvStatus.setTextColor(Color.parseColor("#0284C7"))
+            startCountdown()
+
+            FirebaseAuthOtpHelper.sendOtp(
+                activity = this,
+                mobileNumber = mobileNumber,
+                callback = object : FirebaseAuthOtpHelper.OtpCallback {
+                    override fun onCodeSent(formattedPhone: String) {
+                        tvStatus.text = "Verification SMS sent to $formattedPhone. Enter the 6-digit code above to authorize password change."
+                        tvStatus.setTextColor(Color.parseColor("#0284C7"))
+                    }
+
+                    override fun onAutoVerified() {
+                        countDownTimer?.cancel()
+                        dialog.dismiss()
+                        applyPasswordChange(username, currentPass, newPass)
+                    }
+
+                    override fun onError(message: String) {
+                        tvStatus.text = message
+                        tvStatus.setTextColor(Color.parseColor("#DC2626"))
+                    }
+
+                    override fun onFallbackCodeGenerated(code: String, reason: String?) {
+                        runOnUiThread {
+                            if (!reason.isNullOrBlank()) {
+                                tvStatus.text = "Firebase: $reason (Using local security code)"
+                                tvStatus.setTextColor(Color.parseColor("#D97706"))
+                            }
+                            FloodGuardThemedDialog.showSecurityCode(
+                                activity = this@ProfileActivity,
+                                code = code,
+                                notice = "Password Change Security Code for $formattedPhone. Valid for 5 minutes."
+                            ) { enteredCode ->
+                                etOtp.setText(enteredCode)
+                            }
+                        }
+                    }
+                }
+            )
+        }
+
+        btnResend.setOnClickListener {
+            sendVerificationCode()
+        }
+
+        btnCancel.setOnClickListener {
+            countDownTimer?.cancel()
+            dialog.dismiss()
+            Toast.makeText(this, "Password change cancelled.", Toast.LENGTH_SHORT).show()
+        }
+
+        btnVerify.setOnClickListener {
+            val code = etOtp.text.toString().trim()
+            if (code.length < 6) {
+                tvStatus.text = "Please enter the full 6-digit verification code."
+                tvStatus.setTextColor(Color.parseColor("#DC2626"))
+                return@setOnClickListener
             }
-            .setNegativeButton("Cancel", null)
-            .show()
+
+            btnVerify.isEnabled = false
+            tvStatus.text = "Verifying code..."
+            tvStatus.setTextColor(Color.parseColor("#0284C7"))
+
+            FirebaseAuthOtpHelper.verifyCode(
+                enteredCode = code,
+                onSuccess = {
+                    countDownTimer?.cancel()
+                    dialog.dismiss()
+                    applyPasswordChange(username, currentPass, newPass)
+                },
+                onError = { errMsg ->
+                    btnVerify.isEnabled = true
+                    tvStatus.text = errMsg
+                    tvStatus.setTextColor(Color.parseColor("#DC2626"))
+                }
+            )
+        }
+
+        dialog.show()
+        sendVerificationCode()
+    }
+
+    private fun applyPasswordChange(username: String, currentPass: String, newPass: String) {
+        val db = FloodGuardDatabase.getInstance(this)
+        val savedUser = db.getUserByUsername(username)
+        val hashedNew = UserSession.hashPassword(newPass)
+
+        if (savedUser != null) {
+            db.updatePassword(username, hashedNew)
+        } else {
+            db.registerUser(
+                UserEntity(
+                    fullName = UserSession.getUserName(this),
+                    gender = UserSession.getUserGender(this),
+                    mobile = UserSession.getUserContact(this),
+                    username = username,
+                    password = hashedNew,
+                )
+            )
+        }
+
+        // Also update password on the backend server
+        FloodGuardApiService.updatePasswordInBackend(username, currentPass, newPass)
+
+        Toast.makeText(this, "✅ Password changed successfully!", Toast.LENGTH_LONG).show()
+    }
+
+    private fun confirmLogout() {
+        FloodGuardThemedDialog.showLogout(this) {
+            UserSession.logout(this)
+            val intent = Intent(this, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+            startActivity(intent)
+            finish()
+        }
     }
 
     private fun setupBottomNavigation() {
@@ -504,23 +855,9 @@ class ProfileActivity : ComponentActivity() {
             startActivity(intent)
             finish()
         }
-        findViewById<LinearLayout>(R.id.navHome)?.setOnClickListener {
-            val intent = Intent(this, DashboardActivity::class.java)
-            startActivity(intent)
-            finish()
+        findViewById<ImageView>(R.id.menuIcon)?.setOnClickListener { view ->
+            NavigationMenuHelper.showMenu(this, view)
         }
-        findViewById<LinearLayout>(R.id.navMap)?.setOnClickListener {
-            val intent = Intent(this, MapActivity::class.java)
-            startActivity(intent)
-            finish()
-        }
-        findViewById<LinearLayout>(R.id.navAlerts)?.setOnClickListener {
-            val intent = Intent(this, AlertsActivity::class.java)
-            startActivity(intent)
-            finish()
-        }
-        findViewById<LinearLayout>(R.id.navProfile)?.setOnClickListener {
-            // Already on Profile
-        }
+        EdgeNavigationHelper.attachEdgeNavigation(this, EdgeNavigationHelper.NavTab.PROFILE)
     }
 }

@@ -1,102 +1,109 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="180dp"
+    android:layout_width="145dp"
     android:layout_height="wrap_content"
-    android:background="@drawable/dropdown_menu_bg"
+    android:background="@drawable/bg_nav_dropdown_menu"
     android:orientation="vertical"
-    android:padding="8dp">
+    android:padding="6dp">
 
     <!-- Profile Item -->
     <LinearLayout
         android:id="@+id/menuProfile"
         android:layout_width="match_parent"
-        android:layout_height="40dp"
+        android:layout_height="36dp"
+        android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp">
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp">
 
         <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
             android:src="@drawable/ic_profile"
             android:contentDescription="Profile" />
 
         <TextView
             android:layout_width="wrap_content"
-            android:layout_height="16dp"
-            android:layout_marginStart="12dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
             android:text="Profile"
-            android:textColor="#000000"
-            android:textSize="14sp"
+            android:textColor="#0F172A"
+            android:textSize="13sp"
             android:textStyle="bold" />
     </LinearLayout>
 
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#1E293B" />
+        android:layout_marginStart="4dp"
+        android:layout_marginEnd="4dp"
+        android:background="#F1F5F9" />
 
     <!-- About Item -->
     <LinearLayout
         android:id="@+id/menuAbout"
         android:layout_width="match_parent"
-        android:layout_height="40dp"
+        android:layout_height="36dp"
+        android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp">
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp">
 
         <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
             android:src="@drawable/ic_info"
             android:contentDescription="About" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="10dp"
             android:text="About"
-            android:textColor="#000000"
-            android:textSize="14sp"
+            android:textColor="#0F172A"
+            android:textSize="13sp"
             android:textStyle="bold" />
     </LinearLayout>
 
     <View
         android:layout_width="match_parent"
-        android:layout_height="1.5dp"
-        android:background="#1E293B" />
+        android:layout_height="1dp"
+        android:layout_marginStart="4dp"
+        android:layout_marginEnd="4dp"
+        android:background="#F1F5F9" />
 
     <!-- Log-Out Item -->
     <LinearLayout
         android:id="@+id/menuLogout"
         android:layout_width="match_parent"
-        android:layout_height="44dp"
+        android:layout_height="36dp"
+        android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp">
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp">
 
         <ImageView
-            android:layout_width="22dp"
-            android:layout_height="22dp"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
             android:src="@drawable/ic_logout"
             android:contentDescription="Log-Out" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="10dp"
             android:text="Log-Out"
             android:textColor="#EF4444"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold" />
     </LinearLayout>
 

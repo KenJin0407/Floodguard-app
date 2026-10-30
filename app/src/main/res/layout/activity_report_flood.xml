@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/app_bg">
@@ -9,74 +8,130 @@
     <RelativeLayout
         android:id="@+id/headerBar"
         android:layout_width="match_parent"
-        android:layout_height="64dp"
+        android:layout_height="wrap_content"
+        android:minHeight="76dp"
         android:background="#0A192F"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
+        android:paddingTop="36dp"
+        android:paddingBottom="12dp"
         android:layout_alignParentTop="true">
 
         <!-- Back Button -->
-        <ImageView
-            android:id="@+id/backButton"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+        <LinearLayout
+            android:id="@+id/btnHeaderBack"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
-            android:layout_centerVertical="true"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_back"
-            android:tint="#FFA500"
-            app:tint="#FFA500"
-            android:padding="6dp"
+            android:layout_alignParentTop="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="4dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="8dp"
+            android:background="?attr/selectableItemBackground"
             android:clickable="true"
-            android:focusable="true"
-            android:contentDescription="Back" />
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:src="@drawable/ic_back"
+                android:contentDescription="Back" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="2dp"
+                android:text="Back"
+                android:textColor="#FFA500"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Menu Icon -->
+        <ImageView
+            android:id="@+id/menuIcon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_alignTop="@id/btnHeaderBack"
+            android:layout_alignBottom="@id/btnHeaderBack"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:src="@drawable/ic_menu"
+            android:contentDescription="Menu" />
 
         <!-- Screen Title -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
+            android:layout_below="@id/btnHeaderBack"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="6dp"
             android:text="Report Flood Level"
             android:textColor="@android:color/white"
             android:textSize="17sp"
             android:textStyle="bold" />
-
-        <!-- Menu Icon -->
-        <ImageView
-            android:id="@+id/menuIcon"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:layout_alignParentEnd="true"
-            android:layout_centerVertical="true"
-            android:src="@drawable/ic_menu"
-            android:contentDescription="Menu" />
     </RelativeLayout>
 
     <!-- Main Content -->
-    <com.example.floodguard.InputScrollView
+    <ScrollView
+        android:id="@+id/reportScrollView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/headerBar"
-        android:layout_alignParentBottom="true"
         android:fillViewport="true"
+        android:isScrollContainer="true"
         android:scrollbars="vertical"
+        android:fadeScrollbars="false"
+        android:overScrollMode="always"
         android:clipToPadding="false">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:paddingStart="20dp"
+            android:paddingTop="20dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="100dp">
 
-            <!-- Photo Upload Box -->
+            <!-- Flood Photo Box Header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="FLOOD PHOTO EVIDENCE"
+                    android:textColor="@color/text_primary"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text="* (CAMERA OR UPLOAD)"
+                    android:textColor="#D32F2F"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Camera / Upload Preview Box -->
             <FrameLayout
                 android:id="@+id/photoPickerBox"
                 android:layout_width="match_parent"
-                android:layout_height="140dp"
+                android:layout_height="145dp"
                 android:background="@drawable/dashed_border"
                 android:clickable="true"
                 android:focusable="true"
-                android:layout_marginBottom="16dp">
+                android:layout_marginBottom="10dp">
 
                 <ImageView
                     android:id="@+id/photoPreview"
@@ -84,7 +139,24 @@
                     android:layout_height="match_parent"
                     android:scaleType="centerCrop"
                     android:visibility="gone"
-                    android:contentDescription="Photo Preview" />
+                    android:contentDescription="Captured Photo Preview" />
+
+                <TextView
+                    android:id="@+id/tvPhotoBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom|center_horizontal"
+                    android:layout_marginBottom="8dp"
+                    android:background="@drawable/icon_badge_bg"
+                    android:paddingStart="12dp"
+                    android:paddingTop="5dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="5dp"
+                    android:text="📷 Flood Photo Attached • Tap to Change"
+                    android:textColor="@android:color/white"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
 
                 <LinearLayout
                     android:id="@+id/photoPlaceholder"
@@ -95,25 +167,66 @@
                     android:orientation="vertical">
 
                     <ImageView
-                        android:layout_width="52dp"
-                        android:layout_height="52dp"
-                        android:src="@drawable/ic_add_circle"
-                        android:contentDescription="Add Photo" />
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:src="@drawable/ic_camera"
+                        android:contentDescription="Capture or Upload Photo" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="Tap to add a photo of the flooded road"
+                        android:layout_marginTop="6dp"
+                        android:text="Tap to capture or upload flood photo"
                         android:textColor="@color/text_primary"
                         android:textSize="13sp"
                         android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Take a live camera photo or upload from gallery"
+                        android:textColor="#64748B"
+                        android:textSize="11sp" />
                 </LinearLayout>
             </FrameLayout>
 
+            <!-- Dual Action Buttons: Camera & Upload Photo -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="16dp">
+
+                <Button
+                    android:id="@+id/btnTakeCameraPhoto"
+                    android:layout_width="0dp"
+                    android:layout_height="42dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/btn_severity_selected"
+                    android:text="📷 Take Photo"
+                    android:textAllCaps="false"
+                    android:textColor="@android:color/white"
+                    android:textSize="12.5sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnUploadGalleryPhoto"
+                    android:layout_width="0dp"
+                    android:layout_height="42dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/btn_yellow"
+                    android:text="🖼️ Upload Photo"
+                    android:textAllCaps="false"
+                    android:textColor="#0A192F"
+                    android:textSize="12.5sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
             <!-- Location Section -->
             <LinearLayout
-                android:id="@+id/locationSectionContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/search_bg"
@@ -162,6 +275,7 @@
                         android:background="@null"
                         android:completionThreshold="1"
                         android:dropDownWidth="match_parent"
+                        android:dropDownHeight="220dp"
                         android:dropDownVerticalOffset="8dp"
                         android:popupBackground="@drawable/dropdown_menu_bg"
                         android:hint="Detecting device location or type to search..."
@@ -299,55 +413,65 @@
                 android:background="@drawable/search_bg"
                 android:padding="12dp"
                 android:gravity="top|start"
-                android:hint="Notes (optional)"
+                android:hint="Notes (optional) • Karagdagang detalye..."
                 android:text="Sasakyan po namin, hindi na kaya tumawid"
                 android:textSize="13sp"
                 android:textColor="#333333"
                 android:layout_marginBottom="24dp"
-                android:inputType="textMultiLine" />
+                android:scrollbars="vertical"
+                android:overScrollMode="always"
+                android:inputType="textMultiLine|textCapSentences" />
 
-            <TextView
+            <!-- SMS Broadcast Option (Hidden: Handled via In-App Notifications) -->
+            <CheckBox
+                android:id="@+id/chkSendSmsOnSubmit"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Submitting this report automatically sends a push alert to FloodGuard users."
+                android:text="Broadcast Emergency Alert"
                 android:textColor="@color/text_primary"
                 android:textSize="13sp"
-                android:layout_marginBottom="16dp" />
+                android:textStyle="bold"
+                android:checked="false"
+                android:visibility="gone"
+                android:layout_marginBottom="10dp" />
 
-            <!-- Buttons Row (Back & Submit) -->
-            <LinearLayout
+            <!-- Daily Report Limit Indicator -->
+            <TextView
+                android:id="@+id/tvRemainingReports"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginTop="8dp">
+                android:text="Daily Report Limit: 4 / 4 remaining today (Resets daily)"
+                android:textColor="#0066CC"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:layout_marginBottom="12dp" />
 
-                <Button
-                    android:id="@+id/backButtonBottom"
-                    android:layout_width="0dp"
-                    android:layout_height="52dp"
-                    android:layout_marginEnd="8dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/btn_back_blue"
-                    android:text="BACK"
-                    android:textColor="@android:color/white"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
+            <!-- Submit Button -->
+            <Button
+                android:id="@+id/submitReportButton"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:background="@drawable/btn_yellow"
+                android:text="SUBMIT REPORT"
+                android:textColor="#000000"
+                android:textSize="15sp"
+                android:textStyle="bold" />
 
-                <!-- Submit Button -->
-                <Button
-                    android:id="@+id/submitReportButton"
-                    android:layout_width="0dp"
-                    android:layout_height="52dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/btn_yellow"
-                    android:text="SUBMIT REPORT"
-                    android:textColor="#000000"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:layout_marginStart="8dp" />
-            </LinearLayout>
+            <!-- Back / Cancel Button -->
+            <Button
+                android:id="@+id/btnCancelReport"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="24dp"
+                android:background="@drawable/btn_severity_default"
+                android:text="← BACK / CANCEL"
+                android:textColor="#1E293B"
+                android:textSize="14sp"
+                android:textStyle="bold" />
 
         </LinearLayout>
-    </com.example.floodguard.InputScrollView>
+    </ScrollView>
 
 </RelativeLayout>

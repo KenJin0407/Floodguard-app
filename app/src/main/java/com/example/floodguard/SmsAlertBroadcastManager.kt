@@ -16,6 +16,10 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
+/**
+ * Broadcast manager for dispatching community emergency flood alert SMS messages
+ * and managing broadcast history and notification triggers based on geolocation proximity.
+ */
 object SmsAlertBroadcastManager {
 
     private const val PREF_NAME = "floodguard_sms_broadcasts"
@@ -117,7 +121,7 @@ object SmsAlertBroadcastManager {
         }
 
         val distKm = distanceInKm(lat1, lon1, lat2, lon2)
-        if (distKm <= 2.0 && (tokens1.intersect(tokens2).isNotEmpty() || r1.severity.equals(r2.severity, ignoreCase = true))) {
+        if (distKm <= 0.4 && (specific1.intersect(specific2).isNotEmpty() || r1.severity.equals(r2.severity, ignoreCase = true))) {
             return true
         }
 
@@ -126,7 +130,8 @@ object SmsAlertBroadcastManager {
 
     fun findSimilarActiveReports(targetReport: FloodReport, allReports: List<FloodReport>): List<FloodReport> {
         if (targetReport.severityLevel == SeverityLevel.CLEARED) return emptyList()
-        return allReports.filter { candidate ->
+        val snapshot = allReports.toList()
+        return snapshot.filter { candidate ->
             candidate.severityLevel != SeverityLevel.CLEARED && areReportsSimilar(targetReport, candidate)
         }
     }
@@ -149,7 +154,7 @@ object SmsAlertBroadcastManager {
             if (currentContact.isNotBlank()) {
                 phones.add(currentContact)
             }
-            val dbUsers = FloodGuardDatabase(context).getAllUsers()
+            val dbUsers = FloodGuardDatabase.getInstance(context).getAllUsers()
             for (u in dbUsers) {
                 val formatted = formatPhoneE164(u.mobile)
                 if (formatted.isNotBlank()) {
@@ -225,7 +230,13 @@ object SmsAlertBroadcastManager {
                 sendSmsViaFreeApi(phone, smsMessage)
             }
             onBroadcastTriggered?.invoke(broadcast)
-            FloatingAlertManager.deliverBroadcastIfNearby(context, broadcast, forcePopUp = true)
+            val currentUsername = UserSession.getUsername(context)
+            val currentFullName = UserSession.getUserName(context)
+            if (!broadcast.isAuthoredBy(currentUsername, currentFullName)) {
+                FloatingAlertManager.deliverBroadcastIfNearby(context, broadcast, forcePopUp = false)
+            } else {
+                markBroadcastSeen(context, broadcast.id)
+            }
         }
     }
 

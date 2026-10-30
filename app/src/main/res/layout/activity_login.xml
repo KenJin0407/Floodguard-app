@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0D1433"
+    android:background="@color/text_primary"
     android:gravity="center"
     android:orientation="vertical"
     android:padding="24dp">
@@ -20,13 +20,11 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:text="FLOODGUARD"
-        android:textColor="@color/app_bg"
+        android:textColor="@android:color/white"
         android:textSize="24sp"
         android:textStyle="bold" />
 
     <!-- Username -->
-
-    <!-- Password -->
     <EditText
         android:id="@+id/usernameField"
         android:layout_width="match_parent"
@@ -34,23 +32,61 @@
         android:layout_marginTop="24dp"
         android:background="@color/text_secondary"
         android:hint="Username"
+        android:inputType="textNoSuggestions"
+        android:singleLine="true"
+        android:maxLines="1"
+        android:imeOptions="actionNext"
+        android:textColor="@android:color/white"
+        android:textColorHint="#CBD5E1"
         android:padding="12dp" />
 
-    <EditText
-        android:id="@+id/passwordField"
+    <!-- Password Field with Toggle Eye -->
+    <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:background="@color/text_secondary"
-        android:hint="Password"
-        android:inputType="textPassword"
-        android:padding="12dp" />
+        android:layout_marginTop="12dp">
+
+        <EditText
+            android:id="@+id/passwordField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/text_secondary"
+            android:hint="Password"
+            android:inputType="textPassword"
+            android:singleLine="true"
+            android:maxLines="1"
+            android:imeOptions="actionDone"
+            android:textColor="@android:color/white"
+            android:textColorHint="#CBD5E1"
+            android:paddingStart="12dp"
+            android:paddingTop="12dp"
+            android:paddingEnd="46dp"
+            android:paddingBottom="12dp" />
+
+        <ImageView
+            android:id="@+id/togglePasswordVisibility"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="12dp"
+            android:clickable="true"
+            android:contentDescription="Toggle Password Visibility"
+            android:focusable="true"
+            android:padding="2dp"
+            android:src="@drawable/ic_visibility_off" />
+    </RelativeLayout>
 
     <!-- Forgot Password -->
     <TextView
+        android:id="@+id/forgotPasswordLink"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:padding="4dp"
         android:text="Forgot password?"
         android:textColor="@color/light_blue_200" />
 
@@ -76,7 +112,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Don't have an account?"
-            android:textColor="@color/text_secondary" />
+            android:textColor="@android:color/white" />
 
         <TextView
             android:id="@+id/createAccountLink"

@@ -9,10 +9,13 @@
     <RelativeLayout
         android:id="@+id/headerBar"
         android:layout_width="match_parent"
-        android:layout_height="64dp"
+        android:layout_height="wrap_content"
+        android:minHeight="76dp"
         android:background="#0A192F"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
+        android:paddingTop="36dp"
+        android:paddingBottom="12dp"
         android:layout_alignParentTop="true">
 
         <!-- Logo & Title -->
@@ -20,9 +23,11 @@
             android:id="@+id/logoLayout"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerVertical="true"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
+            android:paddingTop="8dp"
             android:clickable="true"
             android:focusable="true">
 
@@ -58,36 +63,83 @@
 
         <!-- Notification Bell & Menu -->
         <LinearLayout
+            android:id="@+id/headerActionsLayout"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"
-            android:layout_centerVertical="true"
+            android:layout_alignParentTop="true"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingTop="8dp">
 
-            <ImageView
-                android:id="@+id/bellIcon"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:src="@drawable/ic_bell"
-                android:contentDescription="Notifications"
-                android:layout_marginEnd="16dp" />
+            <FrameLayout
+                android:id="@+id/btnNotificationBell"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Notification Alerts">
+
+                <ImageView
+                    android:id="@+id/bellIcon"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_bell"
+                    android:contentDescription="Notifications" />
+
+                <!-- Red Notification Badge -->
+                <TextView
+                    android:id="@+id/tvBellBadge"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_gravity="top|end"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginEnd="2dp"
+                    android:background="@drawable/badge_verified_green"
+                    android:backgroundTint="#EF4444"
+                    android:gravity="center"
+                    android:textColor="@android:color/white"
+                    android:textSize="9sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+            </FrameLayout>
 
             <ImageView
                 android:id="@+id/menuIcon"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
                 android:src="@drawable/ic_menu"
-                android:contentDescription="Menu" />
+                android:contentDescription="Menu"
+                android:clickable="true"
+                android:focusable="true" />
         </LinearLayout>
+
+        <!-- Screen Title -->
+        <TextView
+            android:id="@+id/tvDashboardScreenTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/logoLayout"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="6dp"
+            android:text="Dashboard"
+            android:textColor="@android:color/white"
+            android:textSize="18sp"
+            android:textStyle="bold" />
     </RelativeLayout>
 
     <!-- Main Scrollable Content -->
-    <ScrollView
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/dashboardMainScrollView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/headerBar"
-        android:layout_above="@id/bottomNav"
+        android:layout_alignParentBottom="true"
         android:fillViewport="true">
 
         <LinearLayout
@@ -138,18 +190,81 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="ROAD MAP"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:textColor="@color/text_primary"
-                android:gravity="center"
                 android:layout_marginTop="16dp"
-                android:layout_marginBottom="8dp" />
+                android:layout_marginBottom="8dp"
+                android:gravity="center"
+                android:text="ROAD MAP"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <!-- Active Navigation Route Synced Banner (Shows when Safe Route is active on Road Map) -->
+            <LinearLayout
+                android:id="@+id/cardDashboardActiveRoute"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:background="@drawable/map_container_bg"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:visibility="gone">
+
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:id="@+id/tvDashboardRouteBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentStart="true"
+                        android:background="@drawable/badge_verified_green"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="3dp"
+                        android:paddingBottom="3dp"
+                        android:text="🛡️ FLOOD-SAFE ROUTE ACTIVE"
+                        android:textColor="@android:color/white"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvDashboardRouteEtaDist"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </RelativeLayout>
+
+                <TextView
+                    android:id="@+id/tvDashboardRouteTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvDashboardRouteHazardAlert"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="#DC2626"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+            </LinearLayout>
 
             <!-- ROAD MAP Card Container -->
             <FrameLayout
+                android:id="@+id/dashboardMapContainer"
                 android:layout_width="match_parent"
-                android:layout_height="200dp"
+                android:layout_height="220dp"
                 android:background="@drawable/map_container_bg"
                 android:padding="2dp"
                 android:layout_marginBottom="16dp">
@@ -172,68 +287,79 @@
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="8dp" />
 
-            <!-- Main Weather Card -->
-            <LinearLayout
+            <!-- Main Weather Card with Animated Background -->
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@drawable/card_bg_dark"
-                android:orientation="vertical"
-                android:padding="20dp"
-                android:gravity="center_horizontal"
                 android:layout_marginBottom="12dp">
 
-                <!-- Main Temperature -->
-                <TextView
-                    android:id="@+id/mainTempText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="29°"
-                    android:textSize="56sp"
-                    android:textStyle="bold"
-                    android:textColor="@android:color/white" />
+                <!-- Animated Weather Background Effect -->
+                <com.example.floodguard.WeatherAnimationView
+                    android:id="@+id/weatherAnimationView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
 
-                <!-- Weather Condition & Air Quality -->
-                <TextView
-                    android:id="@+id/weatherDescriptionText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Thunderstorm  25° / 33°   Air quality: 72 - Moderate"
-                    android:textSize="12sp"
-                    android:textColor="#E2E8F0"
-                    android:gravity="center"
-                    android:layout_marginTop="4dp" />
-
-                <!-- Real-time Rain Meter Bar -->
+                <!-- Main Weather Card Content -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center"
-                    android:layout_marginTop="12dp"
-                    android:background="#1E293B"
-                    android:padding="8dp">
+                    android:orientation="vertical"
+                    android:padding="20dp"
+                    android:gravity="center_horizontal">
 
-                    <ImageView
-                        android:layout_width="20dp"
-                        android:layout_height="20dp"
-                        android:layout_gravity="center_vertical"
-                        android:src="@drawable/ic_rain"
-                        android:contentDescription="Rain Gauge" />
-
+                    <!-- Main Temperature -->
                     <TextView
-                        android:id="@+id/rainMeterText"
+                        android:id="@+id/mainTempText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_gravity="center_vertical"
-                        android:gravity="center"
-                        android:text="Rainfall: 2.5 mm/h (Moderate Rain)"
-                        android:textColor="#81D4FA"
-                        android:textSize="13sp"
+                        android:text="29°"
+                        android:textSize="56sp"
                         android:textStyle="bold"
-                        android:layout_marginStart="8dp" />
-                </LinearLayout>
+                        android:textColor="@android:color/white" />
 
-            </LinearLayout>
+                    <!-- Weather Condition & Air Quality -->
+                    <TextView
+                        android:id="@+id/weatherDescriptionText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Thunderstorm  25° / 33°   Air quality: 72 - Moderate"
+                        android:textSize="12sp"
+                        android:textColor="#E2E8F0"
+                        android:gravity="center"
+                        android:layout_marginTop="4dp" />
+
+                    <!-- Real-time Rain Meter Bar -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center"
+                        android:layout_marginTop="12dp"
+                        android:background="#991E293B"
+                        android:padding="8dp">
+
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_gravity="center_vertical"
+                            android:src="@drawable/ic_rain"
+                            android:contentDescription="Rain Gauge" />
+
+                        <TextView
+                            android:id="@+id/rainMeterText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_vertical"
+                            android:gravity="center"
+                            android:text="Light Rain: 1.2 mm/h • Normal Flow"
+                            android:textColor="#81D4FA"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:layout_marginStart="8dp" />
+                    </LinearLayout>
+
+                </LinearLayout>
+            </FrameLayout>
 
             <!-- Hourly Forecast Bar -->
             <HorizontalScrollView
@@ -250,7 +376,7 @@
 
                 <LinearLayout
                     android:id="@+id/hourlyForecastContainer"
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center">
@@ -456,152 +582,173 @@
                 </LinearLayout>
             </HorizontalScrollView>
 
-            <!-- COMMUNITY FLOOD REPORTS Header -->
-            <RelativeLayout
+            <!-- COMMUNITY FLOOD REPORTS PANEL -->
+            <LinearLayout
+                android:id="@+id/communityReportsPanel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:layout_marginBottom="12dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignParentStart="true"
-                    android:layout_centerVertical="true"
-                    android:text="COMMUNITY FLOOD REPORTS"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/text_primary" />
-
-                <TextView
-                    android:id="@+id/btnViewAllAlerts"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignParentEnd="true"
-                    android:layout_centerVertical="true"
-                    android:text="View All >"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:textColor="#0066CC"
-                    android:padding="4dp"
-                    android:clickable="true"
-                    android:focusable="true" />
-            </RelativeLayout>
-
-            <!-- Community Reports Container -->
-            <LinearLayout
-                android:id="@+id/communityReportsContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_marginBottom="28dp"
+                android:background="@drawable/bg_alerts_panel"
+                android:elevation="2dp"
                 android:orientation="vertical"
-                android:layout_marginBottom="24dp" />
+                android:padding="16dp">
+
+                <!-- Header: Title + Count + View All -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentStart="true"
+                        android:layout_centerVertical="true"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="COMMUNITY FLOOD REPORTS"
+                            android:textColor="@color/text_primary"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvDashboardAlertsCountBadge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:background="@drawable/badge_verified_green"
+                            android:backgroundTint="#0066CC"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
+                            android:paddingTop="2dp"
+                            android:paddingBottom="2dp"
+                            android:text="0"
+                            android:textColor="@android:color/white"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/btnViewAllAlerts"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:padding="4dp"
+                        android:text="View All >"
+                        android:textColor="#0066CC"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </RelativeLayout>
+
+                <!-- Filter Chips Row -->
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/dashboardFilterChipsContainer"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/chipDashboardAll"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="8dp"
+                            android:background="@drawable/bg_chip_selected"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp"
+                            android:paddingTop="6dp"
+                            android:paddingBottom="6dp"
+                            android:text="All"
+                            android:textColor="@android:color/white"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/chipDashboardNotPassable"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="8dp"
+                            android:background="@drawable/bg_chip_unselected"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp"
+                            android:paddingTop="6dp"
+                            android:paddingBottom="6dp"
+                            android:text="🔴 Not Passable"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/chipDashboardCaution"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="8dp"
+                            android:background="@drawable/bg_chip_unselected"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp"
+                            android:paddingTop="6dp"
+                            android:paddingBottom="6dp"
+                            android:text="🟡 Caution"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/chipDashboardCleared"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/bg_chip_unselected"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp"
+                            android:paddingTop="6dp"
+                            android:paddingBottom="6dp"
+                            android:text="🟢 Cleared"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </HorizontalScrollView>
+
+                <!-- Scrollable Alerts List Inside Panel (Infinite Scroll in Panel) -->
+                <androidx.core.widget.NestedScrollView
+                    android:id="@+id/dashboardAlertsScrollView"
+                    android:layout_width="match_parent"
+                    android:layout_height="350dp"
+                    android:fillViewport="true"
+                    android:overScrollMode="always"
+                    android:scrollbars="vertical"
+                    android:fadeScrollbars="false">
+
+                    <LinearLayout
+                        android:id="@+id/communityReportsContainer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+                </androidx.core.widget.NestedScrollView>
+            </LinearLayout>
 
         </LinearLayout>
-    </ScrollView>
-
-    <!-- Bottom Navigation Bar -->
-    <LinearLayout
-        android:id="@+id/bottomNav"
-        android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:background="@color/bottom_nav_bg"
-        android:orientation="horizontal"
-        android:layout_alignParentBottom="true"
-        android:elevation="8dp">
-
-        <!-- Tab 1: Home -->
-        <LinearLayout
-            android:id="@+id/navHome"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:clickable="true"
-            android:focusable="true">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@drawable/ic_home"
-                android:contentDescription="Home" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Home"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:textColor="@color/text_primary" />
-        </LinearLayout>
-
-        <!-- Tab 2: Map -->
-        <LinearLayout
-            android:id="@+id/navMap"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:clickable="true"
-            android:focusable="true">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@drawable/ic_map_pin"
-                android:contentDescription="Map" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Map"
-                android:textSize="11sp"
-                android:textColor="#78909C" />
-        </LinearLayout>
-
-        <!-- Tab 3: Alerts -->
-        <LinearLayout
-            android:id="@+id/navAlerts"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:clickable="true"
-            android:focusable="true">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@drawable/ic_alert"
-                android:contentDescription="Alerts" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Alerts"
-                android:textSize="11sp"
-                android:textColor="#D32F2F" />
-        </LinearLayout>
-
-        <!-- Tab 4: Profile -->
-        <LinearLayout
-            android:id="@+id/navProfile"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:clickable="true"
-            android:focusable="true">
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@drawable/ic_profile"
-                android:contentDescription="Profile" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Profile"
-                android:textSize="11sp"
-                android:textColor="#78909C" />
-        </LinearLayout>
-
-    </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
 
 </RelativeLayout>

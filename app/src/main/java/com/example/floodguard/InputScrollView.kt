@@ -7,6 +7,10 @@ import android.widget.ScrollView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
+/**
+ * Custom ScrollView that handles window insets for the on-screen software keyboard (IME).
+ * Automatically scrolls to ensure the active input field remains visible when typing.
+ */
 class InputScrollView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -22,12 +26,15 @@ class InputScrollView @JvmOverloads constructor(
         isFillViewport = true
         clipToPadding = false
         ViewCompat.setOnApplyWindowInsetsListener(this) { view, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val bottomInset = if (imeBottom > 0) imeBottom else systemBars.bottom
+
             view.setPadding(
                 initialPaddingLeft,
-                initialPaddingTop,
+                initialPaddingTop + systemBars.top,
                 initialPaddingRight,
-                initialPaddingBottom + imeBottom,
+                initialPaddingBottom + bottomInset,
             )
 
             if (insets.isVisible(WindowInsetsCompat.Type.ime())) {
