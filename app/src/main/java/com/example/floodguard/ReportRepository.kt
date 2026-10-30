@@ -322,83 +322,27 @@ object ReportRepository {
         val db = FloodGuardDatabase.getInstance(context)
         val allCurrentReports = (cachedReports?.toList() ?: db.getAllReports()).toMutableList()
 
-        // 1. Rolling Heartbeat & Pin Consolidation: Check for an active report in the same flood area
-        val existingNearby = allCurrentReports.find { candidate ->
+        // Count corroborating active reports in the same area without swallowing the author's own report
+        val nearbyCorroborating = allCurrentReports.filter { candidate ->
             candidate.id != report.id &&
-            candidate.severityLevel != SeverityLevel.CLEARED &&
-            SmsAlertBroadcastManager.areReportsSimilar(report, candidate)
+                candidate.severityLevel != SeverityLevel.CLEARED &&
+                SmsAlertBroadcastManager.areReportsSimilar(report, candidate)
+        }
+        if (nearbyCorroborating.isNotEmpty()) {
+            report.reportCount = nearbyCorroborating.size + 1
+            report.stillFloodedCount = maxOf(report.stillFloodedCount, nearbyCorroborating.size)
         }
 
-        val effectiveReport: FloodReport
-        if (existingNearby != null) {
-            // Heartbeat extension: Refresh timestamp to now (+2 hours life)
-            val now = System.currentTimeMillis()
-            existingNearby.timestamp = now
-            existingNearby.reportCount += 1
-            existingNearby.stillFloodedCount += 1
-
-            // Escalate severity if new report is more severe
-            val isNewMoreSevere = when {
-                report.severityLevel == SeverityLevel.NOT_PASSABLE -> true
-                report.severityLevel == SeverityLevel.HEAVY_VEHICLES_ONLY && existingNearby.severityLevel == SeverityLevel.CLEARED -> true
-                else -> false
-            }
-            if (isNewMoreSevere || existingNearby.severityLevel == SeverityLevel.CLEARED) {
-                existingNearby.severity = report.severity
-                existingNearby.severityLevel = report.severityLevel
-                existingNearby.statusText = report.statusText
-            }
-
-            if (report.notes.isNotBlank()) {
-                existingNearby.notes = report.notes
-            }
-            if (!report.photoUri.isNullOrBlank()) {
-                existingNearby.photoUri = report.photoUri
-            }
-
-            db.updateReport(
-                existingNearby.id,
-                existingNearby.location,
-                existingNearby.severity,
-                existingNearby.statusText,
-                existingNearby.notes,
-                existingNearby.severityLevel,
-                existingNearby.authorUsername,
-                existingNearby.reporterName,
-                existingNearby.photoUri,
-                existingNearby.timestamp
-            )
-            db.updateReportVotes(
-                existingNearby.id,
-                existingNearby.stillFloodedCount,
-                existingNearby.waterSubsidedCount,
-                existingNearby.severityLevel.name,
-                existingNearby.statusText,
-                existingNearby.severity,
-                existingNearby.timestamp
-            )
-
-            // Re-order so updated hazard is at the top
-            allCurrentReports.removeAll { it.id == existingNearby.id }
-            allCurrentReports.add(0, existingNearby)
-            synchronized(this) {
-                cachedReports = allCurrentReports
-            }
-            effectiveReport = existingNearby
-        } else {
-            db.insertReport(report)
-            synchronized(this) {
-                if (cachedReports == null) {
-                    loadReports(context)
-                } else {
-                    val list = cachedReports?.toMutableList() ?: mutableListOf()
-                    list.removeAll { it.id == report.id }
-                    list.add(0, report)
-                    cachedReports = list
-                }
-            }
-            effectiveReport = report
+        // Always insert the author's report as a distinct entry so the author sees their own report on Alerts & Profile
+        db.insertReport(report)
+        synchronized(this) {
+            val list = (cachedReports?.toMutableList() ?: allCurrentReports)
+            list.removeAll { it.id == report.id }
+            list.add(0, report)
+            list.sortByDescending { it.timestamp }
+            cachedReports = list
         }
+        val effectiveReport = report
 
         val similarActive = SmsAlertBroadcastManager.findSimilarActiveReports(effectiveReport, cachedReports?.toList() ?: allCurrentReports)
         var localBroadcast: FloodBroadcast? = null
@@ -414,10 +358,6 @@ object ReportRepository {
 
         FloodGuardApiService.submitReportToBackend(effectiveReport) { backendStatus ->
             if (backendStatus.rejectedByServer) {
-                db.deleteReport(effectiveReport.id)
-                synchronized(this) {
-                    cachedReports?.removeAll { it.id == effectiveReport.id }
-                }
                 onSubmitted(backendStatus)
                 return@submitReportToBackend
             }

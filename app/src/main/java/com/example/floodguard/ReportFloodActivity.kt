@@ -85,6 +85,8 @@ class ReportFloodActivity : ComponentActivity() {
     private lateinit var tvRemainingReports: TextView
     private lateinit var submitReportButton: Button
     private lateinit var tvPhotoBadge: TextView
+    private lateinit var btnTakeCameraPhoto: Button
+    private lateinit var btnUploadGalleryPhoto: Button
 
     private lateinit var btnAnkleDeep: Button
     private lateinit var btnKneeDeep: Button
@@ -148,13 +150,52 @@ class ReportFloodActivity : ComponentActivity() {
             } else {
                 FloodGuardThemedDialog.showReportContentWarning(
                     activity = this,
-                    message = "Camera permission is required to capture a real-time flood photo. Gallery uploads are disabled to ensure all flood reports are authentic.",
-                    title = "Camera Permission Required",
-                    subtitle = "Live Photo Verification Policy",
-                    badgeText = "📷 Permission Needed",
-                    buttonText = "Allow Camera"
+                    message = "Camera permission was denied. You can either allow camera access or upload a flood photo from your gallery instead.",
+                    title = "Camera Permission Needed",
+                    subtitle = "Flood Photo Options",
+                    badgeText = "📷 or 🖼️ Choose Option",
+                    buttonText = "Upload from Gallery"
                 ) {
-                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    launchPhotoUploadPicker()
+                }
+            }
+        }
+
+    private val pickImageLauncher: ActivityResultLauncher<String> =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            if (uri != null) {
+                val photoData = ReportPhotoHelper.persistPickedPhoto(this, uri)
+                val finalBitmap = ReportPhotoHelper.loadBitmap(this, photoData ?: uri.toString())
+                val validation = ReportPhotoHelper.validateFloodPhoto(finalBitmap)
+                if (!validation.isValid) {
+                    FloodGuardThemedDialog.showReportContentWarning(
+                        activity = this,
+                        message = validation.errorMessage ?: "The uploaded photo appears unclear, blank, or corrupted. Please select a clear photo of the flooded street.",
+                        title = "Invalid Uploaded Photo",
+                        subtitle = "Photo Quality Verification",
+                        badgeText = "⚠️ Try Another Photo",
+                        buttonText = "Choose Another Photo"
+                    ) {
+                        showPhotoSourceChooserDialog()
+                    }
+                    selectedImageUri = null
+                    persistedPhotoData = null
+                    photoPreview.setImageDrawable(null)
+                    photoPreview.visibility = View.GONE
+                    tvPhotoBadge.visibility = View.GONE
+                    photoPlaceholder.visibility = View.VISIBLE
+                } else {
+                    selectedImageUri = uri
+                    persistedPhotoData = photoData
+                    if (finalBitmap != null) {
+                        photoPreview.setImageBitmap(finalBitmap)
+                    } else {
+                        photoPreview.setImageURI(uri)
+                    }
+                    photoPreview.visibility = View.VISIBLE
+                    tvPhotoBadge.text = "🖼️ Uploaded Photo Ready • Tap to Change"
+                    tvPhotoBadge.visibility = View.VISIBLE
+                    photoPlaceholder.visibility = View.GONE
                 }
             }
         }
@@ -175,13 +216,13 @@ class ReportFloodActivity : ComponentActivity() {
                 if (!validation.isValid) {
                     FloodGuardThemedDialog.showReportContentWarning(
                         activity = this,
-                        message = validation.errorMessage ?: "The captured camera photo appears unclear, blank, or corrupted. Please retake a clear photo of the flooded street.",
+                        message = validation.errorMessage ?: "The captured camera photo appears unclear, blank, or corrupted. Please retake or upload a clear photo of the flooded street.",
                         title = "Invalid Camera Photo",
                         subtitle = "Photo Quality Verification",
                         badgeText = "⚠️ Retake Needed",
-                        buttonText = "Retake Photo"
+                        buttonText = "Choose Photo Again"
                     ) {
-                        checkCameraPermissionAndCapture()
+                        showPhotoSourceChooserDialog()
                     }
                     selectedImageUri = null
                     persistedPhotoData = null
@@ -198,7 +239,7 @@ class ReportFloodActivity : ComponentActivity() {
                         photoPreview.setImageURI(uri)
                     }
                     photoPreview.visibility = View.VISIBLE
-                    tvPhotoBadge.text = "📷 Ready for Gemini AI • Tap to Retake"
+                    tvPhotoBadge.text = "📷 Camera Photo Ready • Tap to Change"
                     tvPhotoBadge.visibility = View.VISIBLE
                     photoPlaceholder.visibility = View.GONE
                 }
@@ -211,6 +252,59 @@ class ReportFloodActivity : ComponentActivity() {
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
+    }
+
+    private fun launchPhotoUploadPicker() {
+        try {
+            pickImageLauncher.launch("image/*")
+        } catch (e: Exception) {
+            Toast.makeText(this, "Unable to open photo picker: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun showPhotoSourceChooserDialog() {
+        if (isFinishing || isDestroyed) return
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_floodguard_confirm, null)
+        val tvSubtitle = dialogView.findViewById<TextView>(R.id.dialogHeaderSubtitle)
+        val tvTitle = dialogView.findViewById<TextView>(R.id.dialogConfirmTitle)
+        val tvMessage = dialogView.findViewById<TextView>(R.id.dialogConfirmMessage)
+        val btnCancel = dialogView.findViewById<Button>(R.id.btnDialogCancel)
+        val btnConfirm = dialogView.findViewById<Button>(R.id.btnDialogConfirm)
+
+        tvSubtitle?.text = "Flood Photo Verification"
+        tvTitle?.text = "Attach Flood Photo"
+        tvMessage?.text = "Choose how you would like to attach your flood photo. Both camera captures and gallery uploads are verified by FloodGuard Gemini AI."
+
+        btnCancel?.apply {
+            text = "🖼️ Upload Photo"
+            setBackgroundResource(R.drawable.btn_yellow)
+            setTextColor(Color.parseColor("#0A192F"))
+        }
+
+        btnConfirm?.apply {
+            text = "📷 Take Photo"
+            setBackgroundResource(R.drawable.btn_severity_selected)
+            setTextColor(Color.WHITE)
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(true)
+            .create()
+
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        btnCancel?.setOnClickListener {
+            dialog.dismiss()
+            launchPhotoUploadPicker()
+        }
+
+        btnConfirm?.setOnClickListener {
+            dialog.dismiss()
+            checkCameraPermissionAndCapture()
+        }
+
+        dialog.show()
     }
 
     private fun launchLiveCamera() {
@@ -306,6 +400,8 @@ class ReportFloodActivity : ComponentActivity() {
         photoPreview = findViewById(R.id.photoPreview)
         photoPlaceholder = findViewById(R.id.photoPlaceholder)
         tvPhotoBadge = findViewById(R.id.tvPhotoBadge)
+        btnTakeCameraPhoto = findViewById(R.id.btnTakeCameraPhoto)
+        btnUploadGalleryPhoto = findViewById(R.id.btnUploadGalleryPhoto)
         locationInput = findViewById(R.id.locationInput)
         btnRefreshLocation = findViewById(R.id.btnRefreshLocation)
         btnClearLocation = findViewById(R.id.btnClearLocation)
@@ -654,7 +750,13 @@ class ReportFloodActivity : ComponentActivity() {
 
     private fun setupPhotoPicker() {
         photoPickerBox.setOnClickListener {
+            showPhotoSourceChooserDialog()
+        }
+        btnTakeCameraPhoto.setOnClickListener {
             checkCameraPermissionAndCapture()
+        }
+        btnUploadGalleryPhoto.setOnClickListener {
+            launchPhotoUploadPicker()
         }
     }
 
@@ -777,10 +879,10 @@ class ReportFloodActivity : ComponentActivity() {
                 isFlood = false,
                 confidence = 1.0,
                 estimatedSeverity = "None",
-                reason = "A live camera photo of the flood is required before submitting your report to prove the real-time situation on the road."
+                reason = "A flood photo (via camera capture or gallery upload) is required before submitting your report to verify the situation on the road."
             )
             showGeminiResultDialog(emptyResult, null) {
-                checkCameraPermissionAndCapture()
+                showPhotoSourceChooserDialog()
             }
             return
         }
@@ -796,7 +898,7 @@ class ReportFloodActivity : ComponentActivity() {
                 reason = photoCheck.errorMessage ?: "The selected image appears blank, single-colored, or corrupted. Please provide a clear photo of the flood."
             )
             showGeminiResultDialog(invalidResult, photoBitmap) {
-                checkCameraPermissionAndCapture()
+                showPhotoSourceChooserDialog()
             }
             return
         }
@@ -896,7 +998,7 @@ class ReportFloodActivity : ComponentActivity() {
                         isFlood = false,
                         confidence = 1.0,
                         estimatedSeverity = "Duplicate",
-                        reason = "This flood photo has already been submitted by '$reporterDisplay' for ${duplicateReport.location}. Re-uploading or sharing the same photo across accounts is not allowed. Please take a new, original photo.",
+                        reason = "This flood photo has already been submitted by '$reporterDisplay' for ${duplicateReport.location}. Re-uploading or sharing the same photo across accounts is not allowed. Please attach a new, original photo.",
                         isErrorOrTimeout = false,
                         rejectionCategory = "DUPLICATE_PHOTO"
                     )
@@ -917,7 +1019,7 @@ class ReportFloodActivity : ComponentActivity() {
                 if (!aiResult.isValid) {
                     submitReportButton.isEnabled = true
                     showGeminiResultDialog(aiResult, photoBitmap) {
-                        checkCameraPermissionAndCapture()
+                        showPhotoSourceChooserDialog()
                     }
                     return@runOnUiThread
                 }
@@ -1036,7 +1138,7 @@ class ReportFloodActivity : ComponentActivity() {
                 }
             }
             tvReason.text = result.reason
-            btnAction.text = if (photoBitmap != null) "Retake Camera Photo" else "Capture Flood Photo"
+            btnAction.text = if (photoBitmap != null) "Change Flood Photo" else "Attach Flood Photo"
         } else {
             layoutStatusBadge.setBackgroundResource(R.drawable.badge_ai_success)
             ivStatusIcon.setImageResource(R.drawable.ic_ai_sparkle)

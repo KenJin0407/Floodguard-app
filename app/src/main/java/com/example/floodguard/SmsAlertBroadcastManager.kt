@@ -121,7 +121,7 @@ object SmsAlertBroadcastManager {
         }
 
         val distKm = distanceInKm(lat1, lon1, lat2, lon2)
-        if (distKm <= 2.0 && (tokens1.intersect(tokens2).isNotEmpty() || r1.severity.equals(r2.severity, ignoreCase = true))) {
+        if (distKm <= 0.4 && (specific1.intersect(specific2).isNotEmpty() || r1.severity.equals(r2.severity, ignoreCase = true))) {
             return true
         }
 

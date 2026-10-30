@@ -99,6 +99,8 @@ object FloodGuardApiService {
                                 val lat = item.optDouble("lat", 14.6958)
                                 val lon = item.optDouble("lon", 121.1207)
                                 val reporterUsername = item.optString("reporterUsername", "")
+                                val authorUsername = item.optString("authorUsername", reporterUsername)
+                                val reporterName = item.optString("reporterName", "")
 
                                 val level = try {
                                     SeverityLevel.valueOf(severityLevelStr)
@@ -118,6 +120,8 @@ object FloodGuardApiService {
                                         photoUri = photoUri,
                                         lat = lat,
                                         lon = lon,
+                                        authorUsername = authorUsername,
+                                        reporterName = reporterName,
                                         reporterUsername = reporterUsername,
                                     )
                                 )

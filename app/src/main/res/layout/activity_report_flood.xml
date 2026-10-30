@@ -97,7 +97,7 @@
             android:paddingEnd="20dp"
             android:paddingBottom="100dp">
 
-            <!-- Live Camera Flood Photo Box Header -->
+            <!-- Flood Photo Box Header -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -108,7 +108,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="LIVE FLOOD PHOTO"
+                    android:text="FLOOD PHOTO EVIDENCE"
                     android:textColor="@color/text_primary"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -117,13 +117,13 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="6dp"
-                    android:text="* (CAMERA REQUIRED)"
+                    android:text="* (CAMERA OR UPLOAD)"
                     android:textColor="#D32F2F"
                     android:textSize="11sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
-            <!-- Camera Capture Box -->
+            <!-- Camera / Upload Preview Box -->
             <FrameLayout
                 android:id="@+id/photoPickerBox"
                 android:layout_width="match_parent"
@@ -131,7 +131,7 @@
                 android:background="@drawable/dashed_border"
                 android:clickable="true"
                 android:focusable="true"
-                android:layout_marginBottom="16dp">
+                android:layout_marginBottom="10dp">
 
                 <ImageView
                     android:id="@+id/photoPreview"
@@ -152,7 +152,7 @@
                     android:paddingTop="5dp"
                     android:paddingEnd="12dp"
                     android:paddingBottom="5dp"
-                    android:text="📷 Camera Photo Attached • Tap to Retake"
+                    android:text="📷 Flood Photo Attached • Tap to Change"
                     android:textColor="@android:color/white"
                     android:textSize="11sp"
                     android:textStyle="bold"
@@ -170,13 +170,13 @@
                         android:layout_width="48dp"
                         android:layout_height="48dp"
                         android:src="@drawable/ic_camera"
-                        android:contentDescription="Capture Photo" />
+                        android:contentDescription="Capture or Upload Photo" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:text="Tap to capture live flood photo"
+                        android:text="Tap to capture or upload flood photo"
                         android:textColor="@color/text_primary"
                         android:textSize="13sp"
                         android:textStyle="bold" />
@@ -185,11 +185,45 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="Live camera photo required (Gallery upload disabled)"
+                        android:text="Take a live camera photo or upload from gallery"
                         android:textColor="#64748B"
                         android:textSize="11sp" />
                 </LinearLayout>
             </FrameLayout>
+
+            <!-- Dual Action Buttons: Camera & Upload Photo -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="16dp">
+
+                <Button
+                    android:id="@+id/btnTakeCameraPhoto"
+                    android:layout_width="0dp"
+                    android:layout_height="42dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/btn_severity_selected"
+                    android:text="📷 Take Photo"
+                    android:textAllCaps="false"
+                    android:textColor="@android:color/white"
+                    android:textSize="12.5sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnUploadGalleryPhoto"
+                    android:layout_width="0dp"
+                    android:layout_height="42dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/btn_yellow"
+                    android:text="🖼️ Upload Photo"
+                    android:textAllCaps="false"
+                    android:textColor="#0A192F"
+                    android:textSize="12.5sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
 
             <!-- Location Section -->
             <LinearLayout
